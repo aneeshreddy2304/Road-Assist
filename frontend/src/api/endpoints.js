@@ -12,6 +12,9 @@ export const getNearbyMechanics = (params) =>
 export const getMyMechanicProfile = () =>
   API.get("/mechanics/me");
 
+export const getMechanicProfile = (id, params) =>
+  API.get(`/mechanics/${id}`, { params });
+
 export const getMechanicDashboard = (id) =>
   API.get(`/mechanics/${id}/dashboard`);
 

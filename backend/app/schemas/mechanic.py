@@ -15,6 +15,22 @@ class MechanicMe(BaseModel):
     total_reviews: int
 
 
+class MechanicPublicProfile(BaseModel):
+    mechanic_id: str
+    user_id: str
+    name: str
+    phone: str | None = None
+    address: str | None = None
+    specialization: str | None = None
+    vehicle_types: list[str] = []
+    is_available: bool
+    rating: float
+    total_reviews: int
+    lat: float
+    lng: float
+    distance_km: float | None = None
+
+
 class MechanicNearbyResult(BaseModel):
     mechanic_id: str
     user_id: str

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Circle } from "react-leaflet";
-import { getNearbyMechanics, searchParts, getMyVehicles, createRequest } from "../api/endpoints";
-import { Card, Spinner, StatusBadge } from "../components/UI";
-import { MapPin, Search as SearchIcon, Star, Wrench, Package, Navigation } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline } from "react-leaflet";
+import { useLocation, useNavigate } from "react-router-dom";
+import { getNearbyMechanics, searchParts, getMyVehicles, createRequest, getMechanicParts } from "../api/endpoints";
+import { Card, Spinner, EmptyState } from "../components/UI";
+import { MapPin, Search as SearchIcon, Star, Wrench, Navigation, X, Crosshair } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -17,6 +18,8 @@ L.Icon.Default.mergeOptions({
 const HYD_CENTER = [17.385, 78.4867];
 
 export default function Search() {
+  const navigate = useNavigate();
+  const pageLocation = useLocation();
   const [tab, setTab] = useState("mechanics"); // "mechanics" | "parts"
   const [location, setLocation] = useState({ lat: HYD_CENTER[0], lng: HYD_CENTER[1] });
   const [radius, setRadius] = useState(10);
@@ -26,6 +29,7 @@ export default function Search() {
   const [loading, setLoading]     = useState(false);
   const [selected, setSelected]   = useState(null); // selected mechanic
   const [showRequest, setShowRequest] = useState(false);
+  const [inventoryMechanic, setInventoryMechanic] = useState(null);
 
   // Get user's real location on mount
   useEffect(() => {
@@ -34,6 +38,13 @@ export default function Search() {
       () => {} // fallback to Hyderabad centre
     );
   }, []);
+
+  useEffect(() => {
+    const selectedId = pageLocation.state?.selectedMechanicId;
+    if (!selectedId || mechanics.length === 0) return;
+    const matched = mechanics.find((item) => item.mechanic_id === selectedId);
+    if (matched) setSelected(matched);
+  }, [pageLocation.state, mechanics]);
 
   // Auto-search mechanics when location/radius changes
   useEffect(() => {
@@ -63,6 +74,18 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const refreshLocation = () => {
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {}
+    );
+  };
+
+  const openRoute = (mechanic) => {
+    const url = `https://www.google.com/maps/dir/${location.lat},${location.lng}/${mechanic.lat},${mechanic.lng}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -97,6 +120,24 @@ export default function Search() {
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <Navigation size={15} className="text-brand-500" />
               <span>Lat: {location.lat.toFixed(4)}, Lng: {location.lng.toFixed(4)}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={refreshLocation}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:border-brand-300 hover:text-brand-700"
+              >
+                <Crosshair size={14} />
+                Use Current Location
+              </button>
+              {selected ? (
+                <button
+                  onClick={() => openRoute(selected)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
+                >
+                  <Navigation size={14} />
+                  Open Route
+                </button>
+              ) : null}
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Radius: {radius} km</label>
@@ -133,14 +174,27 @@ export default function Search() {
                 <MechanicCard
                   key={m.mechanic_id}
                   mechanic={m}
+                  userLocation={location}
                   selected={selected?.mechanic_id === m.mechanic_id}
                   onSelect={() => setSelected(m)}
+                  onViewInventory={() => setInventoryMechanic(m)}
                   onRequest={() => { setSelected(m); setShowRequest(true); }}
                 />
               ))}
               {tab === "mechanics" && mechanics.length === 0 && (
                 <p className="text-center text-sm text-gray-400 py-8">No mechanics found in this radius</p>
               )}
+              {tab === "mechanics" && selected ? (
+                <Card className="border-brand-200 bg-brand-50 p-4">
+                  <p className="text-sm font-semibold text-gray-900">{selected.name}</p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Exact mechanic location: {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Your current shared location: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+                  </p>
+                </Card>
+              ) : null}
 
               {tab === "parts" && parts.map((p, i) => (
                 <PartCard key={i} part={p} />
@@ -182,6 +236,15 @@ export default function Search() {
                 </Popup>
               </Marker>
             ))}
+            {tab === "mechanics" && selected ? (
+              <Polyline
+                positions={[
+                  [location.lat, location.lng],
+                  [selected.lat, selected.lng],
+                ]}
+                pathOptions={{ color: "#ea580c", weight: 4 }}
+              />
+            ) : null}
           </MapContainer>
         </div>
       </div>
@@ -194,11 +257,20 @@ export default function Search() {
           onClose={() => setShowRequest(false)}
         />
       )}
+
+      {inventoryMechanic && (
+        <MechanicInventoryModal
+          mechanic={inventoryMechanic}
+          onClose={() => setInventoryMechanic(null)}
+        />
+      )}
     </div>
   );
 }
 
-function MechanicCard({ mechanic: m, selected, onSelect, onRequest }) {
+function MechanicCard({ mechanic: m, userLocation, selected, onSelect, onViewInventory, onRequest }) {
+  const navigate = useNavigate();
+
   return (
     <div
       onClick={onSelect}
@@ -228,12 +300,31 @@ function MechanicCard({ mechanic: m, selected, onSelect, onRequest }) {
         </div>
       </div>
       {selected && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRequest(); }}
-          className="mt-2 w-full bg-brand-600 text-white text-xs py-1.5 rounded-lg hover:bg-brand-700 transition-colors"
-        >
-          Request Assistance
-        </button>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/mechanics/${m.mechanic_id}`, {
+                state: { mechanic: m, userLocation },
+              });
+            }}
+            className="w-full border border-gray-200 bg-white text-gray-700 text-xs py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            View Profile
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onViewInventory(); }}
+            className="w-full border border-brand-200 bg-white text-brand-700 text-xs py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
+          >
+            View Parts
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRequest(); }}
+            className="w-full bg-brand-600 text-white text-xs py-1.5 rounded-lg hover:bg-brand-700 transition-colors"
+          >
+            Request Assistance
+          </button>
+        </div>
       )}
     </div>
   );
@@ -352,6 +443,76 @@ function RequestModal({ mechanic, userLocation, onClose }) {
             </form>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function MechanicInventoryModal({ mechanic, onClose }) {
+  const [parts, setParts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadInventory() {
+      try {
+        const res = await getMechanicParts(mechanic.mechanic_id);
+        setParts(res.data);
+      } catch (err) {
+        setError(err.response?.data?.detail || "Failed to load inventory");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadInventory();
+  }, [mechanic.mechanic_id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">{mechanic.name}</h3>
+            <p className="text-sm text-gray-500">
+              {mechanic.specialization || "General repair"} • {mechanic.distance_km} km away
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="max-h-[28rem] overflow-y-auto px-6 py-4">
+          {loading ? <Spinner /> : null}
+          {!loading && error ? (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+          ) : null}
+          {!loading && !error && parts.length === 0 ? (
+            <EmptyState icon="📦" title="No parts listed" subtitle="This mechanic has not added inventory yet." />
+          ) : null}
+          {!loading && !error && parts.length > 0 ? (
+            <div className="space-y-3">
+              {parts.map((part) => (
+                <div key={part.id} className="rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-gray-900">{part.part_name}</p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Part No: {part.part_number || "Not provided"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900">₹{Number(part.price).toLocaleString("en-IN")}</p>
+                      <p className={`mt-1 text-xs ${part.quantity > 0 ? "text-green-600" : "text-red-600"}`}>
+                        {part.quantity > 0 ? `${part.quantity} in stock` : "Out of stock"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

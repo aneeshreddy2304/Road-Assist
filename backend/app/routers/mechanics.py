@@ -8,7 +8,7 @@ from app.models.user import User
 from app.models.mechanic import Mechanic
 from app.core.security import get_current_user, require_role
 from app.schemas.mechanic import (
-    MechanicNearbyResult, MechanicUpdate, MechanicProfile, MechanicDashboard, MechanicMe
+    MechanicNearbyResult, MechanicUpdate, MechanicProfile, MechanicDashboard, MechanicMe, MechanicPublicProfile
 )
 
 router = APIRouter(prefix="/mechanics", tags=["Mechanics"])
@@ -103,15 +103,54 @@ async def get_my_mechanic_profile(
 # ------------------------------------------------------------------
 # GET /mechanics/:id  — public mechanic profile
 # ------------------------------------------------------------------
-@router.get("/{mechanic_id}", response_model=MechanicProfile)
-async def get_mechanic(mechanic_id: str, db: AsyncSession = Depends(get_db)):
+@router.get("/{mechanic_id}", response_model=MechanicPublicProfile)
+async def get_mechanic(
+    mechanic_id: str,
+    lat: float | None = Query(None),
+    lng: float | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    distance_select = "NULL::FLOAT AS distance_km"
+    params: dict[str, object] = {"mid": mechanic_id}
+
+    if lat is not None and lng is not None:
+        distance_select = """
+            ROUND(
+                CAST(ST_Distance(
+                    m.location,
+                    ST_MakePoint(:lng, :lat)::GEOGRAPHY
+                ) / 1000 AS NUMERIC), 2
+            ) AS distance_km
+        """
+        params["lat"] = lat
+        params["lng"] = lng
+
     result = await db.execute(
-        select(Mechanic).where(Mechanic.id == mechanic_id)
+        text(f"""
+            SELECT
+                m.id AS mechanic_id,
+                m.user_id,
+                u.name,
+                u.phone,
+                m.address,
+                m.specialization,
+                m.vehicle_types,
+                m.is_available,
+                CAST(m.rating AS FLOAT) AS rating,
+                m.total_reviews,
+                ST_Y(m.location::geometry) AS lat,
+                ST_X(m.location::geometry) AS lng,
+                {distance_select}
+            FROM mechanics m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.id = :mid AND u.is_active = TRUE
+        """),
+        params,
     )
-    mechanic = result.scalar_one_or_none()
-    if not mechanic:
+    row = result.mappings().first()
+    if not row:
         raise HTTPException(status_code=404, detail="Mechanic not found")
-    return mechanic
+    return MechanicPublicProfile(**dict(row))
 
 
 # ------------------------------------------------------------------
