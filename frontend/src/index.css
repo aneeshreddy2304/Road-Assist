@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.5rem;
+  z-index: 0;
+}
+.leaflet-pane        { z-index: 1 !important; }
+.leaflet-top,
+.leaflet-bottom      { z-index: 2 !important; }
