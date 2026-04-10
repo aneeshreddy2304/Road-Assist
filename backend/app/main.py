@@ -24,6 +24,7 @@ Connects stranded vehicle owners with nearby roadside mechanics in real time.
     docs_url="/docs",
     redoc_url="/redoc",
 )
+app.openapi_version = "3.0.3"
 
 # CORS — allow the React frontend
 app.add_middleware(
