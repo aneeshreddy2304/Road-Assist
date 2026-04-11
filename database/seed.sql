@@ -1,6 +1,6 @@
 -- ============================================================
 -- RoadAssist — Seed Data
--- City: Hyderabad, India
+-- City: Richmond, Virginia, USA
 -- ============================================================
 
 BEGIN;
@@ -55,24 +55,24 @@ INSERT INTO users (id, name, email, password_hash, phone, role, is_active, creat
 ('fa20aebb-ec3e-40cc-adb3-3e7f712dd7e0', 'Elizabeth Duncan', 'owner25@example.com', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+919728740864', 'owner', TRUE, '2026-03-07 19:21:02+00', '2026-03-27 19:21:02+00');
 
 -- ------------------------------------------------------------
--- Mechanics (spread across Hyderabad localities)
+-- Mechanics (spread across Richmond neighborhoods)
 -- ------------------------------------------------------------
 INSERT INTO mechanics (id, user_id, location, address, specialization, vehicle_types, is_available, rating, total_reviews, created_at, updated_at) VALUES
-('051c2ea0-1148-4215-9c89-0551869a19e6', 'a5547a14-3953-443b-b079-4e0a4f7ea62d', ST_MakePoint(78.428822, 17.440342)::GEOGRAPHY, '12 Banjara Hills Road No. 12, Hyderabad', 'Engine & Transmission', '{car}', TRUE, 4.8, 42, '2026-01-05 19:21:02+00', '2026-03-27 19:21:02+00'),
-('b490aaad-bd37-4205-98c1-3ab24f4c6dd4', 'cdf86f49-3ade-4cc3-8d35-93608f5ef275', ST_MakePoint(78.619347, 17.446146)::GEOGRAPHY, '45 Jubilee Hills Checkpost, Hyderabad', 'Brakes & Suspension', '{bike}', TRUE, 4.5, 28, '2026-01-29 19:21:02+00', '2026-03-29 19:21:02+00'),
-('1faa2e74-fdb1-476f-aebd-065d82c8947a', 'cda94073-0d8b-43a2-9855-89be5eb2cd99', ST_MakePoint(78.415796, 17.39985)::GEOGRAPHY, '78 Hitech City Main Rd, Madhapur, Hyderabad', 'Electrical & Battery', '{car,suv}', TRUE, 4.7, 35, '2026-01-29 19:21:02+00', '2026-03-30 19:21:02+00'),
-('3dd9a728-62e9-4d2d-bb67-10929b547490', '7727ed6c-d14f-4193-a5b2-2a07d791a7a5', ST_MakePoint(78.502858, 17.549384)::GEOGRAPHY, '3 Gachibowli Financial District, Hyderabad', 'Tyres & Wheels', '{car,bike}', FALSE, 3.9, 17, '2026-01-06 19:21:02+00', '2026-03-27 19:21:02+00'),
-('f74850b5-684f-4c74-95da-08818188c168', '3c16f596-6871-4c1f-acac-05038fc8ca10', ST_MakePoint(78.364135, 17.322727)::GEOGRAPHY, '90 LB Nagar Circle, Hyderabad', 'AC & Cooling', '{truck}', TRUE, 4.2, 23, '2026-01-08 19:21:02+00', '2026-03-23 19:21:02+00'),
-('4f7ac86d-7f09-4d39-b28c-d35f4b98e3a9', '349f9527-925d-4856-86d4-d02fee4d8328', ST_MakePoint(78.538234, 17.327412)::GEOGRAPHY, '22 Dilsukhnagar Main Rd, Hyderabad', 'Engine & Brakes', '{car,suv,truck}', TRUE, 4.6, 51, '2026-01-23 19:21:02+00', '2026-03-28 19:21:02+00'),
-('fc591981-6ede-4316-bc19-6b7a06e29e70', '88361e35-0000-46e9-9b51-848399dd52a5', ST_MakePoint(78.476648, 17.49802)::GEOGRAPHY, '5 Secunderabad Station Rd, Hyderabad', 'General Repair', '{bike,car}', TRUE, 3.8, 12, '2026-02-21 19:21:02+00', '2026-03-26 19:21:02+00'),
-('7e3547f4-ef2e-45e0-8d2e-2d764e727647', 'f0da8afd-3fca-4a51-a455-5ef746e14ab2', ST_MakePoint(78.464486, 17.315882)::GEOGRAPHY, '67 Kukatpally Housing Board, Hyderabad', 'Diesel Engines', '{car,suv}', TRUE, 4.9, 67, '2026-01-13 19:21:02+00', '2026-03-29 19:21:02+00'),
-('691d7d75-e6cc-45fd-b37a-2f55a8961a16', '177005b2-86f6-4adb-9b63-c0c7ae7a7c40', ST_MakePoint(78.508734, 17.54903)::GEOGRAPHY, '14 Mehdipatnam Bus Stand Rd, Hyderabad', 'Body & Paint', '{truck,car}', FALSE, 4.1, 19, '2026-01-27 19:21:02+00', '2026-03-23 19:21:02+00'),
-('b9d278ae-4020-498c-bb6f-73a5bd55b338', '9c931e75-afae-42af-90be-e04a68c42a6d', ST_MakePoint(78.608234, 17.54277)::GEOGRAPHY, '33 Tolichowki X Roads, Hyderabad', 'Transmission & Clutch', '{bike}', TRUE, 4.4, 30, '2026-01-03 19:21:02+00', '2026-03-31 19:21:02+00'),
-('3309c0c4-3acd-47de-aa45-01e73a5a9c32', '7d8fc341-a99f-4a26-9b9c-091a2978befe', ST_MakePoint(78.566217, 17.30287)::GEOGRAPHY, '8 Ameerpet Metro Station Rd, Hyderabad', 'Electrical Systems', '{car}', TRUE, 3.7, 8, '2026-01-23 19:21:02+00', '2026-03-26 19:21:02+00'),
-('41d5a5c6-404c-419e-ad76-b7c17f2600bd', '15124876-2b8b-4b90-9d7e-ef364b5a8372', ST_MakePoint(78.511091, 17.470428)::GEOGRAPHY, '55 Begumpet Airport Rd, Hyderabad', 'Fuel Systems', '{suv,car}', TRUE, 4.3, 25, '2026-01-30 19:21:02+00', '2026-03-31 19:21:02+00'),
-('2eedcae2-38de-4c5a-b05c-118d901ef1ee', '49668762-4395-4b9a-9410-d9c889028e96', ST_MakePoint(78.542289, 17.366706)::GEOGRAPHY, '19 Charminar Old City, Hyderabad', 'Exhaust & Emissions', '{bike,car}', FALSE, 4.0, 14, '2026-02-23 19:21:02+00', '2026-03-26 19:21:02+00'),
-('3180bf52-2c62-41e2-8ad9-9a88f27841c6', 'd94f1de0-5d81-4a74-a114-1f2ebdac6a8d', ST_MakePoint(78.48043, 17.327888)::GEOGRAPHY, '41 Uppal Ring Rd, Hyderabad', 'Suspension & Steering', '{car,suv,truck}', TRUE, 4.6, 38, '2026-01-05 19:21:02+00', '2026-03-27 19:21:02+00'),
-('9890930b-d7ab-43c3-bce5-03fd4464d6e6', '3222f24d-4d2b-4e31-802f-4a0d2db2084a', ST_MakePoint(78.636145, 17.413431)::GEOGRAPHY, '7 Kondapur Main Rd, Hyderabad', 'Engine Overhaul', '{bike}', TRUE, 4.8, 55, '2026-02-15 19:21:02+00', '2026-03-31 19:21:02+00');
+('051c2ea0-1148-4215-9c89-0551869a19e6', 'a5547a14-3953-443b-b079-4e0a4f7ea62d', ST_MakePoint(-77.4360, 37.5407)::GEOGRAPHY, '111 E Main St, Downtown Richmond, VA', 'Engine & Transmission', '{car}', TRUE, 4.8, 42, '2026-01-05 19:21:02+00', '2026-03-27 19:21:02+00'),
+('b490aaad-bd37-4205-98c1-3ab24f4c6dd4', 'cdf86f49-3ade-4cc3-8d35-93608f5ef275', ST_MakePoint(-77.4761, 37.5566)::GEOGRAPHY, '2400 W Cary St, Carytown, Richmond, VA', 'Brakes & Suspension', '{bike}', TRUE, 4.5, 28, '2026-01-29 19:21:02+00', '2026-03-29 19:21:02+00'),
+('1faa2e74-fdb1-476f-aebd-065d82c8947a', 'cda94073-0d8b-43a2-9855-89be5eb2cd99', ST_MakePoint(-77.4602, 37.5489)::GEOGRAPHY, '1901 Monument Ave, Museum District, Richmond, VA', 'Electrical & Battery', '{car,suv}', TRUE, 4.7, 35, '2026-01-29 19:21:02+00', '2026-03-30 19:21:02+00'),
+('3dd9a728-62e9-4d2d-bb67-10929b547490', '7727ed6c-d14f-4193-a5b2-2a07d791a7a5', ST_MakePoint(-77.4425, 37.5267)::GEOGRAPHY, '1401 E Cary St, Shockoe Bottom, Richmond, VA', 'Tyres & Wheels', '{car,bike}', FALSE, 3.9, 17, '2026-01-06 19:21:02+00', '2026-03-27 19:21:02+00'),
+('f74850b5-684f-4c74-95da-08818188c168', '3c16f596-6871-4c1f-acac-05038fc8ca10', ST_MakePoint(-77.4197, 37.5319)::GEOGRAPHY, '2900 E Broad St, Church Hill, Richmond, VA', 'AC & Cooling', '{truck}', TRUE, 4.2, 23, '2026-01-08 19:21:02+00', '2026-03-23 19:21:02+00'),
+('4f7ac86d-7f09-4d39-b28c-d35f4b98e3a9', '349f9527-925d-4856-86d4-d02fee4d8328', ST_MakePoint(-77.4869, 37.5483)::GEOGRAPHY, '3300 W Broad St, Scott''s Addition, Richmond, VA', 'Engine & Brakes', '{car,suv,truck}', TRUE, 4.6, 51, '2026-01-23 19:21:02+00', '2026-03-28 19:21:02+00'),
+('fc591981-6ede-4316-bc19-6b7a06e29e70', '88361e35-0000-46e9-9b51-848399dd52a5', ST_MakePoint(-77.4603, 37.5235)::GEOGRAPHY, '700 Semmes Ave, Manchester, Richmond, VA', 'General Repair', '{bike,car}', TRUE, 3.8, 12, '2026-02-21 19:21:02+00', '2026-03-26 19:21:02+00'),
+('7e3547f4-ef2e-45e0-8d2e-2d764e727647', 'f0da8afd-3fca-4a51-a455-5ef746e14ab2', ST_MakePoint(-77.4301, 37.5624)::GEOGRAPHY, '1400 Bellevue Ave, Bellevue, Richmond, VA', 'Diesel Engines', '{car,suv}', TRUE, 4.9, 67, '2026-01-13 19:21:02+00', '2026-03-29 19:21:02+00'),
+('691d7d75-e6cc-45fd-b37a-2f55a8961a16', '177005b2-86f6-4adb-9b63-c0c7ae7a7c40', ST_MakePoint(-77.4817, 37.5137)::GEOGRAPHY, '4300 Forest Hill Ave, Richmond, VA', 'Body & Paint', '{truck,car}', FALSE, 4.1, 19, '2026-01-27 19:21:02+00', '2026-03-23 19:21:02+00'),
+('b9d278ae-4020-498c-bb6f-73a5bd55b338', '9c931e75-afae-42af-90be-e04a68c42a6d', ST_MakePoint(-77.4937, 37.5700)::GEOGRAPHY, '1601 Willow Lawn Dr, Richmond, VA', 'Transmission & Clutch', '{bike}', TRUE, 4.4, 30, '2026-01-03 19:21:02+00', '2026-03-31 19:21:02+00'),
+('3309c0c4-3acd-47de-aa45-01e73a5a9c32', '7d8fc341-a99f-4a26-9b9c-091a2978befe', ST_MakePoint(-77.4478, 37.5901)::GEOGRAPHY, '2600 North Ave, Northside, Richmond, VA', 'Electrical Systems', '{car}', TRUE, 3.7, 8, '2026-01-23 19:21:02+00', '2026-03-26 19:21:02+00'),
+('41d5a5c6-404c-419e-ad76-b7c17f2600bd', '15124876-2b8b-4b90-9d7e-ef364b5a8372', ST_MakePoint(-77.4512, 37.5162)::GEOGRAPHY, '2200 Hull St, Swansboro, Richmond, VA', 'Fuel Systems', '{suv,car}', TRUE, 4.3, 25, '2026-01-30 19:21:02+00', '2026-03-31 19:21:02+00'),
+('2eedcae2-38de-4c5a-b05c-118d901ef1ee', '49668762-4395-4b9a-9410-d9c889028e96', ST_MakePoint(-77.4040, 37.5334)::GEOGRAPHY, '5101 Williamsburg Rd, Fulton, Richmond, VA', 'Exhaust & Emissions', '{bike,car}', FALSE, 4.0, 14, '2026-02-23 19:21:02+00', '2026-03-26 19:21:02+00'),
+('3180bf52-2c62-41e2-8ad9-9a88f27841c6', 'd94f1de0-5d81-4a74-a114-1f2ebdac6a8d', ST_MakePoint(-77.5187, 37.5830)::GEOGRAPHY, '8000 W Broad St, West End, Richmond, VA', 'Suspension & Steering', '{car,suv,truck}', TRUE, 4.6, 38, '2026-01-05 19:21:02+00', '2026-03-27 19:21:02+00'),
+('9890930b-d7ab-43c3-bce5-03fd4464d6e6', '3222f24d-4d2b-4e31-802f-4a0d2db2084a', ST_MakePoint(-77.4374, 37.6024)::GEOGRAPHY, '5500 Lakeside Ave, Richmond, VA', 'Engine Overhaul', '{bike}', TRUE, 4.8, 55, '2026-02-15 19:21:02+00', '2026-03-31 19:21:02+00');
 
 -- ------------------------------------------------------------
 -- Vehicles (2 per owner = 50 vehicles, TS series plates)

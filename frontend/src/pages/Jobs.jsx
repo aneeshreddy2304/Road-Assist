@@ -3,7 +3,7 @@ import { getOpenRequests, listRequests, updateRequestStatus } from "../api/endpo
 import { Card, Spinner, StatusBadge, EmptyState } from "../components/UI";
 import { MapPin, Clock, Car } from "lucide-react";
 
-const HYD = { lat: 17.385, lng: 78.4867 };
+const RICHMOND = { lat: 37.5407, lng: -77.4360 };
 
 export default function Jobs() {
   const [tab, setTab]         = useState("open");
@@ -17,7 +17,7 @@ export default function Jobs() {
     setLoading(true);
     try {
       const [openRes, myRes] = await Promise.all([
-        getOpenRequests({ lat: HYD.lat, lng: HYD.lng, radius_km: 20 }),
+        getOpenRequests({ lat: RICHMOND.lat, lng: RICHMOND.lng, radius_km: 20 }),
         listRequests(),
       ]);
       setOpen(openRes.data);
@@ -113,7 +113,7 @@ function OpenJobCard({ job, onAccept }) {
           </div>
           <p className="text-sm font-medium text-gray-800">{job.problem_desc}</p>
           <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-            <MapPin size={11} /> Hyderabad (location shared on acceptance)
+            <MapPin size={11} /> Exact pickup location shared on acceptance
           </p>
         </div>
         <button

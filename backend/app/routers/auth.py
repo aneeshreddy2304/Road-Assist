@@ -33,8 +33,8 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     if payload.role == "mechanic":
         mechanic = Mechanic(
             user_id=user.id,
-            # Default to Hyderabad city centre until mechanic sets real location
-            location=text("ST_MakePoint(78.4867, 17.3850)::GEOGRAPHY"),
+            # Default to Richmond city centre until mechanic sets a real location.
+            location=text("ST_MakePoint(-77.4360, 37.5407)::GEOGRAPHY"),
         )
         db.add(mechanic)
 
