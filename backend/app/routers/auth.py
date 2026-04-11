@@ -41,33 +41,38 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     await db.commit()
     await db.refresh(user)
 
-    token = create_access_token({"sub": user.id, "role": user.role})
+    token = create_access_token({"sub": str(user.id), "role": str(user.role)})
     return TokenResponse(
         access_token=token,
-        role=user.role,
-        user_id=user.id,
+        role=str(user.role),
+        user_id=str(user.id),
         name=user.name,
     )
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == payload.email))
-    user = result.scalar_one_or_none()
+    try:
+        result = await db.execute(select(User).where(User.email == payload.email))
+        user = result.scalar_one_or_none()
 
-    if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not user or not verify_password(payload.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="Account is deactivated")
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is deactivated")
 
-    token = create_access_token({"sub": user.id, "role": user.role})
-    return TokenResponse(
-        access_token=token,
-        role=user.role,
-        user_id=user.id,
-        name=user.name,
-    )
+        token = create_access_token({"sub": str(user.id), "role": str(user.role)})
+        return TokenResponse(
+            access_token=token,
+            role=str(user.role),
+            user_id=str(user.id),
+            name=user.name,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
 
 
 @router.get("/me", response_model=UserOut)
