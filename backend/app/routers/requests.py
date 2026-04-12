@@ -27,9 +27,31 @@ async def create_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("owner")),
 ):
+    vehicle_check = await db.execute(
+        text("""
+            SELECT id
+            FROM vehicles
+            WHERE id = :vehicle_id AND owner_id = :owner_id
+        """),
+        {"vehicle_id": payload.vehicle_id, "owner_id": current_user.id},
+    )
+    if not vehicle_check.first():
+        raise HTTPException(status_code=403, detail="That vehicle does not belong to you")
+
+    mechanic_id = None
+    if payload.mechanic_id:
+        mechanic_check = await db.execute(
+            select(Mechanic).where(Mechanic.id == payload.mechanic_id)
+        )
+        mechanic = mechanic_check.scalar_one_or_none()
+        if not mechanic:
+            raise HTTPException(status_code=404, detail="Selected mechanic not found")
+        mechanic_id = mechanic.id
+
     # Build location as raw SQL expression via text insert
     req = ServiceRequest(
         owner_id=current_user.id,
+        mechanic_id=mechanic_id,
         vehicle_id=payload.vehicle_id,
         problem_desc=payload.problem_desc,
         status="requested",
@@ -52,7 +74,7 @@ async def create_request(
         request_id=req.id,
         status="requested",
         updated_by=current_user.id,
-        note="Owner submitted the request",
+        note="Owner submitted the request" if not mechanic_id else "Owner requested a specific mechanic",
     ))
 
     await db.commit()
@@ -100,12 +122,18 @@ async def list_open_requests(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("mechanic")),
 ):
+    mech = await db.execute(select(Mechanic).where(Mechanic.user_id == current_user.id))
+    mechanic = mech.scalar_one_or_none()
+    if not mechanic:
+        return []
+
     result = await db.execute(
         text("""
             SELECT sr.*
             FROM service_requests sr
             WHERE
                 sr.status = 'requested'
+                AND (sr.mechanic_id IS NULL OR sr.mechanic_id = :mechanic_id)
                 AND ST_DWithin(
                     sr.owner_location,
                     ST_MakePoint(:lng, :lat)::GEOGRAPHY,
@@ -113,7 +141,7 @@ async def list_open_requests(
                 )
             ORDER BY sr.created_at ASC
         """),
-        {"lat": lat, "lng": lng, "radius_m": radius_km * 1000},
+        {"lat": lat, "lng": lng, "radius_m": radius_km * 1000, "mechanic_id": mechanic.id},
     )
     rows = result.mappings().all()
     return [ServiceRequestOut(**dict(r)) for r in rows]

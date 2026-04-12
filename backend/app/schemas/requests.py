@@ -8,6 +8,7 @@ class ServiceRequestCreate(BaseModel):
     problem_desc: str
     lat: float
     lng: float
+    mechanic_id: str | None = None
 
 
 class StatusUpdate(BaseModel):

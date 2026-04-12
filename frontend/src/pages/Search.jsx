@@ -807,6 +807,7 @@ function RequestModal({ mechanic, userLocation, onClose }) {
     try {
       await createRequest({
         vehicle_id: vehicleId,
+        mechanic_id: mechanic.mechanic_id,
         problem_desc: problemDesc,
         lat: userLocation.lat,
         lng: userLocation.lng,
