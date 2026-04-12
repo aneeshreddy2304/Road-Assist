@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  ChevronRight,
   Crosshair,
   MapPin,
   Navigation,
   Search as SearchIcon,
   SlidersHorizontal,
-  Sparkles,
   Star,
   Wrench,
   X,
@@ -94,19 +92,48 @@ function MapViewport({ center, zoom }) {
   return null;
 }
 
+async function fetchLocationSuggestions(query) {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("countrycodes", "us");
+  url.searchParams.set("q", query);
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Location search failed");
+  }
+
+  const data = await response.json();
+  return data.map((item) => ({
+    label: item.display_name,
+    lat: Number(item.lat),
+    lng: Number(item.lon),
+  }));
+}
+
 export default function Search() {
   const navigate = useNavigate();
   const pageLocation = useLocation();
 
   const [tab, setTab] = useState("mechanics");
   const [location, setLocation] = useState({ lat: RICHMOND_CENTER[0], lng: RICHMOND_CENTER[1] });
+  const [pickupQuery, setPickupQuery] = useState("Richmond, VA 23219");
+  const [pickupSuggestions, setPickupSuggestions] = useState([]);
+  const [pickupLoading, setPickupLoading] = useState(false);
+  const [pickupFocused, setPickupFocused] = useState(false);
   const [radius, setRadius] = useState(15);
   const [mechanics, setMechanics] = useState([]);
   const [parts, setParts] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
+  const [partSuggestions, setPartSuggestions] = useState([]);
   const [partQuery, setPartQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [partSuggestionsLoading, setPartSuggestionsLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [showRequest, setShowRequest] = useState(false);
   const [inventoryMechanic, setInventoryMechanic] = useState(null);
@@ -127,6 +154,7 @@ export default function Search() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setPickupQuery("Current location");
         setGeoLoading(false);
       },
       (error) => {
@@ -135,9 +163,9 @@ export default function Search() {
         if (error.code === error.PERMISSION_DENIED) {
           message = "Location access is blocked in your browser. Allow location for this site and try again.";
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          message = "Your browser could not determine your location. This is common on laptops without precise GPS, so you can keep using the Richmond demo center or allow location and try again.";
+          message = "Your browser could not determine your location. Enter a street address or ZIP code instead.";
         } else if (error.code === error.TIMEOUT) {
-          message = "Location request timed out. Try again in a moment.";
+          message = "Location request timed out. Enter a street address or ZIP code instead.";
         }
 
         setGeoError(message);
@@ -167,15 +195,37 @@ export default function Search() {
   }, [location, radius]);
 
   useEffect(() => {
-    if (tab !== "parts") return;
-    const trimmed = partQuery.trim();
-    if (!trimmed) {
-      setSuggestions([]);
+    const query = pickupQuery.trim();
+    if (!pickupFocused || query.length < 3 || query === "Current location") {
+      setPickupSuggestions([]);
       return;
     }
 
     const timeout = window.setTimeout(async () => {
-      setSuggestionsLoading(true);
+      setPickupLoading(true);
+      try {
+        const suggestions = await fetchLocationSuggestions(query);
+        setPickupSuggestions(suggestions);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setPickupLoading(false);
+      }
+    }, 220);
+
+    return () => window.clearTimeout(timeout);
+  }, [pickupQuery, pickupFocused]);
+
+  useEffect(() => {
+    if (tab !== "parts") return;
+    const trimmed = partQuery.trim();
+    if (!trimmed) {
+      setPartSuggestions([]);
+      return;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      setPartSuggestionsLoading(true);
       try {
         const res = await suggestParts({
           q: trimmed,
@@ -183,11 +233,11 @@ export default function Search() {
           lng: location.lng,
           radius_km: radius,
         });
-        setSuggestions(res.data);
+        setPartSuggestions(res.data);
       } catch (error) {
         console.error(error);
       } finally {
-        setSuggestionsLoading(false);
+        setPartSuggestionsLoading(false);
       }
     }, 180);
 
@@ -233,10 +283,18 @@ export default function Search() {
     }
   };
 
-  const applySuggestion = async (suggestion) => {
+  const applyPartSuggestion = async (suggestion) => {
     setPartQuery(suggestion.part_name);
-    setSuggestions([]);
+    setPartSuggestions([]);
     await fetchParts(suggestion.part_name);
+  };
+
+  const applyPickupSuggestion = (suggestion) => {
+    setPickupQuery(suggestion.label);
+    setLocation({ lat: suggestion.lat, lng: suggestion.lng });
+    setPickupSuggestions([]);
+    setPickupFocused(false);
+    setGeoError("");
   };
 
   const openRoute = (mechanic) => {
@@ -245,7 +303,7 @@ export default function Search() {
   };
 
   return (
-    <div className="relative h-[calc(100vh-56px)] overflow-hidden bg-[#0b1320]">
+    <div className="relative h-[calc(100vh-56px)] overflow-hidden bg-[#eef2f7]">
       <MapContainer center={mapCenter} zoom={12} style={{ height: "100%", width: "100%" }} zoomControl={false}>
         <MapViewport center={mapCenter} zoom={selectedDetail ? 11 : 12} />
         <ZoomControl position="bottomright" />
@@ -255,13 +313,13 @@ export default function Search() {
         />
 
         <Marker position={[location.lat, location.lng]} icon={ownerIcon}>
-          <Popup>Your location</Popup>
+          <Popup>Pickup location</Popup>
         </Marker>
 
         <Circle
           center={[location.lat, location.lng]}
           radius={radius * 1000}
-          pathOptions={{ color: "#111827", fillColor: "#111827", fillOpacity: 0.06, weight: 1.75 }}
+          pathOptions={{ color: "#111827", fillColor: "#111827", fillOpacity: 0.05, weight: 1.5 }}
         />
 
         {mechanics.map((mechanic) => (
@@ -287,266 +345,277 @@ export default function Search() {
               [location.lat, location.lng],
               [selectedDetail.lat, selectedDetail.lng],
             ]}
-            pathOptions={{ color: "#111827", weight: 4, opacity: 0.7 }}
+            pathOptions={{ color: "#111827", weight: 4, opacity: 0.65 }}
           />
         ) : null}
       </MapContainer>
 
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.15),transparent_24%),linear-gradient(to_bottom,rgba(8,17,29,0.08),rgba(8,17,29,0.62))]" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/15" />
 
-      <div className="absolute inset-x-0 top-0 z-[500] p-4 lg:p-6">
-        <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[30rem,minmax(0,1fr),30rem] lg:items-start">
-          <div className="space-y-4">
-            <Card className="rounded-[30px] border border-white/70 bg-white/92 p-5 shadow-2xl backdrop-blur">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500">RoadAssist Live</p>
-                  <h1 className="mt-2 text-[2rem] font-semibold leading-tight tracking-tight text-gray-950">
-                    Get roadside help fast
-                  </h1>
-                </div>
-                <div className="rounded-[24px] bg-[#0f172a] px-4 py-3 text-right text-white shadow-xl">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/60">Service radius</p>
-                  <p className="mt-1 text-2xl font-semibold">{formatMilesFromKm(radius)}</p>
-                </div>
+      <div className="absolute left-4 top-4 z-[500] w-[26rem] max-w-[calc(100vw-2rem)] space-y-4 lg:left-6 lg:top-6">
+        <Card className="rounded-[28px] border border-white/80 bg-white/92 p-5 shadow-2xl backdrop-blur">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500">RoadAssist Live</p>
+              <h1 className="mt-2 text-[2.3rem] font-semibold leading-[0.98] tracking-tight text-gray-950">
+                Get roadside help fast
+              </h1>
+            </div>
+            <div className="rounded-[24px] bg-[#0f172a] px-4 py-3 text-right text-white shadow-xl">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/55">Radius</p>
+              <p className="mt-1 text-2xl font-semibold">{formatMilesFromKm(radius)}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-2 rounded-[22px] bg-gray-100 p-1">
+            {[
+              { id: "mechanics", label: "Find mechanics", icon: <Wrench size={15} /> },
+              { id: "parts", label: "Find parts", icon: <SearchIcon size={15} /> },
+            ].map(({ id, label, icon }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm font-medium transition ${
+                  tab === id ? "bg-white text-gray-950 shadow-sm" : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative mt-4">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+              Pickup location
+            </label>
+            <div className="flex items-center gap-2 rounded-[22px] border border-gray-200 bg-white px-4">
+              <MapPin size={16} className="text-gray-400" />
+              <input
+                value={pickupQuery}
+                onChange={(e) => setPickupQuery(e.target.value)}
+                onFocus={() => setPickupFocused(true)}
+                placeholder="Enter street address or ZIP code"
+                className="h-14 w-full bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
+              />
+            </div>
+
+            {(pickupFocused || pickupLoading) && (
+              <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[22px] border border-gray-200 bg-white shadow-2xl">
+                {pickupLoading ? (
+                  <div className="px-4 py-4 text-sm text-gray-500">Searching nearby places...</div>
+                ) : pickupSuggestions.length > 0 ? (
+                  pickupSuggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => applyPickupSuggestion(suggestion)}
+                      className="block w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
+                    >
+                      <p className="text-sm font-medium text-gray-900">{suggestion.label}</p>
+                    </button>
+                  ))
+                ) : pickupQuery.trim().length >= 3 ? (
+                  <div className="px-4 py-4 text-sm text-gray-500">No matching address yet. Try a street name or ZIP code.</div>
+                ) : null}
               </div>
+            )}
+          </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-2 rounded-[24px] bg-gray-100 p-1">
-                {[
-                  { id: "mechanics", label: "Find mechanics", icon: <Wrench size={15} /> },
-                  { id: "parts", label: "Find parts", icon: <SearchIcon size={15} /> },
-                ].map(({ id, label, icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setTab(id)}
-                    className={`flex items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm font-medium transition ${
-                      tab === id ? "bg-white text-gray-950 shadow-sm" : "text-gray-500 hover:text-gray-800"
-                    }`}
-                  >
-                    {icon}
-                    {label}
-                  </button>
-                ))}
-              </div>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              onClick={requestCurrentLocation}
+              disabled={geoLoading}
+              className="inline-flex items-center gap-2 rounded-[18px] border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 transition hover:border-gray-300 hover:bg-gray-50 disabled:opacity-60"
+            >
+              <Crosshair size={15} />
+              {geoLoading ? "Locating..." : "Use current location"}
+            </button>
+            {selectedDetail ? (
+              <button
+                onClick={() => openRoute(selectedDetail)}
+                className="inline-flex items-center gap-2 rounded-[18px] bg-[#0f172a] px-4 py-3 text-sm font-medium text-white transition hover:bg-black"
+              >
+                <Navigation size={15} />
+                Route
+              </button>
+            ) : null}
+          </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr),9.5rem,9.5rem]">
-                <div className="rounded-[24px] border border-gray-200 bg-white px-4 py-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <MapPin size={14} className="text-gray-400" />
-                    Pickup location
+          {tab === "parts" ? (
+            <div className="relative mt-4">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                Search parts
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="flex items-center gap-2 rounded-[22px] border border-gray-200 bg-white px-4">
+                    <SearchIcon size={16} className="text-gray-400" />
+                    <input
+                      value={partQuery}
+                      onChange={(e) => setPartQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          fetchParts();
+                        }
+                      }}
+                      placeholder="Search brake pads, battery, oxygen sensor..."
+                      className="h-14 w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
+                    />
                   </div>
-                  <p className="mt-2 text-base font-medium text-gray-950">
-                    {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-gray-500">
-                    Default demo center is Richmond, VA. Use current location if your browser can resolve it.
-                  </p>
-                </div>
 
-                <button
-                  onClick={requestCurrentLocation}
-                  disabled={geoLoading}
-                  className="rounded-[24px] border border-gray-200 bg-white px-4 py-4 text-left text-gray-900 transition hover:border-gray-300 hover:bg-gray-50 disabled:opacity-60"
-                >
-                  <Crosshair size={18} />
-                  <p className="mt-6 text-xl font-semibold">{geoLoading ? "Locating..." : "Current"}</p>
-                  <p className="mt-1 text-sm text-gray-500">Refresh my spot</p>
-                </button>
-
-                <button
-                  onClick={() => selectedDetail && openRoute(selectedDetail)}
-                  disabled={!selectedDetail}
-                  className="rounded-[24px] bg-[#0f172a] px-4 py-4 text-left text-white transition hover:bg-black disabled:opacity-60"
-                >
-                  <Navigation size={18} />
-                  <p className="mt-6 text-xl font-semibold">Route</p>
-                  <p className="mt-1 text-sm text-white/65">Open directions</p>
-                </button>
-              </div>
-
-              {tab === "parts" ? (
-                <div className="relative mt-4">
-                  <div className="flex gap-3">
-                    <div className="relative flex-1">
-                      <div className="flex items-center gap-2 rounded-[24px] border border-gray-200 bg-white px-4">
-                        <SearchIcon size={16} className="text-gray-400" />
-                        <input
-                          value={partQuery}
-                          onChange={(e) => setPartQuery(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              fetchParts();
-                            }
-                          }}
-                          placeholder="Search brake pads, battery, spark plug..."
-                          className="h-14 w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                        />
-                      </div>
-
-                      {(partQuery.trim() || suggestionsLoading) && (
-                        <div className="absolute left-0 right-0 top-[calc(100%+0.55rem)] z-20 overflow-hidden rounded-[24px] border border-gray-200 bg-white shadow-2xl">
-                          {suggestionsLoading ? (
-                            <div className="px-4 py-4 text-sm text-gray-500">Looking for nearby parts...</div>
-                          ) : suggestions.length > 0 ? (
-                            suggestions.map((suggestion) => (
-                              <button
-                                key={`${suggestion.part_name}-${suggestion.part_number ?? "none"}`}
-                                type="button"
-                                onClick={() => applySuggestion(suggestion)}
-                                className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
-                              >
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">{suggestion.part_name}</p>
-                                  <p className="mt-1 text-xs text-gray-500">
-                                    {suggestion.mechanic_count} mechanic{suggestion.mechanic_count === 1 ? "" : "s"} nearby · {formatMilesFromKm(suggestion.closest_distance_km)}
-                                  </p>
-                                </div>
-                                <ChevronRight size={16} className="text-gray-300" />
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-4 py-4 text-sm text-gray-500">
-                              No close matches yet. Try a simpler term like `oxygen`, `brake`, or `battery`.
+                  {(partQuery.trim() || partSuggestionsLoading) && (
+                    <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[22px] border border-gray-200 bg-white shadow-2xl">
+                      {partSuggestionsLoading ? (
+                        <div className="px-4 py-4 text-sm text-gray-500">Looking for nearby parts...</div>
+                      ) : partSuggestions.length > 0 ? (
+                        partSuggestions.map((suggestion) => (
+                          <button
+                            key={`${suggestion.part_name}-${suggestion.part_number ?? "none"}`}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => applyPartSuggestion(suggestion)}
+                            className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{suggestion.part_name}</p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                {suggestion.mechanic_count} mechanic{suggestion.mechanic_count === 1 ? "" : "s"} nearby · {formatMilesFromKm(suggestion.closest_distance_km)}
+                              </p>
                             </div>
-                          )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-4 text-sm text-gray-500">
+                          Keep typing. Search now supports close matches and minor spelling mistakes.
                         </div>
                       )}
                     </div>
-
-                    <button
-                      onClick={() => fetchParts()}
-                      className="rounded-[24px] bg-[#16a34a] px-6 text-sm font-semibold text-white transition hover:bg-green-700"
-                    >
-                      Search
-                    </button>
-                  </div>
+                  )}
                 </div>
-              ) : null}
 
-              {geoError ? (
-                <p className="mt-4 rounded-[20px] bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
-                  {geoError}
-                </p>
-              ) : null}
-
-              <div className="mt-5">
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                  <span className="flex items-center gap-2">
-                    <SlidersHorizontal size={13} />
-                    Search radius
-                  </span>
-                  <span>{formatMilesFromKm(radius)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="3"
-                  max="40"
-                  value={radius}
-                  onChange={(e) => setRadius(Number(e.target.value))}
-                  className="w-full accent-black"
-                />
+                <button
+                  onClick={() => fetchParts()}
+                  className="rounded-[22px] bg-[#16a34a] px-5 text-sm font-semibold text-white transition hover:bg-green-700"
+                >
+                  Search
+                </button>
               </div>
-            </Card>
+            </div>
+          ) : null}
 
-            <Card className="rounded-[30px] border border-white/80 bg-white/95 p-4 shadow-2xl backdrop-blur">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    {tab === "mechanics" ? "Nearby mechanics" : "Parts nearby"}
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-950">
-                    {tab === "mechanics"
-                      ? `${mechanics.length} mechanic${mechanics.length === 1 ? "" : "s"}`
-                      : `${parts.length} part match${parts.length === 1 ? "" : "es"}`}
-                  </p>
-                </div>
-                {loading ? <Spinner /> : null}
-              </div>
+          {geoError ? (
+            <p className="mt-4 rounded-[18px] bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
+              {geoError}
+            </p>
+          ) : null}
 
-              <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-                {!loading && tab === "mechanics" && mechanics.length === 0 ? (
-                  <EmptyState
-                    icon="🗺️"
-                    title="No mechanics nearby yet"
-                    subtitle="Try a wider radius or keep using Richmond as the demo center while location services are unavailable."
-                  />
-                ) : null}
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal size={13} />
+                Search radius
+              </span>
+              <span>{formatMilesFromKm(radius)}</span>
+            </div>
+            <input
+              type="range"
+              min="3"
+              max="40"
+              value={radius}
+              onChange={(e) => setRadius(Number(e.target.value))}
+              className="w-full accent-black"
+            />
+          </div>
+        </Card>
 
-                {tab === "mechanics" &&
-                  mechanics.map((mechanic) => (
-                    <MechanicCard
-                      key={mechanic.mechanic_id}
-                      mechanic={mechanic}
-                      selected={selected?.mechanic_id === mechanic.mechanic_id}
-                      onSelect={() => setSelected(mechanic)}
-                      onViewInventory={() => setInventoryMechanic(mechanic)}
-                      onRequest={() => {
-                        setSelected(mechanic);
-                        setShowRequest(true);
-                      }}
-                      userLocation={location}
-                    />
-                  ))}
-
-                {!loading && tab === "parts" && partQuery && parts.length === 0 ? (
-                  <EmptyState
-                    icon="📦"
-                    title="No matching parts nearby"
-                    subtitle="Keep typing to see smarter suggestions, or select one from the list above."
-                  />
-                ) : null}
-
-                {tab === "parts" &&
-                  parts.map((part, index) => (
-                    <PartCard key={`${part.mechanic_id}-${part.part_name}-${index}`} part={part} />
-                  ))}
-              </div>
-            </Card>
+        <Card className="rounded-[28px] border border-white/80 bg-white/95 p-4 shadow-2xl backdrop-blur">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                {tab === "mechanics" ? "Nearby mechanics" : "Parts nearby"}
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-gray-950">
+                {tab === "mechanics"
+                  ? `${mechanics.length} mechanic${mechanics.length === 1 ? "" : "s"}`
+                  : `${parts.length} part match${parts.length === 1 ? "" : "es"}`}
+              </p>
+            </div>
+            {loading ? <Spinner /> : null}
           </div>
 
-          <div className="hidden lg:block" />
-
-          <div className="space-y-4">
-            {selectedDetail ? (
-              <SelectedMechanicPanel
-                mechanic={selectedDetail}
-                userLocation={location}
-                onOpenRoute={() => openRoute(selectedDetail)}
-                onOpenInventory={() => setInventoryMechanic(selectedDetail)}
-                onRequest={() => {
-                  setSelected(selectedDetail);
-                  setShowRequest(true);
-                }}
+          <div className="max-h-[calc(100vh-34rem)] min-h-[15rem] space-y-3 overflow-y-auto pr-1">
+            {!loading && tab === "mechanics" && mechanics.length === 0 ? (
+              <EmptyState
+                icon="🗺️"
+                title="No mechanics nearby yet"
+                subtitle="Try a wider radius or search using a different pickup address."
               />
             ) : null}
 
-            <Card className="rounded-[30px] border border-white/80 bg-white/92 p-4 shadow-2xl backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Map tips</p>
-              <div className="mt-4 space-y-3 text-sm text-gray-600">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
-                    <Sparkles size={14} className="text-gray-700" />
-                  </span>
-                  <p>Green markers are available mechanics. Orange markers are busy right now.</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
-                    <Navigation size={14} className="text-gray-700" />
-                  </span>
-                  <p>The black line shows the quickest visual route from your shared location to the selected mechanic.</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
-                    <SearchIcon size={14} className="text-gray-700" />
-                  </span>
-                  <p>Parts search now suggests close matches as you type, even with partial words and small spelling mistakes.</p>
-                </div>
-              </div>
-            </Card>
+            {tab === "mechanics" &&
+              mechanics.map((mechanic) => (
+                <MechanicCard
+                  key={mechanic.mechanic_id}
+                  mechanic={mechanic}
+                  selected={selected?.mechanic_id === mechanic.mechanic_id}
+                  onSelect={() => setSelected(mechanic)}
+                  onViewInventory={() => setInventoryMechanic(mechanic)}
+                  onRequest={() => {
+                    setSelected(mechanic);
+                    setShowRequest(true);
+                  }}
+                  userLocation={location}
+                />
+              ))}
+
+            {!loading && tab === "parts" && partQuery && parts.length === 0 ? (
+              <EmptyState
+                icon="📦"
+                title="No matching parts nearby"
+                subtitle="Try one of the suggestions above, or use a shorter search term."
+              />
+            ) : null}
+
+            {tab === "parts" &&
+              parts.map((part, index) => (
+                <PartCard key={`${part.mechanic_id}-${part.part_name}-${index}`} part={part} />
+              ))}
           </div>
-        </div>
+        </Card>
       </div>
+
+      {selectedDetail ? (
+        <div className="absolute right-4 top-4 z-[500] hidden w-[38rem] max-w-[calc(100vw-2rem)] lg:right-6 lg:top-6 lg:block">
+          <SelectedMechanicPanel
+            mechanic={selectedDetail}
+            userLocation={location}
+            onOpenRoute={() => openRoute(selectedDetail)}
+            onOpenInventory={() => setInventoryMechanic(selectedDetail)}
+            onRequest={() => {
+              setSelected(selectedDetail);
+              setShowRequest(true);
+            }}
+          />
+        </div>
+      ) : null}
+
+      {selectedDetail ? (
+        <div className="absolute inset-x-4 bottom-4 z-[500] lg:hidden">
+          <SelectedMechanicPanel
+            mechanic={selectedDetail}
+            userLocation={location}
+            onOpenRoute={() => openRoute(selectedDetail)}
+            onOpenInventory={() => setInventoryMechanic(selectedDetail)}
+            onRequest={() => {
+              setSelected(selectedDetail);
+              setShowRequest(true);
+            }}
+          />
+        </div>
+      ) : null}
 
       {showRequest && selectedDetail ? (
         <RequestModal mechanic={selectedDetail} userLocation={location} onClose={() => setShowRequest(false)} />
@@ -561,7 +630,7 @@ export default function Search() {
 
 function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInventory, onRequest }) {
   return (
-    <Card className="rounded-[30px] border border-white/80 bg-white/96 p-5 shadow-2xl backdrop-blur">
+    <Card className="rounded-[28px] border border-white/80 bg-white/96 p-5 shadow-2xl backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -574,12 +643,12 @@ function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInve
             </span>
             <span className="text-xs font-medium text-gray-500">{formatMilesFromKm(mechanic.distance_km)} away</span>
           </div>
-          <h2 className="mt-3 text-[2rem] font-semibold leading-tight text-gray-950">{mechanic.name}</h2>
+          <h2 className="mt-3 text-[2.1rem] font-semibold leading-tight text-gray-950">{mechanic.name}</h2>
           <p className="mt-1 text-base text-gray-600">{mechanic.specialization || "General repair"}</p>
           <p className="mt-2 text-sm text-gray-500">{mechanic.address || "Richmond service area"}</p>
         </div>
 
-        <div className="rounded-[24px] bg-gray-100 px-4 py-3 text-right">
+        <div className="rounded-[22px] bg-gray-100 px-4 py-3 text-right">
           <div className="flex items-center gap-1 text-lg font-semibold text-gray-900">
             <Star size={16} className="fill-yellow-400 text-yellow-400" />
             {mechanic.rating}
@@ -589,13 +658,13 @@ function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInve
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-[24px] bg-gray-50 px-4 py-4">
+        <div className="rounded-[22px] bg-gray-50 px-4 py-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Your location</p>
           <p className="mt-2 text-base font-medium text-gray-900">
             {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
           </p>
         </div>
-        <div className="rounded-[24px] bg-gray-50 px-4 py-4">
+        <div className="rounded-[22px] bg-gray-50 px-4 py-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Mechanic location</p>
           <p className="mt-2 text-base font-medium text-gray-900">
             {mechanic.lat.toFixed(4)}, {mechanic.lng.toFixed(4)}
@@ -606,19 +675,19 @@ function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInve
       <div className="mt-4 grid grid-cols-3 gap-2">
         <button
           onClick={onOpenRoute}
-          className="rounded-[20px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+          className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
         >
           Route
         </button>
         <button
           onClick={onOpenInventory}
-          className="rounded-[20px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+          className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
         >
           Parts
         </button>
         <button
           onClick={onRequest}
-          className="rounded-[20px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
+          className="rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
         >
           Request
         </button>
@@ -634,7 +703,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full rounded-[24px] border p-4 text-left transition ${
+      className={`w-full rounded-[22px] border p-4 text-left transition ${
         selected
           ? "border-gray-900 bg-gray-950 text-white shadow-lg"
           : "border-gray-200 bg-white text-gray-900 hover:border-gray-300 hover:shadow-sm"
@@ -678,7 +747,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
 
       {selected ? (
         <>
-          <div className="mt-4 rounded-[20px] bg-white/10 px-3 py-3 text-xs text-white/75">
+          <div className="mt-4 rounded-[18px] bg-white/10 px-3 py-3 text-xs text-white/75">
             Pickup: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
@@ -688,7 +757,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
                 event.stopPropagation();
                 navigate(`/mechanics/${mechanic.mechanic_id}`, { state: { mechanic, userLocation } });
               }}
-              className="rounded-[18px] bg-white px-3 py-2 text-xs font-medium text-gray-900"
+              className="rounded-[16px] bg-white px-3 py-2 text-xs font-medium text-gray-900"
             >
               Profile
             </button>
@@ -698,7 +767,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
                 event.stopPropagation();
                 onViewInventory();
               }}
-              className="rounded-[18px] bg-white/15 px-3 py-2 text-xs font-medium text-white"
+              className="rounded-[16px] bg-white/15 px-3 py-2 text-xs font-medium text-white"
             >
               Parts
             </button>
@@ -708,7 +777,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
                 event.stopPropagation();
                 onRequest();
               }}
-              className="rounded-[18px] bg-[#16a34a] px-3 py-2 text-xs font-medium text-white"
+              className="rounded-[16px] bg-[#16a34a] px-3 py-2 text-xs font-medium text-white"
             >
               Request
             </button>
@@ -721,7 +790,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
 
 function PartCard({ part }) {
   return (
-    <div className="rounded-[24px] border border-gray-200 bg-white p-4">
+    <div className="rounded-[22px] border border-gray-200 bg-white p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-lg font-semibold text-gray-950">{part.part_name}</p>
