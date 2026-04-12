@@ -23,6 +23,7 @@ export const updateMyProfile = (data) =>
 
 // --- Parts ---
 export const searchParts        = (params) => API.get("/parts/search", { params });
+export const suggestParts      = (params) => API.get("/parts/suggest", { params });
 export const getMechanicParts   = (id)     => API.get(`/parts/mechanic/${id}`);
 export const addPart            = (data)   => API.post("/parts", data);
 export const updatePart         = (id, data) => API.patch(`/parts/${id}`, data);

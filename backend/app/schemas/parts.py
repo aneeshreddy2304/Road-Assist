@@ -43,3 +43,10 @@ class PartSearchResult(BaseModel):
     mechanic_address: str | None
     mechanic_rating: float
     distance_km: float
+
+
+class PartSuggestion(BaseModel):
+    part_name: str
+    part_number: str | None = None
+    closest_distance_km: float
+    mechanic_count: int
