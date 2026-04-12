@@ -131,6 +131,7 @@ export default function Search() {
   const [parts, setParts] = useState([]);
   const [partSuggestions, setPartSuggestions] = useState([]);
   const [partQuery, setPartQuery] = useState("");
+  const [partFocused, setPartFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [partSuggestionsLoading, setPartSuggestionsLoading] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -273,6 +274,8 @@ export default function Search() {
     const query = (queryOverride ?? partQuery).trim();
     if (!query) return;
 
+    setPartSuggestions([]);
+    setPartFocused(false);
     setLoading(true);
     try {
       const res = await searchParts({ name: query, lat: location.lat, lng: location.lng, radius_km: radius });
@@ -287,6 +290,7 @@ export default function Search() {
   const applyPartSuggestion = async (suggestion) => {
     setPartQuery(suggestion.part_name);
     setPartSuggestions([]);
+    setPartFocused(false);
     await fetchParts(suggestion.part_name);
   };
 
@@ -456,6 +460,10 @@ export default function Search() {
                     <input
                       value={partQuery}
                       onChange={(e) => setPartQuery(e.target.value)}
+                      onFocus={() => setPartFocused(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => setPartFocused(false), 120);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -467,7 +475,7 @@ export default function Search() {
                     />
                   </div>
 
-                  {(partQuery.trim() || partSuggestionsLoading) && (
+                  {partFocused && (partQuery.trim() || partSuggestionsLoading) && (
                     <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[22px] border border-gray-200 bg-white shadow-2xl">
                       {partSuggestionsLoading ? (
                         <div className="px-4 py-4 text-sm text-gray-500">Looking for nearby parts...</div>
