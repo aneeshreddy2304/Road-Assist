@@ -35,8 +35,8 @@ async def get_nearby_mechanics(
 
     query = text(f"""
         SELECT
-            m.id                                                        AS mechanic_id,
-            m.user_id,
+            m.id::TEXT                                                  AS mechanic_id,
+            m.user_id::TEXT                                             AS user_id,
             u.name,
             u.phone,
             m.address,
@@ -79,8 +79,8 @@ async def get_my_mechanic_profile(
 ):
     query = text("""
         SELECT
-            m.id AS mechanic_id,
-            m.user_id,
+            m.id::TEXT AS mechanic_id,
+            m.user_id::TEXT AS user_id,
             u.name,
             u.phone,
             m.address,
@@ -128,8 +128,8 @@ async def get_mechanic(
     result = await db.execute(
         text(f"""
             SELECT
-                m.id AS mechanic_id,
-                m.user_id,
+                m.id::TEXT AS mechanic_id,
+                m.user_id::TEXT AS user_id,
                 u.name,
                 u.phone,
                 m.address,
