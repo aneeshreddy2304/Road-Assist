@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { login as apiLogin, register as apiRegister } from "../api/endpoints";
+import { getMe, login as apiLogin, register as apiRegister } from "../api/endpoints";
 
 const AuthContext = createContext(null);
 
@@ -9,6 +9,25 @@ export function AuthProvider({ children }) {
     return stored ? JSON.parse(stored) : null;
   });
   const [token, setToken] = useState(() => localStorage.getItem("token"));
+
+  useEffect(() => {
+    if (!token) return;
+
+    getMe()
+      .then((res) => {
+        const merged = {
+          ...(JSON.parse(localStorage.getItem("user") || "{}")),
+          ...res.data,
+          id: res.data.id,
+          role: res.data.role,
+        };
+        localStorage.setItem("user", JSON.stringify(merged));
+        setUser(merged);
+      })
+      .catch(() => {
+        logout();
+      });
+  }, [token]);
 
   const login = async (email, password) => {
     const res = await apiLogin({ email, password });
@@ -32,6 +51,20 @@ export function AuthProvider({ children }) {
     return userData;
   };
 
+  const refreshUser = async () => {
+    if (!token) return null;
+    const res = await getMe();
+    const nextUser = {
+      ...(user || {}),
+      ...res.data,
+      id: res.data.id,
+      role: res.data.role,
+    };
+    localStorage.setItem("user", JSON.stringify(nextUser));
+    setUser(nextUser);
+    return nextUser;
+  };
+
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -40,7 +73,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

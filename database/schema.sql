@@ -40,6 +40,11 @@ CREATE TABLE users (
   email         VARCHAR(255)  NOT NULL UNIQUE,
   password_hash TEXT          NOT NULL,
   phone         VARCHAR(20),
+  gender        VARCHAR(20),
+  street_address TEXT,
+  city          VARCHAR(100),
+  state         VARCHAR(100),
+  postal_code   VARCHAR(20),
   role          user_role     NOT NULL DEFAULT 'owner',
   is_active     BOOLEAN       NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
@@ -73,11 +78,14 @@ CREATE TABLE mechanics (
 CREATE TABLE vehicles (
   id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id        UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  nickname        VARCHAR(80),
   make            VARCHAR(50)   NOT NULL,   -- e.g. "Toyota"
   model           VARCHAR(50)   NOT NULL,   -- e.g. "Corolla"
   year            SMALLINT      NOT NULL CHECK (year >= 1900 AND year <= 2100),
   license_plate   VARCHAR(20)   NOT NULL UNIQUE,
   vehicle_type    vehicle_type  NOT NULL,
+  fuel_type       VARCHAR(30),
+  color           VARCHAR(30),
   notes           TEXT,
   created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );

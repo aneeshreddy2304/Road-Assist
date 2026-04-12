@@ -35,7 +35,22 @@ class UserOut(BaseModel):
     name: str
     email: str
     phone: str | None
+    gender: str | None
+    street_address: str | None
+    city: str | None
+    state: str | None
+    postal_code: str | None
     role: str
     is_active: bool
 
     model_config = {"from_attributes": True}
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    gender: str | None = None
+    street_address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None

@@ -4,6 +4,7 @@ import API from "./client";
 export const login    = (data) => API.post("/auth/login", data);
 export const register = (data) => API.post("/auth/register", data);
 export const getMe    = ()     => API.get("/auth/me");
+export const updateMe = (data) => API.patch("/auth/me", data);
 
 // --- Mechanics ---
 export const getNearbyMechanics = (params) =>
@@ -32,11 +33,13 @@ export const deletePart         = (id)     => API.delete(`/parts/${id}`);
 // --- Vehicles ---
 export const getMyVehicles = ()     => API.get("/vehicles");
 export const addVehicle    = (data) => API.post("/vehicles", data);
+export const updateVehicle = (id, data) => API.patch(`/vehicles/${id}`, data);
 export const deleteVehicle = (id)   => API.delete(`/vehicles/${id}`);
 
 // --- Service Requests ---
 export const createRequest      = (data)   => API.post("/requests", data);
 export const listRequests       = (params) => API.get("/requests", { params });
+export const getOwnerHistory    = ()   => API.get("/requests/history/owner");
 export const getRequest         = (id)     => API.get(`/requests/${id}`);
 export const getRequestHistory  = (id)     => API.get(`/requests/${id}/history`);
 export const updateRequestStatus= (id, data) => API.patch(`/requests/${id}/status`, data);

@@ -119,6 +119,34 @@ async def list_open_requests(
     return [ServiceRequestOut(**dict(r)) for r in rows]
 
 
+@router.get("/requests/history/owner", response_model=list[dict])
+async def owner_history_summary(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("owner")),
+):
+    result = await db.execute(
+        text("""
+            SELECT
+                sr.id::text AS request_id,
+                sr.problem_desc,
+                sr.status::text AS status,
+                sr.total_cost,
+                sr.created_at,
+                COALESCE(mu.name, 'Awaiting assignment') AS mechanic_name,
+                CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
+                v.license_plate
+            FROM service_requests sr
+            JOIN vehicles v ON v.id = sr.vehicle_id
+            LEFT JOIN mechanics m ON m.id = sr.mechanic_id
+            LEFT JOIN users mu ON mu.id = m.user_id
+            WHERE sr.owner_id = :owner_id
+            ORDER BY sr.created_at DESC
+        """),
+        {"owner_id": current_user.id},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
 # ------------------------------------------------------------------
 # GET /requests/:id  — full detail including job update history
 # ------------------------------------------------------------------

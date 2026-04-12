@@ -139,8 +139,10 @@ export default function Search() {
   const [inventoryMechanic, setInventoryMechanic] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
+  const selectedDetail = selected;
 
-  const selectedDetail = selected ?? mechanics[0] ?? null;
+  const pickupLabel =
+    pickupQuery === "Current location" ? "Current location · Richmond, VA" : pickupQuery || "Richmond, VA";
 
   const requestCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -258,8 +260,8 @@ export default function Search() {
       setMechanics(res.data);
       setSelected((prev) => {
         if (!res.data.length) return null;
-        if (!prev) return res.data[0];
-        return res.data.find((item) => item.mechanic_id === prev.mechanic_id) || res.data[0];
+        if (!prev) return null;
+        return res.data.find((item) => item.mechanic_id === prev.mechanic_id) || null;
       });
     } catch (error) {
       console.error(error);
@@ -302,6 +304,16 @@ export default function Search() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  const handleSelectMechanic = (mechanic) => {
+    setSelected(mechanic);
+  };
+
+  const handleDeselectMechanic = (mechanic) => {
+    if (selected?.mechanic_id === mechanic.mechanic_id) {
+      setSelected(null);
+    }
+  };
+
   return (
     <div className="relative h-[calc(100vh-56px)] overflow-hidden bg-[#eef2f7]">
       <MapContainer center={mapCenter} zoom={12} style={{ height: "100%", width: "100%" }} zoomControl={false}>
@@ -327,7 +339,10 @@ export default function Search() {
             key={mechanic.mechanic_id}
             position={[mechanic.lat, mechanic.lng]}
             icon={mechanic.is_available ? mechanicIcon : busyMechanicIcon}
-            eventHandlers={{ click: () => setSelected(mechanic) }}
+            eventHandlers={{
+              click: () => handleSelectMechanic(mechanic),
+              dblclick: () => handleDeselectMechanic(mechanic),
+            }}
           >
             <Popup>
               <strong>{mechanic.name}</strong>
@@ -352,7 +367,7 @@ export default function Search() {
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/15" />
 
-      <div className="absolute left-4 top-4 z-[500] w-[26rem] max-w-[calc(100vw-2rem)] space-y-4 lg:left-6 lg:top-6">
+      <div className="absolute left-4 top-4 bottom-4 z-[500] flex w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-4 lg:left-6 lg:top-6 lg:bottom-6">
         <Card className="rounded-[28px] border border-white/80 bg-white/92 p-5 shadow-2xl backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -531,7 +546,7 @@ export default function Search() {
           </div>
         </Card>
 
-        <Card className="rounded-[28px] border border-white/80 bg-white/95 p-4 shadow-2xl backdrop-blur">
+        <Card className="min-h-0 flex-1 rounded-[28px] border border-white/80 bg-white/95 p-4 shadow-2xl backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
@@ -546,7 +561,7 @@ export default function Search() {
             {loading ? <Spinner /> : null}
           </div>
 
-          <div className="max-h-[calc(100vh-34rem)] min-h-[15rem] space-y-3 overflow-y-auto pr-1">
+          <div className="h-full min-h-0 space-y-3 overflow-y-auto pr-1">
             {!loading && tab === "mechanics" && mechanics.length === 0 ? (
               <EmptyState
                 icon="🗺️"
@@ -561,13 +576,14 @@ export default function Search() {
                   key={mechanic.mechanic_id}
                   mechanic={mechanic}
                   selected={selected?.mechanic_id === mechanic.mechanic_id}
-                  onSelect={() => setSelected(mechanic)}
+                  onSelect={() => handleSelectMechanic(mechanic)}
+                  onDeselect={() => handleDeselectMechanic(mechanic)}
                   onViewInventory={() => setInventoryMechanic(mechanic)}
                   onRequest={() => {
                     setSelected(mechanic);
                     setShowRequest(true);
                   }}
-                  userLocation={location}
+                  pickupLabel={pickupLabel}
                 />
               ))}
 
@@ -591,13 +607,14 @@ export default function Search() {
         <div className="absolute right-4 top-4 z-[500] hidden w-[38rem] max-w-[calc(100vw-2rem)] lg:right-6 lg:top-6 lg:block">
           <SelectedMechanicPanel
             mechanic={selectedDetail}
-            userLocation={location}
+            pickupLabel={pickupLabel}
             onOpenRoute={() => openRoute(selectedDetail)}
             onOpenInventory={() => setInventoryMechanic(selectedDetail)}
             onRequest={() => {
               setSelected(selectedDetail);
               setShowRequest(true);
             }}
+            onClose={() => setSelected(null)}
           />
         </div>
       ) : null}
@@ -606,13 +623,14 @@ export default function Search() {
         <div className="absolute inset-x-4 bottom-4 z-[500] lg:hidden">
           <SelectedMechanicPanel
             mechanic={selectedDetail}
-            userLocation={location}
+            pickupLabel={pickupLabel}
             onOpenRoute={() => openRoute(selectedDetail)}
             onOpenInventory={() => setInventoryMechanic(selectedDetail)}
             onRequest={() => {
               setSelected(selectedDetail);
               setShowRequest(true);
             }}
+            onClose={() => setSelected(null)}
           />
         </div>
       ) : null}
@@ -628,7 +646,7 @@ export default function Search() {
   );
 }
 
-function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInventory, onRequest }) {
+function SelectedMechanicPanel({ mechanic, pickupLabel, onOpenRoute, onOpenInventory, onRequest, onClose }) {
   return (
     <Card className="rounded-[28px] border border-white/80 bg-white/96 p-5 shadow-2xl backdrop-blur">
       <div className="flex items-start justify-between gap-3">
@@ -648,27 +666,32 @@ function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInve
           <p className="mt-2 text-sm text-gray-500">{mechanic.address || "Richmond service area"}</p>
         </div>
 
-        <div className="rounded-[22px] bg-gray-100 px-4 py-3 text-right">
-          <div className="flex items-center gap-1 text-lg font-semibold text-gray-900">
-            <Star size={16} className="fill-yellow-400 text-yellow-400" />
-            {mechanic.rating}
+        <div className="flex items-start gap-3">
+          <div className="rounded-[22px] bg-gray-100 px-4 py-3 text-right">
+            <div className="flex items-center gap-1 text-lg font-semibold text-gray-900">
+              <Star size={16} className="fill-yellow-400 text-yellow-400" />
+              {mechanic.rating}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">{mechanic.total_reviews || 0} reviews</p>
           </div>
-          <p className="mt-1 text-xs text-gray-500">{mechanic.total_reviews || 0} reviews</p>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 hover:text-gray-800"
+            aria-label="Close selected mechanic"
+          >
+            <X size={16} />
+          </button>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-[22px] bg-gray-50 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Your location</p>
-          <p className="mt-2 text-base font-medium text-gray-900">
-            {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Pickup address</p>
+          <p className="mt-2 text-base font-medium text-gray-900">{pickupLabel}</p>
         </div>
         <div className="rounded-[22px] bg-gray-50 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Mechanic location</p>
-          <p className="mt-2 text-base font-medium text-gray-900">
-            {mechanic.lat.toFixed(4)}, {mechanic.lng.toFixed(4)}
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Mechanic address</p>
+          <p className="mt-2 text-base font-medium text-gray-900">{mechanic.address || "Richmond service area"}</p>
         </div>
       </div>
 
@@ -696,13 +719,14 @@ function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInve
   );
 }
 
-function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest, userLocation }) {
+function MechanicCard({ mechanic, selected, onSelect, onDeselect, onViewInventory, onRequest, pickupLabel }) {
   const navigate = useNavigate();
 
   return (
     <button
       type="button"
       onClick={onSelect}
+      onDoubleClick={onDeselect}
       className={`w-full rounded-[22px] border p-4 text-left transition ${
         selected
           ? "border-gray-900 bg-gray-950 text-white shadow-lg"
@@ -748,7 +772,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
       {selected ? (
         <>
           <div className="mt-4 rounded-[18px] bg-white/10 px-3 py-3 text-xs text-white/75">
-            Pickup: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+            Pickup: {pickupLabel}
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <button

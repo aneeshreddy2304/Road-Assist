@@ -11,6 +11,7 @@ class Vehicle(Base):
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
     owner_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    nickname: Mapped[str | None] = mapped_column(String(80))
     make: Mapped[str] = mapped_column(String(50), nullable=False)
     model: Mapped[str] = mapped_column(String(50), nullable=False)
     year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
@@ -18,6 +19,8 @@ class Vehicle(Base):
     vehicle_type: Mapped[str] = mapped_column(
         SAEnum("car", "bike", "truck", "suv", "other", name="vehicle_type"), nullable=False
     )
+    fuel_type: Mapped[str | None] = mapped_column(String(30))
+    color: Mapped[str | None] = mapped_column(String(30))
     notes: Mapped[str | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("NOW()"))
 
