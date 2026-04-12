@@ -103,12 +103,47 @@ export default function Search() {
   const [selected, setSelected] = useState(null);
   const [showRequest, setShowRequest] = useState(false);
   const [inventoryMechanic, setInventoryMechanic] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState("");
+
+  const requestCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoError("This browser does not support live location.");
+      return;
+    }
+
+    setGeoLoading(true);
+    setGeoError("");
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoLoading(false);
+      },
+      (error) => {
+        let message = "Could not fetch your current location.";
+
+        if (error.code === error.PERMISSION_DENIED) {
+          message = "Location access is blocked in your browser. Allow location for this site and try again.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          message = "Your device could not determine a location right now.";
+        } else if (error.code === error.TIMEOUT) {
+          message = "Location request timed out. Try again in a moment.";
+        }
+
+        setGeoError(message);
+        setGeoLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
 
   useEffect(() => {
-    navigator.geolocation?.getCurrentPosition(
-      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {}
-    );
+    requestCurrentLocation();
   }, []);
 
   useEffect(() => {
@@ -155,13 +190,6 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const refreshLocation = () => {
-    navigator.geolocation?.getCurrentPosition(
-      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {}
-    );
   };
 
   const openRoute = (mechanic) => {
@@ -268,11 +296,12 @@ export default function Search() {
 
               <div className="flex gap-2">
                 <button
-                  onClick={refreshLocation}
+                  onClick={requestCurrentLocation}
+                  disabled={geoLoading}
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:border-gray-300 hover:bg-gray-50"
                 >
                   <Crosshair size={15} />
-                  Current
+                  {geoLoading ? "Locating..." : "Current"}
                 </button>
                 {selectedDetail ? (
                   <button
@@ -308,6 +337,11 @@ export default function Search() {
             ) : null}
 
             <div className="mt-4">
+              {geoError ? (
+                <p className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                  {geoError}
+                </p>
+              ) : null}
               <div className="mb-2 flex items-center justify-between text-xs font-medium uppercase tracking-[0.16em] text-gray-500">
                 <span className="flex items-center gap-2">
                   <SlidersHorizontal size={13} />
