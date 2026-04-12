@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ChevronRight, MapPin, ShieldCheck, Sparkles, TimerReset, Wrench } from "lucide-react";
+import { ChevronRight, MapPin, ShieldCheck, TimerReset, Wrench } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
@@ -33,7 +33,7 @@ export default function Login() {
       <div className="roadassist-glow roadassist-float-delayed absolute right-[-5rem] top-1/3 h-72 w-72 rounded-full bg-emerald-300/30" />
       <div className="roadassist-glow roadassist-float absolute bottom-[-4rem] left-1/3 h-80 w-80 rounded-full bg-sky-300/25" />
 
-      <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-10 lg:grid-cols-[1.05fr,0.95fr]">
+      <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr,0.95fr] lg:gap-20 lg:px-8">
         <div className="hidden lg:block">
           <div className="max-w-xl">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-gray-500">RoadAssist Dispatch</p>
@@ -66,18 +66,9 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative lg:pl-10">
           <div className="roadassist-tilt pointer-events-none absolute inset-0 hidden lg:block">
-            <div className="roadassist-tilt-card roadassist-float absolute -left-28 top-10 w-56 rounded-[28px] border border-white/70 bg-white/75 p-4 shadow-2xl backdrop-blur">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Nearby help</p>
-                <Sparkles size={14} className="text-orange-500" />
-              </div>
-              <p className="mt-5 text-3xl font-semibold text-slate-950">12</p>
-              <p className="mt-1 text-sm text-slate-500">mechanics around Richmond</p>
-            </div>
-
-            <div className="roadassist-tilt-card roadassist-float-delayed absolute -right-10 bottom-12 w-64 rounded-[28px] border border-white/70 bg-[#0f172a]/92 p-5 text-white shadow-2xl">
+            <div className="roadassist-tilt-card roadassist-float-delayed absolute -right-6 bottom-10 w-64 rounded-[28px] border border-white/70 bg-[#0f172a]/92 p-5 text-white shadow-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Inventory match</p>
               <p className="mt-4 text-2xl font-semibold">Oxygen Sensor</p>
               <p className="mt-2 text-sm text-white/65">3 shops nearby have this part in stock.</p>
@@ -88,7 +79,7 @@ export default function Login() {
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-md rounded-[34px] border border-white/80 bg-white/88 p-6 shadow-[0_30px_90px_rgba(15,23,42,0.18)] backdrop-blur xl:p-7">
+          <div className="relative mx-auto w-full max-w-md rounded-[34px] border border-white/80 bg-white/88 p-6 shadow-[0_30px_90px_rgba(15,23,42,0.18)] backdrop-blur xl:max-w-[30rem] xl:p-7">
             <div className="text-center">
               <div className="inline-flex h-14 w-14 items-center justify-center rounded-[20px] bg-gradient-to-br from-orange-500 via-orange-600 to-amber-500 shadow-lg">
                 <Wrench size={26} className="text-white" />
