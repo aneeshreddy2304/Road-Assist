@@ -6,6 +6,14 @@ import "leaflet/dist/leaflet.css";
 import { getMechanicParts, getMechanicProfile } from "../api/endpoints";
 import { Card, EmptyState, Spinner } from "../components/UI";
 
+const KM_TO_MILES = 0.621371;
+
+function toMiles(km) {
+  const numericKm = Number(km);
+  if (!Number.isFinite(numericKm)) return "Not calculated";
+  return `${(numericKm * KM_TO_MILES).toFixed(1)} mi`;
+}
+
 function mapLink(userLocation, mechanic) {
   if (userLocation?.lat && userLocation?.lng) {
     return `https://www.google.com/maps/dir/${userLocation.lat},${userLocation.lng}/${mechanic.lat},${mechanic.lng}`;
@@ -118,7 +126,7 @@ export default function MechanicProfile() {
               <div className="rounded-lg bg-gray-50 p-3">
                 <p className="text-xs text-gray-400">Distance</p>
                 <p className="mt-1 text-sm font-medium text-gray-800">
-                  {mechanic.distance_km ? `${mechanic.distance_km} km` : "Not calculated"}
+                  {toMiles(mechanic.distance_km)}
                 </p>
               </div>
             </div>

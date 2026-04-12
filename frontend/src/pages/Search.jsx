@@ -80,6 +80,14 @@ const busyMechanicIcon = new L.DivIcon({
   iconAnchor: [11, 11],
 });
 
+const KM_TO_MILES = 0.621371;
+
+function toMiles(km) {
+  const numericKm = Number(km);
+  if (!Number.isFinite(numericKm)) return "";
+  return `${(numericKm * KM_TO_MILES).toFixed(1)} mi`;
+}
+
 function MapViewport({ center, zoom }) {
   const map = useMap();
 
@@ -230,7 +238,7 @@ export default function Search() {
               <br />
               {mechanic.specialization || "General repair"}
               <br />
-              {mechanic.distance_km} km away
+              {toMiles(mechanic.distance_km)} away
             </Popup>
           </Marker>
         ))}
@@ -258,7 +266,7 @@ export default function Search() {
               </div>
               <div className="rounded-2xl bg-[#111827] px-3 py-2 text-right text-white shadow-lg">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">Service radius</p>
-                <p className="text-lg font-semibold">{radius} km</p>
+                <p className="text-lg font-semibold">{toMiles(radius)}</p>
               </div>
             </div>
 
@@ -347,7 +355,7 @@ export default function Search() {
                   <SlidersHorizontal size={13} />
                   Search radius
                 </span>
-                <span>{radius} km</span>
+                <span>{toMiles(radius)}</span>
               </div>
               <input
                 type="range"
@@ -470,7 +478,7 @@ function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInve
             >
               {mechanic.is_available ? "Available now" : "Busy"}
             </span>
-            <span className="text-xs font-medium text-gray-500">{mechanic.distance_km} km away</span>
+            <span className="text-xs font-medium text-gray-500">{toMiles(mechanic.distance_km)} away</span>
           </div>
           <h2 className="mt-3 text-xl font-semibold text-gray-950">{mechanic.name}</h2>
           <p className="mt-1 text-sm text-gray-600">{mechanic.specialization || "General repair"}</p>
@@ -557,7 +565,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
             <Star size={13} className="fill-yellow-400 text-yellow-400" />
             {mechanic.rating}
           </div>
-          <p className={`mt-1 text-xs ${selected ? "text-white/70" : "text-gray-500"}`}>{mechanic.distance_km} km</p>
+          <p className={`mt-1 text-xs ${selected ? "text-white/70" : "text-gray-500"}`}>{toMiles(mechanic.distance_km)}</p>
           <span
             className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${
               mechanic.is_available
@@ -624,7 +632,7 @@ function PartCard({ part }) {
         <div>
           <p className="text-base font-semibold text-gray-950">{part.part_name}</p>
           <p className="mt-1 text-sm text-gray-500">
-            {part.mechanic_name} · {part.distance_km} km away
+            {part.mechanic_name} · {toMiles(part.distance_km)} away
           </p>
           <p className="mt-2 text-xs text-gray-400">{part.mechanic_address || "Richmond service area"}</p>
         </div>
@@ -785,7 +793,7 @@ function MechanicInventoryModal({ mechanic, onClose }) {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Inventory</p>
             <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {mechanic.specialization || "General repair"} · {mechanic.distance_km} km away
+              {mechanic.specialization || "General repair"} · {toMiles(mechanic.distance_km)} away
             </p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">

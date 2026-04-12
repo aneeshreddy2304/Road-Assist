@@ -27,12 +27,12 @@ async def search_parts(
 ):
     query = text("""
         SELECT
-            sp.id                                                       AS part_id,
+            sp.id::TEXT                                                 AS part_id,
             sp.part_name,
             sp.part_number,
             sp.quantity,
             CAST(sp.price AS FLOAT)                                     AS price,
-            m.id                                                        AS mechanic_id,
+            m.id::TEXT                                                  AS mechanic_id,
             u.name                                                      AS mechanic_name,
             m.address                                                   AS mechanic_address,
             CAST(m.rating AS FLOAT)                                     AS mechanic_rating,
@@ -49,7 +49,11 @@ async def search_parts(
             sp.quantity > 0
             AND m.is_available = TRUE
             AND u.is_active = TRUE
-            AND to_tsvector('english', sp.part_name) @@ plainto_tsquery('english', :name)
+            AND (
+                sp.part_name ILIKE :name_pattern
+                OR COALESCE(sp.part_number, '') ILIKE :name_pattern
+                OR to_tsvector('english', sp.part_name) @@ plainto_tsquery('english', :name)
+            )
             AND ST_DWithin(
                 m.location,
                 ST_MakePoint(:lng, :lat)::GEOGRAPHY,
@@ -58,7 +62,16 @@ async def search_parts(
         ORDER BY distance_km ASC, sp.price ASC
     """)
 
-    result = await db.execute(query, {"name": name, "lat": lat, "lng": lng, "radius_m": radius_km * 1000})
+    result = await db.execute(
+        query,
+        {
+            "name": name,
+            "name_pattern": f"%{name.strip()}%",
+            "lat": lat,
+            "lng": lng,
+            "radius_m": radius_km * 1000,
+        },
+    )
     rows = result.mappings().all()
     return [PartSearchResult(**dict(r)) for r in rows]
 
