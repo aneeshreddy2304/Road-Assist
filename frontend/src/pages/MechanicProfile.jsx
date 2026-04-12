@@ -5,14 +5,7 @@ import "leaflet/dist/leaflet.css";
 
 import { getMechanicParts, getMechanicProfile } from "../api/endpoints";
 import { Card, EmptyState, Spinner } from "../components/UI";
-
-const KM_TO_MILES = 0.621371;
-
-function toMiles(km) {
-  const numericKm = Number(km);
-  if (!Number.isFinite(numericKm)) return "Not calculated";
-  return `${(numericKm * KM_TO_MILES).toFixed(1)} mi`;
-}
+import { formatCurrencyUSD, formatMilesFromKm } from "../lib/formatters";
 
 function mapLink(userLocation, mechanic) {
   if (userLocation?.lat && userLocation?.lng) {
@@ -126,7 +119,7 @@ export default function MechanicProfile() {
               <div className="rounded-lg bg-gray-50 p-3">
                 <p className="text-xs text-gray-400">Distance</p>
                 <p className="mt-1 text-sm font-medium text-gray-800">
-                  {toMiles(mechanic.distance_km)}
+                  {formatMilesFromKm(mechanic.distance_km)}
                 </p>
               </div>
             </div>
@@ -159,7 +152,7 @@ export default function MechanicProfile() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900">₹{Number(part.price).toLocaleString("en-IN")}</p>
+                        <p className="text-sm font-semibold text-gray-900">{formatCurrencyUSD(part.price)}</p>
                         <p className={`mt-1 text-xs ${part.quantity > 0 ? "text-green-600" : "text-red-600"}`}>
                           {part.quantity > 0 ? `${part.quantity} in stock` : "Out of stock"}
                         </p>

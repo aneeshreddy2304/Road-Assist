@@ -9,7 +9,8 @@ import {
   getMyMechanicProfile,
 } from "../api/endpoints";
 import { Card, Spinner, StatusBadge, EmptyState } from "../components/UI";
-import { Briefcase, Star, AlertTriangle, CheckCircle, IndianRupee } from "lucide-react";
+import { Briefcase, Star, AlertTriangle, CheckCircle, DollarSign } from "lucide-react";
+import { formatCurrencyUSD } from "../lib/formatters";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -74,8 +75,8 @@ export default function Dashboard() {
             label="Completed" value={dashboard.completed_jobs} bg="bg-green-50" />
           <StatCard icon={<Star size={18} className="text-yellow-500" />}
             label="Rating" value={`${dashboard.rating} ★`} bg="bg-yellow-50" />
-          <StatCard icon={<IndianRupee size={18} className="text-brand-500" />}
-            label="This Week" value={`₹${dashboard.earnings_this_week}`} bg="bg-brand-50" />
+          <StatCard icon={<DollarSign size={18} className="text-brand-500" />}
+            label="This Week" value={formatCurrencyUSD(dashboard.earnings_this_week)} bg="bg-brand-50" />
         </div>
       )}
 

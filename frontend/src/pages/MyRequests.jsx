@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { listRequests, getRequestHistory, submitReview } from "../api/endpoints";
 import { Card, Spinner, StatusBadge, EmptyState } from "../components/UI";
 import { ChevronDown, ChevronUp, Star } from "lucide-react";
+import { formatCurrencyUSD } from "../lib/formatters";
 
 export default function MyRequests() {
   const [requests, setRequests] = useState([]);
@@ -51,7 +52,7 @@ export default function MyRequests() {
                   </div>
                   <p className="text-sm font-medium text-gray-800 mt-1 truncate">{req.problem_desc}</p>
                   {req.total_cost && (
-                    <p className="text-xs text-green-600 mt-0.5">Total: ₹{req.total_cost}</p>
+                    <p className="text-xs text-green-600 mt-0.5">Total: {formatCurrencyUSD(req.total_cost)}</p>
                   )}
                 </div>
                 <div className="ml-3 text-gray-400 shrink-0">

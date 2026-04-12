@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { getAnalytics, getAllMechanics, deactivateMechanic } from "../api/endpoints";
 import { Card, Spinner } from "../components/UI";
-import { TrendingUp, Users, Briefcase, IndianRupee, Star, ShieldOff } from "lucide-react";
+import { TrendingUp, Users, Briefcase, DollarSign, Star, ShieldOff } from "lucide-react";
+import { formatCurrencyUSD } from "../lib/formatters";
 
 export default function Admin() {
   const [analytics, setAnalytics] = useState(null);
@@ -57,10 +58,10 @@ export default function Admin() {
               label="Total Requests" value={s.total_requests ?? 0} bg="bg-blue-50" />
             <KpiCard icon={<TrendingUp size={18} className="text-green-500" />}
               label="Completed" value={s.completed ?? 0} bg="bg-green-50" />
-            <KpiCard icon={<IndianRupee size={18} className="text-brand-500" />}
-              label="Total Revenue" value={`₹${Number(s.total_revenue ?? 0).toLocaleString("en-IN")}`} bg="bg-brand-50" />
+            <KpiCard icon={<DollarSign size={18} className="text-brand-500" />}
+              label="Total Revenue" value={formatCurrencyUSD(s.total_revenue ?? 0)} bg="bg-brand-50" />
             <KpiCard icon={<TrendingUp size={18} className="text-purple-500" />}
-              label="Avg Job Value" value={`₹${s.avg_job_value ?? 0}`} bg="bg-purple-50" />
+              label="Avg Job Value" value={formatCurrencyUSD(s.avg_job_value ?? 0)} bg="bg-purple-50" />
           </div>
 
           {/* Status breakdown */}

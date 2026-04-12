@@ -22,6 +22,7 @@ import {
   searchParts,
 } from "../api/endpoints";
 import { Card, EmptyState, Spinner } from "../components/UI";
+import { formatCurrencyUSD, formatMilesFromKm } from "../lib/formatters";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -80,14 +81,6 @@ const busyMechanicIcon = new L.DivIcon({
   iconAnchor: [11, 11],
 });
 
-const KM_TO_MILES = 0.621371;
-
-function toMiles(km) {
-  const numericKm = Number(km);
-  if (!Number.isFinite(numericKm)) return "";
-  return `${(numericKm * KM_TO_MILES).toFixed(1)} mi`;
-}
-
 function MapViewport({ center, zoom }) {
   const map = useMap();
 
@@ -134,7 +127,7 @@ export default function Search() {
         if (error.code === error.PERMISSION_DENIED) {
           message = "Location access is blocked in your browser. Allow location for this site and try again.";
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          message = "Your device could not determine a location right now.";
+          message = "Your browser could not determine your location. This is common on laptops without precise GPS, so you can keep using the Richmond demo center or allow location and try again.";
         } else if (error.code === error.TIMEOUT) {
           message = "Location request timed out. Try again in a moment.";
         }
@@ -238,7 +231,7 @@ export default function Search() {
               <br />
               {mechanic.specialization || "General repair"}
               <br />
-              {toMiles(mechanic.distance_km)} away
+              {formatMilesFromKm(mechanic.distance_km)} away
             </Popup>
           </Marker>
         ))}
@@ -266,7 +259,7 @@ export default function Search() {
               </div>
               <div className="rounded-2xl bg-[#111827] px-3 py-2 text-right text-white shadow-lg">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">Service radius</p>
-                <p className="text-lg font-semibold">{toMiles(radius)}</p>
+                <p className="text-lg font-semibold">{formatMilesFromKm(radius)}</p>
               </div>
             </div>
 
@@ -355,7 +348,7 @@ export default function Search() {
                   <SlidersHorizontal size={13} />
                   Search radius
                 </span>
-                <span>{toMiles(radius)}</span>
+                <span>{formatMilesFromKm(radius)}</span>
               </div>
               <input
                 type="range"
@@ -478,7 +471,7 @@ function SelectedMechanicPanel({ mechanic, userLocation, onOpenRoute, onOpenInve
             >
               {mechanic.is_available ? "Available now" : "Busy"}
             </span>
-            <span className="text-xs font-medium text-gray-500">{toMiles(mechanic.distance_km)} away</span>
+            <span className="text-xs font-medium text-gray-500">{formatMilesFromKm(mechanic.distance_km)} away</span>
           </div>
           <h2 className="mt-3 text-xl font-semibold text-gray-950">{mechanic.name}</h2>
           <p className="mt-1 text-sm text-gray-600">{mechanic.specialization || "General repair"}</p>
@@ -565,7 +558,7 @@ function MechanicCard({ mechanic, selected, onSelect, onViewInventory, onRequest
             <Star size={13} className="fill-yellow-400 text-yellow-400" />
             {mechanic.rating}
           </div>
-          <p className={`mt-1 text-xs ${selected ? "text-white/70" : "text-gray-500"}`}>{toMiles(mechanic.distance_km)}</p>
+          <p className={`mt-1 text-xs ${selected ? "text-white/70" : "text-gray-500"}`}>{formatMilesFromKm(mechanic.distance_km)}</p>
           <span
             className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${
               mechanic.is_available
@@ -632,12 +625,12 @@ function PartCard({ part }) {
         <div>
           <p className="text-base font-semibold text-gray-950">{part.part_name}</p>
           <p className="mt-1 text-sm text-gray-500">
-            {part.mechanic_name} · {toMiles(part.distance_km)} away
+            {part.mechanic_name} · {formatMilesFromKm(part.distance_km)} away
           </p>
           <p className="mt-2 text-xs text-gray-400">{part.mechanic_address || "Richmond service area"}</p>
         </div>
         <div className="text-right">
-          <p className="text-base font-semibold text-gray-950">${Number(part.price).toLocaleString("en-US")}</p>
+          <p className="text-base font-semibold text-gray-950">{formatCurrencyUSD(part.price)}</p>
           <p className="mt-1 text-xs font-medium text-green-600">{part.quantity} in stock</p>
           <div className="mt-2 flex items-center justify-end gap-1 text-xs text-gray-500">
             <Star size={11} className="fill-yellow-400 text-yellow-400" />
@@ -793,7 +786,7 @@ function MechanicInventoryModal({ mechanic, onClose }) {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Inventory</p>
             <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {mechanic.specialization || "General repair"} · {toMiles(mechanic.distance_km)} away
+              {mechanic.specialization || "General repair"} · {formatMilesFromKm(mechanic.distance_km)} away
             </p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
@@ -817,7 +810,7 @@ function MechanicInventoryModal({ mechanic, onClose }) {
                       <p className="mt-1 text-xs text-gray-500">Part No: {part.part_number || "Not provided"}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-950">${Number(part.price).toLocaleString("en-US")}</p>
+                      <p className="text-sm font-semibold text-gray-950">{formatCurrencyUSD(part.price)}</p>
                       <p className={`mt-1 text-xs ${part.quantity > 0 ? "text-green-600" : "text-red-600"}`}>
                         {part.quantity > 0 ? `${part.quantity} in stock` : "Out of stock"}
                       </p>

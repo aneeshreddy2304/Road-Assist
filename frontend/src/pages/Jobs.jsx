@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getOpenRequests, listRequests, updateRequestStatus } from "../api/endpoints";
 import { Card, Spinner, StatusBadge, EmptyState } from "../components/UI";
 import { MapPin, Clock, Car } from "lucide-react";
+import { formatCurrencyUSD } from "../lib/formatters";
 
 const RICHMOND = { lat: 37.5407, lng: -77.4360 };
 
@@ -146,7 +147,7 @@ function MyJobCard({ job, onUpdate }) {
           </div>
           <p className="text-sm font-medium text-gray-800 truncate">{job.problem_desc}</p>
           {job.total_cost && (
-            <p className="text-xs text-green-700 mt-0.5 font-medium">Earned: ₹{job.total_cost}</p>
+            <p className="text-xs text-green-700 mt-0.5 font-medium">Earned: {formatCurrencyUSD(job.total_cost)}</p>
           )}
         </div>
         {action && (

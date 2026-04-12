@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getMechanicParts, addPart, updatePart, deletePart, getMyMechanicProfile } from "../api/endpoints";
 import { Card, Spinner, EmptyState } from "../components/UI";
 import { Plus, Pencil, Trash2, AlertTriangle, X, Check } from "lucide-react";
+import { formatCurrencyUSD } from "../lib/formatters";
 
 export default function Inventory() {
   const [parts, setParts]         = useState([]);
@@ -78,7 +79,7 @@ export default function Inventory() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Part Name", "Part No.", "Qty", "Min", "Price (₹)", ""].map((h) => (
+                {["Part Name", "Part No.", "Qty", "Min", "Price ($)", ""].map((h) => (
                   <th key={h} className="text-left text-xs font-medium text-gray-500 px-4 py-2.5">{h}</th>
                 ))}
               </tr>
@@ -148,7 +149,7 @@ export default function Inventory() {
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-gray-500">{part.min_threshold}</td>
-                      <td className="px-4 py-2.5 text-gray-800">₹{Number(part.price).toLocaleString("en-IN")}</td>
+                      <td className="px-4 py-2.5 text-gray-800">{formatCurrencyUSD(part.price)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1">
                           <button
@@ -205,7 +206,7 @@ function AddPartModal({ onAdd, onClose }) {
     { key: "part_number",    label: "Part Number",     type: "text",   required: false },
     { key: "quantity",       label: "Quantity",         type: "number", required: true  },
     { key: "min_threshold",  label: "Min Threshold",   type: "number", required: true  },
-    { key: "price",          label: "Price (₹)",       type: "number", required: true  },
+    { key: "price",          label: "Price ($)",       type: "number", required: true  },
   ];
 
   return (
