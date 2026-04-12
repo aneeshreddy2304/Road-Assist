@@ -369,13 +369,7 @@ export default function Search() {
 
       <div className="absolute left-4 top-4 bottom-4 z-[500] flex w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-4 lg:left-6 lg:top-6 lg:bottom-6">
         <Card className="rounded-[28px] border border-white/80 bg-white/92 p-5 shadow-2xl backdrop-blur">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500">RoadAssist Live</p>
-              <h1 className="mt-2 text-[2.3rem] font-semibold leading-[0.98] tracking-tight text-gray-950">
-                Get roadside help fast
-              </h1>
-            </div>
+          <div className="flex items-start justify-end gap-3">
             <div className="rounded-[24px] bg-[#0f172a] px-4 py-3 text-right text-white shadow-xl">
               <p className="text-[10px] uppercase tracking-[0.16em] text-white/55">Radius</p>
               <p className="mt-1 text-2xl font-semibold">{formatMilesFromKm(radius)}</p>
@@ -546,6 +540,7 @@ export default function Search() {
           </div>
         </Card>
 
+        {tab === "mechanics" || parts.length > 0 ? (
         <Card className="min-h-0 flex-1 rounded-[28px] border border-white/80 bg-white/95 p-4 shadow-2xl backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -601,6 +596,7 @@ export default function Search() {
               ))}
           </div>
         </Card>
+        ) : null}
       </div>
 
       {selectedDetail ? (

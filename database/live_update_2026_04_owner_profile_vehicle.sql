@@ -10,6 +10,10 @@ ALTER TABLE vehicles
   ADD COLUMN IF NOT EXISTS fuel_type VARCHAR(30),
   ADD COLUMN IF NOT EXISTS color VARCHAR(30);
 
+DELETE FROM vehicles
+WHERE owner_id = '34679a0e-5a14-43f3-9c99-274cabf13f89'
+  AND license_plate LIKE 'TS%';
+
 UPDATE users AS u
 SET
   gender = v.gender,

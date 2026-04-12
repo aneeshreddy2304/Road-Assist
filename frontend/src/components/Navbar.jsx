@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   CarFront,
-  ClipboardList,
   History,
   LayoutDashboard,
   LogOut,
@@ -57,6 +56,7 @@ export default function Navbar() {
   const [openPanel, setOpenPanel] = useState(null);
   const [profileForm, setProfileForm] = useState(ownerProfileDefaults);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [profileEditMode, setProfileEditMode] = useState(false);
   const [vehicles, setVehicles] = useState([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
   const [historyItems, setHistoryItems] = useState([]);
@@ -78,6 +78,7 @@ export default function Navbar() {
       state: user.state || "VA",
       postal_code: user.postal_code || "",
     });
+    setProfileEditMode(false);
   }, [user]);
 
   useEffect(() => {
@@ -116,6 +117,7 @@ export default function Navbar() {
 
   const togglePanel = (panelId) => {
     setOpenPanel((current) => (current === panelId ? null : panelId));
+    setProfileEditMode(false);
     if (panelId !== "vehicles") {
       setVehicleFormOpen(false);
       setVehicleEditingId(null);
@@ -137,7 +139,7 @@ export default function Navbar() {
         postal_code: profileForm.postal_code || null,
       });
       await refreshUser();
-      setOpenPanel(null);
+      setProfileEditMode(false);
     } finally {
       setProfileSaving(false);
     }
@@ -224,12 +226,6 @@ export default function Navbar() {
               {user.role === "owner" ? (
                 <>
                   <HeaderNavLink to="/search" icon={<Search size={16} />} label="Find Help" active={pathname === "/search"} />
-                  <HeaderNavLink
-                    to="/my-requests"
-                    icon={<ClipboardList size={16} />}
-                    label="My Jobs"
-                    active={pathname === "/my-requests"}
-                  />
                 </>
               ) : null}
 
@@ -275,14 +271,15 @@ export default function Navbar() {
                   <PanelShell title="Profile" onClose={() => setOpenPanel(null)}>
                     <form onSubmit={submitProfile} className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <Field label="Name" value={profileForm.name} onChange={(value) => setProfileForm((f) => ({ ...f, name: value }))} />
+                        <Field label="Name" value={profileForm.name} disabled={!profileEditMode} onChange={(value) => setProfileForm((f) => ({ ...f, name: value }))} />
                         <Field label="Email" value={profileForm.email} disabled />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <Field label="Phone" value={profileForm.phone} onChange={(value) => setProfileForm((f) => ({ ...f, phone: value }))} />
+                        <Field label="Phone" value={profileForm.phone} disabled={!profileEditMode} onChange={(value) => setProfileForm((f) => ({ ...f, phone: value }))} />
                         <SelectField
                           label="Gender"
                           value={profileForm.gender}
+                          disabled={!profileEditMode}
                           onChange={(value) => setProfileForm((f) => ({ ...f, gender: value }))}
                           options={["", "Female", "Male", "Non-binary", "Prefer not to say"]}
                         />
@@ -290,25 +287,58 @@ export default function Navbar() {
                       <Field
                         label="Street Address"
                         value={profileForm.street_address}
+                        disabled={!profileEditMode}
                         onChange={(value) => setProfileForm((f) => ({ ...f, street_address: value }))}
                       />
                       <div className="grid grid-cols-3 gap-3">
-                        <Field label="City" value={profileForm.city} onChange={(value) => setProfileForm((f) => ({ ...f, city: value }))} />
-                        <Field label="State" value={profileForm.state} onChange={(value) => setProfileForm((f) => ({ ...f, state: value }))} />
+                        <Field label="City" value={profileForm.city} disabled={!profileEditMode} onChange={(value) => setProfileForm((f) => ({ ...f, city: value }))} />
+                        <Field label="State" value={profileForm.state} disabled={!profileEditMode} onChange={(value) => setProfileForm((f) => ({ ...f, state: value }))} />
                         <Field
                           label="ZIP Code"
                           value={profileForm.postal_code}
+                          disabled={!profileEditMode}
                           onChange={(value) => setProfileForm((f) => ({ ...f, postal_code: value }))}
                         />
                       </div>
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={profileSaving}
-                          className="rounded-full bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2563eb] disabled:opacity-60"
-                        >
-                          {profileSaving ? "Saving..." : "Update Profile"}
-                        </button>
+                      <div className="flex justify-end gap-2">
+                        {profileEditMode ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProfileEditMode(false);
+                                setProfileForm({
+                                  name: user.name || "",
+                                  email: user.email || "",
+                                  phone: user.phone || "",
+                                  gender: user.gender || "",
+                                  street_address: user.street_address || "",
+                                  city: user.city || "Richmond",
+                                  state: user.state || "VA",
+                                  postal_code: user.postal_code || "",
+                                });
+                              }}
+                              className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white/75 hover:bg-white/5"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={profileSaving}
+                              className="rounded-full bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2563eb] disabled:opacity-60"
+                            >
+                              {profileSaving ? "Saving..." : "Save changes"}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setProfileEditMode(true)}
+                            className="rounded-full bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2563eb]"
+                          >
+                            Edit Profile
+                          </button>
+                        )}
                       </div>
                     </form>
                   </PanelShell>
@@ -518,21 +548,24 @@ function HeaderNavLink({ to, icon, label, active }) {
 
 function PanelShell({ title, action, onClose, children }) {
   return (
-    <div className="absolute right-0 top-[calc(100%+0.85rem)] z-20 w-[34rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[32px] border border-[#16305f] bg-[#081224]/98 p-5 text-white shadow-[0_30px_80px_rgba(2,8,23,0.55)] backdrop-blur-xl">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#58a6ff]">Owner tools</p>
-          <h3 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h3>
+    <>
+      <div className="fixed inset-0 top-16 z-[710] bg-[#020817]/55 backdrop-blur-[2px]" />
+      <div className="fixed right-6 top-24 z-[720] w-[34rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[32px] border border-[#16305f] bg-[#081224] p-5 text-white shadow-[0_30px_80px_rgba(2,8,23,0.72)]">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#58a6ff]">Owner tools</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {action}
+            <button onClick={onClose} className="rounded-full border border-white/10 p-2 text-white/60 hover:bg-white/10 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {action}
-          <button onClick={onClose} className="rounded-full border border-white/10 p-2 text-white/60 hover:bg-white/10 hover:text-white">
-            <X size={16} />
-          </button>
-        </div>
+        {children}
       </div>
-      {children}
-    </div>
+    </>
   );
 }
 
@@ -549,24 +582,25 @@ function Field({ label, value, onChange, type = "text", disabled = false, dark =
           dark
             ? "border-white/10 bg-white/5 text-white placeholder:text-white/30"
             : "border-[#dbe7ff] bg-[#f8fbff] text-[#081224] placeholder:text-slate-400"
-        } ${disabled ? "opacity-70" : ""}`}
+        } ${disabled ? "cursor-not-allowed opacity-70" : ""}`}
       />
     </label>
   );
 }
 
-function SelectField({ label, value, onChange, options, dark = false }) {
+function SelectField({ label, value, onChange, options, dark = false, disabled = false }) {
   return (
     <label className={`block text-xs font-semibold uppercase tracking-[0.18em] ${dark ? "text-white/55" : "text-slate-500"}`}>
       {label}
       <select
         value={value ?? ""}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className={`mt-2 w-full rounded-2xl border px-3 py-2 text-sm outline-none ${
           dark
             ? "border-white/10 bg-white/5 text-white"
             : "border-[#dbe7ff] bg-[#f8fbff] text-[#081224]"
-        }`}
+        } ${disabled ? "cursor-not-allowed opacity-70" : ""}`}
       >
         {options.map((option) => (
           <option key={option || "blank"} value={option} className="text-black">
