@@ -116,4 +116,4 @@ FROM (
     ('1838d98b-78ba-494c-aa56-9901182f671c', 'Byrd Park', 'Toyota', 'Corolla Cross', 2023, 'RVA-3149', 'suv', 'gasoline', 'Blue Crush', 'Compact SUV for daily use'),
     ('ebf350d4-0abe-4fa3-9b25-3d822ef1b5f7', 'Monroe Ward', 'Honda', 'Civic', 2024, 'RVA-3150', 'car', 'gasoline', 'White', 'Newest sedan in the driveway')
 ) AS spec(id, nickname, make, model, year, license_plate, vehicle_type, fuel_type, color, notes)
-WHERE v.id = spec.id;
+WHERE v.id = spec.id::uuid;

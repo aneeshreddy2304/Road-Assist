@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, ZoomControl, useMap } from "react-leaflet";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   Crosshair,
   MapPin,
@@ -118,7 +118,6 @@ async function fetchLocationSuggestions(query) {
 }
 
 export default function Search() {
-  const navigate = useNavigate();
   const pageLocation = useLocation();
 
   const [tab, setTab] = useState("mechanics");
@@ -369,14 +368,7 @@ export default function Search() {
 
       <div className="absolute left-4 top-4 bottom-4 z-[500] flex w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-4 lg:left-6 lg:top-6 lg:bottom-6">
         <Card className="rounded-[28px] border border-white/80 bg-white/92 p-5 shadow-2xl backdrop-blur">
-          <div className="flex items-start justify-end gap-3">
-            <div className="rounded-[24px] bg-[#0f172a] px-4 py-3 text-right text-white shadow-xl">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/55">Radius</p>
-              <p className="mt-1 text-2xl font-semibold">{formatMilesFromKm(radius)}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-2 rounded-[22px] bg-gray-100 p-1">
+          <div className="grid grid-cols-2 gap-2 rounded-[22px] bg-gray-100 p-1">
             {[
               { id: "mechanics", label: "Find mechanics", icon: <Wrench size={15} /> },
               { id: "parts", label: "Find parts", icon: <SearchIcon size={15} /> },
@@ -541,7 +533,7 @@ export default function Search() {
         </Card>
 
         {tab === "mechanics" || parts.length > 0 ? (
-        <Card className="min-h-0 flex-1 rounded-[28px] border border-white/80 bg-white/95 p-4 shadow-2xl backdrop-blur">
+        <Card className="min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/80 bg-white/95 p-4 shadow-2xl backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
@@ -573,12 +565,6 @@ export default function Search() {
                   selected={selected?.mechanic_id === mechanic.mechanic_id}
                   onSelect={() => handleSelectMechanic(mechanic)}
                   onDeselect={() => handleDeselectMechanic(mechanic)}
-                  onViewInventory={() => setInventoryMechanic(mechanic)}
-                  onRequest={() => {
-                    setSelected(mechanic);
-                    setShowRequest(true);
-                  }}
-                  pickupLabel={pickupLabel}
                 />
               ))}
 
@@ -600,7 +586,7 @@ export default function Search() {
       </div>
 
       {selectedDetail ? (
-        <div className="absolute right-4 top-4 z-[500] hidden w-[38rem] max-w-[calc(100vw-2rem)] lg:right-6 lg:top-6 lg:block">
+        <div className="absolute right-4 top-4 bottom-4 z-[500] hidden w-[26rem] max-w-[calc(100vw-2rem)] lg:right-6 lg:top-6 lg:bottom-6 lg:block">
           <SelectedMechanicPanel
             mechanic={selectedDetail}
             pickupLabel={pickupLabel}
@@ -644,7 +630,7 @@ export default function Search() {
 
 function SelectedMechanicPanel({ mechanic, pickupLabel, onOpenRoute, onOpenInventory, onRequest, onClose }) {
   return (
-    <Card className="rounded-[28px] border border-white/80 bg-white/96 p-5 shadow-2xl backdrop-blur">
+    <Card className="flex h-full flex-col rounded-[28px] border border-white/80 bg-white/96 p-5 shadow-2xl backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -680,7 +666,7 @@ function SelectedMechanicPanel({ mechanic, pickupLabel, onOpenRoute, onOpenInven
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid gap-3">
         <div className="rounded-[22px] bg-gray-50 px-4 py-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Pickup address</p>
           <p className="mt-2 text-base font-medium text-gray-900">{pickupLabel}</p>
@@ -691,7 +677,7 @@ function SelectedMechanicPanel({ mechanic, pickupLabel, onOpenRoute, onOpenInven
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="mt-auto grid grid-cols-3 gap-2 pt-5">
         <button
           onClick={onOpenRoute}
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
@@ -715,9 +701,7 @@ function SelectedMechanicPanel({ mechanic, pickupLabel, onOpenRoute, onOpenInven
   );
 }
 
-function MechanicCard({ mechanic, selected, onSelect, onDeselect, onViewInventory, onRequest, pickupLabel }) {
-  const navigate = useNavigate();
-
+function MechanicCard({ mechanic, selected, onSelect, onDeselect }) {
   return (
     <button
       type="button"
@@ -765,45 +749,6 @@ function MechanicCard({ mechanic, selected, onSelect, onDeselect, onViewInventor
         </div>
       </div>
 
-      {selected ? (
-        <>
-          <div className="mt-4 rounded-[18px] bg-white/10 px-3 py-3 text-xs text-white/75">
-            Pickup: {pickupLabel}
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                navigate(`/mechanics/${mechanic.mechanic_id}`, { state: { mechanic, userLocation } });
-              }}
-              className="rounded-[16px] bg-white px-3 py-2 text-xs font-medium text-gray-900"
-            >
-              Profile
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onViewInventory();
-              }}
-              className="rounded-[16px] bg-white/15 px-3 py-2 text-xs font-medium text-white"
-            >
-              Parts
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onRequest();
-              }}
-              className="rounded-[16px] bg-[#16a34a] px-3 py-2 text-xs font-medium text-white"
-            >
-              Request
-            </button>
-          </div>
-        </>
-      ) : null}
     </button>
   );
 }
