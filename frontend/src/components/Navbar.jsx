@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   CarFront,
+  ClipboardList,
   History,
   LayoutDashboard,
   LogOut,
