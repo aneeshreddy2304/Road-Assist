@@ -19,6 +19,19 @@ from app.schemas.requests import (
 router = APIRouter(tags=["Service Requests"])
 
 
+def _estimate_completion_total(problem_desc: str) -> float:
+    problem = (problem_desc or "").lower()
+    if any(term in problem for term in ["engine", "transmission", "gear"]):
+        return 249.0
+    if any(term in problem for term in ["battery", "start", "starter", "alternator"]):
+        return 179.0
+    if any(term in problem for term in ["brake", "tyre", "tire", "puncture", "wheel"]):
+        return 159.0
+    if any(term in problem for term in ["ac", "cooling", "radiator", "coolant"]):
+        return 189.0
+    return 149.0
+
+
 # ------------------------------------------------------------------
 # POST /requests  — owner creates a new service request
 # ------------------------------------------------------------------
@@ -97,11 +110,16 @@ async def create_request(
                 sr.problem_desc,
                 sr.status::TEXT AS status,
                 CAST(sr.total_cost AS FLOAT) AS total_cost,
+                u.name AS owner_name,
+                CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
+                v.license_plate,
                 ST_Y(sr.owner_location::geometry) AS lat,
                 ST_X(sr.owner_location::geometry) AS lng,
                 sr.created_at,
                 sr.updated_at
             FROM service_requests sr
+            JOIN users u ON u.id = sr.owner_id
+            JOIN vehicles v ON v.id = sr.vehicle_id
             WHERE sr.id = :rid
         """),
         {"rid": req_id},
@@ -151,11 +169,16 @@ async def list_requests(
                 sr.problem_desc,
                 sr.status::TEXT AS status,
                 CAST(sr.total_cost AS FLOAT) AS total_cost,
+                u.name AS owner_name,
+                CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
+                v.license_plate,
                 ST_Y(sr.owner_location::geometry) AS lat,
                 ST_X(sr.owner_location::geometry) AS lng,
                 sr.created_at,
                 sr.updated_at
             FROM service_requests sr
+            JOIN users u ON u.id = sr.owner_id
+            JOIN vehicles v ON v.id = sr.vehicle_id
             {where_clause}
             ORDER BY sr.created_at DESC
         """),
@@ -191,18 +214,28 @@ async def list_open_requests(
             sr.problem_desc,
             sr.status::TEXT AS status,
             CAST(sr.total_cost AS FLOAT) AS total_cost,
+            u.name AS owner_name,
+            CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
+            v.license_plate,
             ST_Y(sr.owner_location::geometry) AS lat,
             ST_X(sr.owner_location::geometry) AS lng,
             sr.created_at,
             sr.updated_at
         FROM service_requests sr
+        JOIN users u ON u.id = sr.owner_id
+        JOIN vehicles v ON v.id = sr.vehicle_id
             WHERE
                 sr.status = 'requested'
-                AND (sr.mechanic_id IS NULL OR sr.mechanic_id = :mechanic_id)
-                AND ST_DWithin(
-                    sr.owner_location,
-                    ST_MakePoint(:lng, :lat)::GEOGRAPHY,
-                    :radius_m
+                AND (
+                    sr.mechanic_id = :mechanic_id
+                    OR (
+                        sr.mechanic_id IS NULL
+                        AND ST_DWithin(
+                            sr.owner_location,
+                            ST_MakePoint(:lng, :lat)::GEOGRAPHY,
+                            :radius_m
+                        )
+                    )
                 )
             ORDER BY sr.created_at ASC
         """),
@@ -323,6 +356,8 @@ async def update_request_status(
             )
 
         req.status = payload.status
+        if payload.status == "completed" and req.total_cost is None:
+            req.total_cost = _estimate_completion_total(req.problem_desc)
         updater_id = mechanic.user_id if mechanic else current_user.id
         db.add(JobUpdate(
             request_id=req.id,

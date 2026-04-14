@@ -33,6 +33,9 @@ class ServiceRequestOut(BaseModel):
     problem_desc: str
     status: str
     total_cost: float | None
+    owner_name: str | None = None
+    vehicle_label: str | None = None
+    license_plate: str | None = None
     lat: float | None = None
     lng: float | None = None
     created_at: datetime

@@ -20,7 +20,6 @@ import {
 
 import {
   getAlerts,
-  getMechanicDashboard,
   getMyMechanicProfile,
   getMechanicParts,
   getOpenRequests,
@@ -60,13 +59,13 @@ const DEFAULT_CENTER = [37.5407, -77.4360];
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dashboard, setDashboard] = useState(null);
   const [profile, setProfile] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [parts, setParts] = useState([]);
   const [incomingJobs, setIncomingJobs] = useState([]);
   const [assignedJobs, setAssignedJobs] = useState([]);
   const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
+  const [range, setRange] = useState("week");
 
   const loadDashboard = async (background = false) => {
     if (background) setRefreshing(true);
@@ -80,19 +79,16 @@ export default function Dashboard() {
       const centerLat = currentProfile.lat ?? DEFAULT_CENTER[0];
       const centerLng = currentProfile.lng ?? DEFAULT_CENTER[1];
 
-      const [dashRes, alertsRes, jobsRes, openRes, partsRes] = await Promise.all([
-        getMechanicDashboard(currentProfile.mechanic_id),
+      const [alertsRes, jobsRes, openRes, partsRes] = await Promise.allSettled([
         getAlerts(),
         listRequests(),
         getOpenRequests({ lat: centerLat, lng: centerLng, radius_km: 20 }),
         getMechanicParts(currentProfile.mechanic_id),
       ]);
-
-      setDashboard(dashRes.data);
-      setAlerts(alertsRes.data);
-      setAssignedJobs(jobsRes.data);
-      setIncomingJobs(openRes.data);
-      setParts(partsRes.data);
+      setAlerts(alertsRes.status === "fulfilled" ? alertsRes.value.data : []);
+      setAssignedJobs(jobsRes.status === "fulfilled" ? jobsRes.value.data : []);
+      setIncomingJobs(openRes.status === "fulfilled" ? openRes.value.data : []);
+      setParts(partsRes.status === "fulfilled" ? partsRes.value.data : []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -110,30 +106,68 @@ export default function Dashboard() {
     return () => window.clearInterval(interval);
   }, []);
 
+  const withinRange = (value) => {
+    if (!value) return false;
+    if (range === "all") return true;
+    const target = new Date(value);
+    const now = new Date();
+
+    if (range === "week") {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 7);
+      return target >= weekAgo;
+    }
+    if (range === "month") {
+      return target.getMonth() === now.getMonth() && target.getFullYear() === now.getFullYear();
+    }
+    if (range === "year") {
+      return target.getFullYear() === now.getFullYear();
+    }
+    return true;
+  };
+
   const activeJobs = assignedJobs.filter((job) => ["accepted", "in_progress"].includes(job.status));
-  const completedToday = assignedJobs.filter((job) => {
-    if (job.status !== "completed") return false;
+  const completedJobs = assignedJobs.filter((job) => job.status === "completed");
+  const completedToday = completedJobs.filter((job) => {
     const created = new Date(job.updated_at ?? job.created_at);
     const now = new Date();
     return created.toDateString() === now.toDateString();
   });
-
-  const lowStockParts = parts.filter((part) => part.is_low_stock);
+  const lowStockParts = parts.filter((part) => Number(part.quantity) < 4);
   const outOfStockParts = parts.filter((part) => Number(part.quantity) === 0);
   const topStockedParts = [...parts]
     .sort((a, b) => Number(b.quantity) - Number(a.quantity))
     .slice(0, 4);
+  const essentialParts = [
+    "Battery (12V)",
+    "Brake Pads (Front)",
+    "Brake Fluid (500ml)",
+    "Spark Plug",
+    "Engine Oil Filter",
+    "Radiator Coolant (1L)",
+    "Alternator Belt",
+    "Wiper Blade (Front)",
+  ];
+  const missingEssentials = essentialParts.filter(
+    (name) => !parts.some((part) => part.part_name?.toLowerCase() === name.toLowerCase())
+  );
+
+  const filteredAssignedJobs = assignedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
+  const filteredCompletedJobs = completedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
+  const totalEarnings = filteredCompletedJobs.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
+  const totalJobs = filteredAssignedJobs.length + incomingJobs.filter((job) => withinRange(job.created_at)).length;
 
   const activityItems = useMemo(() => {
     const jobEvents = assignedJobs.slice(0, 6).map((job) => ({
       id: `job-${job.id}`,
-      title: `${job.problem_desc}`,
+      title: `${job.owner_name || "Owner"} · ${job.problem_desc}`,
       meta: `Job ${job.status.replace("_", " ")} · ${new Date(job.updated_at ?? job.created_at).toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
       })}`,
+      timestamp: new Date(job.updated_at ?? job.created_at).getTime(),
       tone: job.status === "completed" ? "success" : job.status === "in_progress" ? "warning" : "info",
     }));
 
@@ -146,13 +180,22 @@ export default function Dashboard() {
         hour: "numeric",
         minute: "2-digit",
       })}`,
+      timestamp: new Date(alert.created_at).getTime(),
       tone: "danger",
     }));
 
-    return [...alertEvents, ...jobEvents]
-      .sort((a, b) => (a.meta < b.meta ? 1 : -1))
+    const stockEvents = lowStockParts.slice(0, 4).map((part) => ({
+      id: `stock-${part.id}`,
+      title: `${part.part_name} is running low`,
+      meta: `${part.quantity} left in stock · threshold for demo alert is below 4`,
+      timestamp: Date.now() - 1,
+      tone: "warning",
+    }));
+
+    return [...alertEvents, ...stockEvents, ...jobEvents]
+      .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, 7);
-  }, [assignedJobs, alerts]);
+  }, [assignedJobs, alerts, lowStockParts]);
 
   const queueColumns = [
     { id: "incoming", title: "New Requests", jobs: incomingJobs, empty: "No new requests nearby" },
@@ -236,35 +279,50 @@ export default function Dashboard() {
                   <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
                   Refresh dashboard
                 </button>
+                <div className="inline-flex rounded-full bg-white/10 p-1 ring-1 ring-white/10">
+                  {[
+                    { id: "week", label: "Week" },
+                    { id: "month", label: "Month" },
+                    { id: "year", label: "Year" },
+                    { id: "all", label: "All" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setRange(item.id)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                        range === item.id ? "bg-white text-[#081224]" : "text-white/72 hover:bg-white/10"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 xl:w-[28rem]">
               <HeroStat icon={<Briefcase size={16} />} label="Incoming queue" value={incomingJobs.length} />
-              <HeroStat icon={<Gauge size={16} />} label="Active jobs" value={dashboard?.active_jobs ?? activeJobs.length} />
-              <HeroStat icon={<CircleDollarSign size={16} />} label="This week" value={formatCurrencyUSD(dashboard?.earnings_this_week ?? 0)} />
+              <HeroStat icon={<Gauge size={16} />} label="Active jobs" value={activeJobs.length} />
+              <HeroStat icon={<CircleDollarSign size={16} />} label={`This ${range === "all" ? "period" : range}`} value={formatCurrencyUSD(totalEarnings)} />
               <HeroStat icon={<CheckCircle2 size={16} />} label="Completed today" value={completedToday.length} />
             </div>
           </div>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <MetricCard icon={<Briefcase size={18} className="text-[#2563eb]" />} label="Total jobs" value={dashboard?.total_jobs ?? 0} tone="blue" />
-          <MetricCard icon={<CheckCircle2 size={18} className="text-[#16a34a]" />} label="Completed" value={dashboard?.completed_jobs ?? 0} tone="green" />
-          <MetricCard icon={<CircleDollarSign size={18} className="text-[#7c3aed]" />} label="Total earnings" value={formatCurrencyUSD(dashboard?.total_earnings ?? 0)} tone="violet" />
+          <MetricCard icon={<Briefcase size={18} className="text-[#2563eb]" />} label="Total jobs" value={totalJobs} tone="blue" />
+          <MetricCard icon={<CheckCircle2 size={18} className="text-[#16a34a]" />} label="Completed" value={filteredCompletedJobs.length} tone="green" />
+          <MetricCard icon={<CircleDollarSign size={18} className="text-[#7c3aed]" />} label="Total earnings" value={formatCurrencyUSD(totalEarnings)} tone="violet" />
           <MetricCard icon={<Activity size={18} className="text-[#f97316]" />} label="Low stock alerts" value={lowStockParts.length} tone="amber" />
-          <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Parts tracked" value={parts.length} tone="slate" />
+          <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Inventory items" value={parts.length} tone="slate" />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.6fr,0.95fr]">
-          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+        <div className="grid items-start gap-4 xl:grid-cols-[1.6fr,0.95fr]">
+          <Card className="self-start rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Live queue</p>
                 <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Dispatch board</h2>
-              </div>
-              <div className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-semibold text-[#2563eb]">
-                Auto-refresh every 20 sec
               </div>
             </div>
 
@@ -295,7 +353,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          </Card>
+            </Card>
 
           <div className="space-y-4">
             <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
@@ -340,9 +398,9 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <QuickAction to="/jobs" label="Open jobs board" sublabel="Review queue and status updates" icon={<Wrench size={16} />} />
-                <QuickAction to="/inventory" label="Update inventory" sublabel="Add parts or adjust stock" icon={<PackageSearch size={16} />} />
-                <QuickAction to="/inventory" label="Resolve low stock" sublabel={`${lowStockParts.length} part alerts`} icon={<ShieldAlert size={16} />} />
+                  <QuickAction to="/jobs" label="Open jobs board" sublabel="Review queue and status updates" icon={<Wrench size={16} />} />
+                  <QuickAction to="/inventory" label="Update inventory" sublabel="Add parts or adjust stock" icon={<PackageSearch size={16} />} />
+                <QuickAction to="/inventory" label="Resolve low stock" sublabel={`${lowStockParts.length} parts below 4 in stock`} icon={<ShieldAlert size={16} />} />
                 <button
                   onClick={toggleAvailability}
                   className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4 text-left transition hover:border-[#2563eb]/30 hover:bg-white"
@@ -358,9 +416,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.1fr,0.95fr,1fr]">
+        <div className="grid items-start gap-4 xl:grid-cols-[1.15fr,0.95fr,1fr]">
           <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Inventory health" title="Parts pulse" />
+            <SectionHeader eyebrow="Inventory health" title="Inventory register" />
             <div className="mt-4 grid grid-cols-3 gap-3">
               <InventoryMetric label="Tracked" value={parts.length} tone="blue" />
               <InventoryMetric label="Low stock" value={lowStockParts.length} tone="amber" />
@@ -386,13 +444,45 @@ export default function Dashboard() {
                 ))
               )}
             </div>
+            <div className="mt-4 rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Missing essentials</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {missingEssentials.length === 0 ? (
+                  <span className="text-sm text-emerald-700">All core essentials are stocked.</span>
+                ) : (
+                  missingEssentials.slice(0, 8).map((name) => (
+                    <span key={name} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-[#dbe7ff]">
+                      {name}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
           </Card>
 
           <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <SectionHeader eyebrow="Alerts" title="Attention needed" />
             <div className="mt-4 space-y-3">
               {alerts.length === 0 ? (
-                <EmptyMiniState message="No alerts right now" />
+                lowStockParts.length === 0 ? (
+                  <EmptyMiniState message="No alerts right now" />
+                ) : (
+                  lowStockParts.slice(0, 5).map((part) => (
+                    <div key={part.id} className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-amber-900">
+                            {part.part_name} is low with {part.quantity} left
+                          </p>
+                          <p className="mt-1 text-xs text-amber-700/80">
+                            Demo low-stock rule: anything below 4 should be restocked
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )
               ) : (
                 alerts.map((alert) => (
                   <div key={alert.id} className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3">
@@ -486,6 +576,8 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate }) {
           </div>
           <p className="mt-2 text-sm font-semibold text-[#081224]">{job.problem_desc}</p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+            {job.owner_name ? <span>{job.owner_name}</span> : null}
+            {job.vehicle_label ? <span>{job.vehicle_label}</span> : null}
             {job.lat && job.lng ? <span>{variant === "incoming" ? "Owner location shared" : "Route active"}</span> : null}
             {job.total_cost ? <span>{formatCurrencyUSD(job.total_cost)}</span> : null}
           </div>

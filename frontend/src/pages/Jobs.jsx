@@ -39,7 +39,7 @@ export default function Jobs() {
   const handleUpdate = async (jobId, status) => {
     try {
       await updateRequestStatus(jobId, { status });
-      setMyJobs((j) => j.map((x) => x.id === jobId ? { ...x, status } : x));
+      await fetchAll();
     } catch (e) {
       alert(e.response?.data?.detail || "Error");
     }
