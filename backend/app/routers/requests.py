@@ -8,6 +8,7 @@ from app.models.user import User
 from app.models.mechanic import Mechanic
 from app.models.service_request import ServiceRequest, JobUpdate
 from app.models.review import Review, Alert
+from app.models.vehicle import Vehicle
 from app.core.security import get_current_user, require_role
 from app.schemas.requests import (
     ServiceRequestCreate, StatusUpdate,
@@ -28,14 +29,12 @@ async def create_request(
     current_user: User = Depends(require_role("owner")),
 ):
     vehicle_check = await db.execute(
-        text("""
-            SELECT id
-            FROM vehicles
-            WHERE id = :vehicle_id AND owner_id = :owner_id
-        """),
-        {"vehicle_id": payload.vehicle_id, "owner_id": current_user.id},
+        select(Vehicle.id).where(
+            Vehicle.id == payload.vehicle_id,
+            Vehicle.owner_id == current_user.id,
+        )
     )
-    if not vehicle_check.first():
+    if vehicle_check.scalar_one_or_none() is None:
         raise HTTPException(status_code=403, detail="That vehicle does not belong to you")
 
     mechanic_id = None
@@ -78,8 +77,29 @@ async def create_request(
     ))
 
     await db.commit()
-    await db.refresh(req)
-    return req
+    created = await db.execute(
+        text("""
+            SELECT
+                sr.id::TEXT AS id,
+                sr.owner_id::TEXT AS owner_id,
+                sr.mechanic_id::TEXT AS mechanic_id,
+                sr.vehicle_id::TEXT AS vehicle_id,
+                sr.problem_desc,
+                sr.status::TEXT AS status,
+                CAST(sr.total_cost AS FLOAT) AS total_cost,
+                ST_Y(sr.owner_location::geometry) AS lat,
+                ST_X(sr.owner_location::geometry) AS lng,
+                sr.created_at,
+                sr.updated_at
+            FROM service_requests sr
+            WHERE sr.id = :rid
+        """),
+        {"rid": req.id},
+    )
+    row = created.mappings().first()
+    if not row:
+        raise HTTPException(status_code=500, detail="Request was created but could not be loaded")
+    return ServiceRequestOut(**dict(row))
 
 
 # ------------------------------------------------------------------
