@@ -13,6 +13,8 @@ class MechanicMe(BaseModel):
     is_available: bool
     rating: float
     total_reviews: int
+    lat: float | None = None
+    lng: float | None = None
 
 
 class MechanicPublicProfile(BaseModel):

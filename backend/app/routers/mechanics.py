@@ -88,7 +88,9 @@ async def get_my_mechanic_profile(
             m.vehicle_types,
             m.is_available,
             CAST(m.rating AS FLOAT) AS rating,
-            m.total_reviews
+            m.total_reviews,
+            ST_Y(m.location::geometry) AS lat,
+            ST_X(m.location::geometry) AS lng
         FROM mechanics m
         JOIN users u ON u.id = m.user_id
         WHERE m.user_id = :uid

@@ -33,6 +33,8 @@ class ServiceRequestOut(BaseModel):
     problem_desc: str
     status: str
     total_cost: float | None
+    lat: float | None = None
+    lng: float | None = None
     created_at: datetime
     updated_at: datetime
 

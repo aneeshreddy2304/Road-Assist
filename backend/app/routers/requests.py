@@ -91,24 +91,48 @@ async def list_requests(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    conditions = []
+    params: dict[str, object] = {}
+
     if current_user.role == "owner":
-        q = select(ServiceRequest).where(ServiceRequest.owner_id == current_user.id)
+        conditions.append("sr.owner_id = :uid")
+        params["uid"] = current_user.id
     elif current_user.role == "mechanic":
         mech = await db.execute(select(Mechanic).where(Mechanic.user_id == current_user.id))
         mechanic = mech.scalar_one_or_none()
         if not mechanic:
             return []
-        q = select(ServiceRequest).where(ServiceRequest.mechanic_id == mechanic.id)
-    else:
-        # Admin sees all
-        q = select(ServiceRequest)
+        conditions.append("sr.mechanic_id = :mid")
+        params["mid"] = mechanic.id
 
     if status:
-        q = q.where(ServiceRequest.status == status)
+        conditions.append("sr.status = :status")
+        params["status"] = status
 
-    q = q.order_by(ServiceRequest.created_at.desc())
-    result = await db.execute(q)
-    return result.scalars().all()
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    result = await db.execute(
+        text(f"""
+            SELECT
+                sr.id::TEXT AS id,
+                sr.owner_id::TEXT AS owner_id,
+                sr.mechanic_id::TEXT AS mechanic_id,
+                sr.vehicle_id::TEXT AS vehicle_id,
+                sr.problem_desc,
+                sr.status::TEXT AS status,
+                CAST(sr.total_cost AS FLOAT) AS total_cost,
+                ST_Y(sr.owner_location::geometry) AS lat,
+                ST_X(sr.owner_location::geometry) AS lng,
+                sr.created_at,
+                sr.updated_at
+            FROM service_requests sr
+            {where_clause}
+            ORDER BY sr.created_at DESC
+        """),
+        params,
+    )
+    rows = result.mappings().all()
+    return [ServiceRequestOut(**dict(row)) for row in rows]
 
 
 # ------------------------------------------------------------------
@@ -129,8 +153,19 @@ async def list_open_requests(
 
     result = await db.execute(
         text("""
-            SELECT sr.*
-            FROM service_requests sr
+        SELECT
+            sr.id::TEXT AS id,
+            sr.owner_id::TEXT AS owner_id,
+            sr.mechanic_id::TEXT AS mechanic_id,
+            sr.vehicle_id::TEXT AS vehicle_id,
+            sr.problem_desc,
+            sr.status::TEXT AS status,
+            CAST(sr.total_cost AS FLOAT) AS total_cost,
+            ST_Y(sr.owner_location::geometry) AS lat,
+            ST_X(sr.owner_location::geometry) AS lng,
+            sr.created_at,
+            sr.updated_at
+        FROM service_requests sr
             WHERE
                 sr.status = 'requested'
                 AND (sr.mechanic_id IS NULL OR sr.mechanic_id = :mechanic_id)
