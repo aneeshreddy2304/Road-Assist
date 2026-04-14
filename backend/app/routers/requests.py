@@ -47,30 +47,40 @@ async def create_request(
             raise HTTPException(status_code=404, detail="Selected mechanic not found")
         mechanic_id = mechanic.id
 
-    # Build location as raw SQL expression via text insert
-    req = ServiceRequest(
-        owner_id=current_user.id,
-        mechanic_id=mechanic_id,
-        vehicle_id=payload.vehicle_id,
-        problem_desc=payload.problem_desc,
-        status="requested",
-    )
-    db.add(req)
-    await db.flush()
-
-    # Set geography location with raw SQL (GeoAlchemy2 insert)
-    await db.execute(
+    create_result = await db.execute(
         text("""
-            UPDATE service_requests
-            SET owner_location = ST_MakePoint(:lng, :lat)::GEOGRAPHY
-            WHERE id = :rid
+            INSERT INTO service_requests (
+                owner_id,
+                mechanic_id,
+                vehicle_id,
+                problem_desc,
+                status,
+                owner_location
+            )
+            VALUES (
+                :owner_id,
+                :mechanic_id,
+                :vehicle_id,
+                :problem_desc,
+                'requested',
+                ST_MakePoint(:lng, :lat)::GEOGRAPHY
+            )
+            RETURNING id
         """),
-        {"lng": payload.lng, "lat": payload.lat, "rid": req.id},
+        {
+            "owner_id": current_user.id,
+            "mechanic_id": mechanic_id,
+            "vehicle_id": payload.vehicle_id,
+            "problem_desc": payload.problem_desc,
+            "lng": payload.lng,
+            "lat": payload.lat,
+        },
     )
+    req_id = create_result.scalar_one()
 
     # Log the initial status
     db.add(JobUpdate(
-        request_id=req.id,
+        request_id=req_id,
         status="requested",
         updated_by=current_user.id,
         note="Owner submitted the request" if not mechanic_id else "Owner requested a specific mechanic",
@@ -94,7 +104,7 @@ async def create_request(
             FROM service_requests sr
             WHERE sr.id = :rid
         """),
-        {"rid": req.id},
+        {"rid": req_id},
     )
     row = created.mappings().first()
     if not row:
