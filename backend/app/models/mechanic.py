@@ -19,6 +19,7 @@ class Mechanic(Base):
     location: Mapped[object] = mapped_column(Geography(geometry_type="POINT", srid=4326), nullable=False)
     address: Mapped[str | None] = mapped_column()
     specialization: Mapped[str | None] = mapped_column()
+    work_hours: Mapped[str | None] = mapped_column()
     vehicle_types: Mapped[list] = mapped_column(
         ARRAY(SAEnum("car", "bike", "truck", "suv", "other", name="vehicle_type")), default=[]
     )

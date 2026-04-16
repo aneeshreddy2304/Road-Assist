@@ -789,6 +789,7 @@ function RequestModal({ mechanic, userLocation, onClose }) {
   const [vehicles, setVehicles] = useState([]);
   const [vehicleId, setVehicleId] = useState("");
   const [problemDesc, setProblemDesc] = useState("");
+  const [requestedCompletionHours, setRequestedCompletionHours] = useState(6);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -823,6 +824,7 @@ function RequestModal({ mechanic, userLocation, onClose }) {
         problem_desc: problemDesc,
         lat: userLocation.lat,
         lng: userLocation.lng,
+        requested_completion_hours: requestedCompletionHours || null,
       });
       setSuccess(true);
     } catch (err) {
@@ -886,6 +888,26 @@ function RequestModal({ mechanic, userLocation, onClose }) {
                   placeholder="Flat tire, dead battery, engine won't start..."
                   className="w-full rounded-2xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Requested completion window</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="72"
+                    value={requestedCompletionHours}
+                    onChange={(e) => setRequestedCompletionHours(Number(e.target.value))}
+                    className="h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                  <div className="flex items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">
+                    hours from now
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Mechanics will see this deadline and get an alert when less than 3 hours remain.
+                </p>
               </div>
 
               {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}

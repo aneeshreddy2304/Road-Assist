@@ -21,6 +21,7 @@ import {
 
 import {
   getAlerts,
+  getMechanicDashboard,
   getMyMechanicProfile,
   getMechanicParts,
   getOpenRequests,
@@ -61,6 +62,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [parts, setParts] = useState([]);
   const [incomingJobs, setIncomingJobs] = useState([]);
@@ -81,12 +83,14 @@ export default function Dashboard() {
       const centerLat = currentProfile.lat ?? DEFAULT_CENTER[0];
       const centerLng = currentProfile.lng ?? DEFAULT_CENTER[1];
 
-      const [alertsRes, jobsRes, openRes, partsRes] = await Promise.allSettled([
+      const [summaryRes, alertsRes, jobsRes, openRes, partsRes] = await Promise.allSettled([
+        getMechanicDashboard(currentProfile.mechanic_id),
         getAlerts(),
         listRequests(),
         getOpenRequests({ lat: centerLat, lng: centerLng, radius_km: 20 }),
         getMechanicParts(currentProfile.mechanic_id),
       ]);
+      setSummary(summaryRes.status === "fulfilled" ? summaryRes.value.data : null);
       setAlerts(alertsRes.status === "fulfilled" ? alertsRes.value.data : []);
       setAssignedJobs(jobsRes.status === "fulfilled" ? jobsRes.value.data : []);
       setIncomingJobs(openRes.status === "fulfilled" ? openRes.value.data : []);
@@ -161,8 +165,20 @@ export default function Dashboard() {
 
   const filteredAssignedJobs = assignedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
   const filteredCompletedJobs = completedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
-  const totalEarnings = filteredCompletedJobs.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
-  const totalJobs = filteredAssignedJobs.length + incomingJobs.filter((job) => withinRange(job.created_at)).length;
+  const totalEarnings =
+    range === "all"
+      ? Number(summary?.total_earnings || 0)
+      : filteredCompletedJobs.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
+  const totalJobs =
+    range === "all"
+      ? Number(summary?.total_jobs || 0)
+      : filteredAssignedJobs.length + incomingJobs.filter((job) => withinRange(job.created_at)).length;
+  const completedCount = range === "all" ? Number(summary?.completed_jobs || 0) : filteredCompletedJobs.length;
+  const lowDeadlineJobs = activeJobs.filter((job) => {
+    if (!job.deadline_at || job.status === "completed" || job.status === "cancelled") return false;
+    const hoursLeft = (new Date(job.deadline_at).getTime() - Date.now()) / 36e5;
+    return hoursLeft <= 3;
+  });
   const selectedMapJob =
     [...incomingJobs, ...activeJobs, ...filteredCompletedJobs].find((job) => job.id === selectedJobId)
     || incomingJobs[0]
@@ -211,10 +227,23 @@ export default function Dashboard() {
       tone: "warning",
     }));
 
-    return [...alertEvents, ...stockEvents, ...jobEvents]
+    const deadlineEvents = lowDeadlineJobs.slice(0, 4).map((job) => ({
+      id: `deadline-${job.id}`,
+      title: `${job.owner_name || "Owner"} deadline approaching`,
+      meta: `${job.problem_desc} · due ${new Date(job.deadline_at).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })}`,
+      timestamp: new Date(job.deadline_at).getTime(),
+      tone: "danger",
+    }));
+
+    return [...deadlineEvents, ...alertEvents, ...stockEvents, ...jobEvents]
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, 7);
-  }, [assignedJobs, alerts, lowStockParts]);
+  }, [assignedJobs, alerts, lowStockParts, lowDeadlineJobs]);
 
   const queueColumns = [
     { id: "incoming", title: "New Requests", jobs: incomingJobs, empty: "No new requests nearby" },
@@ -323,7 +352,7 @@ export default function Dashboard() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard icon={<Briefcase size={18} className="text-[#2563eb]" />} label="Total jobs" value={totalJobs} tone="blue" />
-          <MetricCard icon={<CheckCircle2 size={18} className="text-[#16a34a]" />} label="Completed" value={filteredCompletedJobs.length} tone="green" />
+          <MetricCard icon={<CheckCircle2 size={18} className="text-[#16a34a]" />} label="Completed" value={completedCount} tone="green" />
           <MetricCard icon={<CircleDollarSign size={18} className="text-[#7c3aed]" />} label="Total earnings" value={formatCurrencyUSD(totalEarnings)} tone="violet" />
           <MetricCard icon={<Activity size={18} className="text-[#f97316]" />} label="Low stock alerts" value={lowStockParts.length} tone="amber" />
           <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Inventory items" value={parts.length} tone="slate" />
@@ -347,7 +376,7 @@ export default function Dashboard() {
                       {column.jobs.length}
                     </span>
                   </div>
-                  <div className="space-y-3">
+                  <div className="max-h-[22rem] space-y-3 overflow-y-auto pr-1">
                     {column.jobs.length === 0 ? (
                       <EmptyMiniState message={column.empty} />
                     ) : (
@@ -378,7 +407,7 @@ export default function Dashboard() {
                   {filteredCompletedJobs.length}
                 </span>
               </div>
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 max-h-[18rem] space-y-3 overflow-y-auto pr-1">
                 {filteredCompletedJobs.length === 0 ? (
                   <EmptyMiniState message="Completed jobs for this filter will show here" />
                 ) : (
@@ -454,8 +483,13 @@ export default function Dashboard() {
                     <h3 className="mt-1 text-lg font-semibold text-[#081224]">
                       {selectedMapJob?.owner_name || "No owner selected"}
                     </h3>
-                    <p className="mt-1 text-sm text-slate-500">{selectedMapJob?.problem_desc || "Choose a request from the queue to focus the route."}</p>
-                  </div>
+                  <p className="mt-1 text-sm text-slate-500">{selectedMapJob?.problem_desc || "Choose a request from the queue to focus the route."}</p>
+                  {selectedMapJob?.deadline_at ? (
+                    <p className="mt-2 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+                      Due by {new Date(selectedMapJob.deadline_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </p>
+                  ) : null}
+                </div>
                   {selectedMapJob?.lat && selectedMapJob?.lng ? (
                     <button
                       onClick={openOwnerNavigation}
@@ -513,14 +547,14 @@ export default function Dashboard() {
         </div>
 
         <div className="grid items-start gap-4 xl:grid-cols-[1.15fr,0.95fr,1fr]">
-          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg xl:h-[27rem]">
             <SectionHeader eyebrow="Inventory health" title="Inventory register" />
             <div className="mt-4 grid grid-cols-3 gap-3">
               <InventoryMetric label="Tracked" value={parts.length} tone="blue" />
               <InventoryMetric label="Low stock" value={lowStockParts.length} tone="amber" />
               <InventoryMetric label="Out of stock" value={outOfStockParts.length} tone="red" />
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 max-h-[11rem] space-y-3 overflow-y-auto pr-1">
               {topStockedParts.length === 0 ? (
                 <EmptyMiniState message="No inventory data yet" />
               ) : (
@@ -556,23 +590,27 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg xl:h-[27rem]">
             <SectionHeader eyebrow="Alerts" title="Attention needed" />
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 max-h-[18rem] space-y-3 overflow-y-auto pr-1">
               {alerts.length === 0 ? (
-                lowStockParts.length === 0 ? (
+                lowStockParts.length === 0 && lowDeadlineJobs.length === 0 ? (
                   <EmptyMiniState message="No alerts right now" />
                 ) : (
-                  lowStockParts.slice(0, 5).map((part) => (
-                    <div key={part.id} className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3">
+                  [...lowDeadlineJobs.slice(0, 3), ...lowStockParts.slice(0, 5)].map((item) => (
+                    <div key={item.id} className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3">
                       <div className="flex items-start gap-3">
                         <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-amber-900">
-                            {part.part_name} is low with {part.quantity} left
+                            {"deadline_at" in item
+                              ? `${item.owner_name || "Owner"} deadline is within 3 hours`
+                              : `${item.part_name} is low with ${item.quantity} left`}
                           </p>
                           <p className="mt-1 text-xs text-amber-700/80">
-                            Demo low-stock rule: anything below 4 should be restocked
+                            {"deadline_at" in item
+                              ? `${item.problem_desc} · due ${new Date(item.deadline_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+                              : "Demo low-stock rule: anything below 4 should be restocked"}
                           </p>
                         </div>
                       </div>
@@ -601,9 +639,9 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg xl:h-[27rem]">
             <SectionHeader eyebrow="Activity" title="Recent timeline" />
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 max-h-[18rem] space-y-4 overflow-y-auto pr-1">
               {activityItems.length === 0 ? (
                 <EmptyMiniState message="Activity will appear as jobs and alerts come in" />
               ) : (
@@ -671,6 +709,16 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate, onSelect, isSelecte
             {job.vehicle_label ? <span>{job.vehicle_label}</span> : null}
             {job.owner_address ? <span>{job.owner_address}</span> : null}
             {job.lat && job.lng ? <span>{variant === "incoming" ? "Owner location shared" : "Route active"}</span> : null}
+            {job.deadline_at ? (
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-amber-200">
+                Due {new Date(job.deadline_at).toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </span>
+            ) : null}
             {job.total_cost ? <span>{formatCurrencyUSD(job.total_cost)}</span> : null}
           </div>
         </div>

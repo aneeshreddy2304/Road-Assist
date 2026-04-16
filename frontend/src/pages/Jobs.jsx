@@ -1,164 +1,196 @@
-import { useState, useEffect } from "react";
-import { getOpenRequests, listRequests, updateRequestStatus } from "../api/endpoints";
+import { useEffect, useMemo, useState } from "react";
+import { Clock3, MapPin, Navigation, ShieldCheck, Wrench } from "lucide-react";
+
+import { getMyMechanicProfile, getOpenRequests, listRequests, updateRequestStatus } from "../api/endpoints";
 import { Card, Spinner, StatusBadge, EmptyState } from "../components/UI";
-import { MapPin, Clock, Car } from "lucide-react";
 import { formatCurrencyUSD } from "../lib/formatters";
 
 const RICHMOND = { lat: 37.5407, lng: -77.4360 };
 
 export default function Jobs() {
-  const [tab, setTab]         = useState("open");
-  const [open, setOpen]       = useState([]);
-  const [myJobs, setMyJobs]   = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => { fetchAll(); }, []);
+  const [openJobs, setOpenJobs] = useState([]);
+  const [myJobs, setMyJobs] = useState([]);
+  const [tab, setTab] = useState("dispatch");
 
   const fetchAll = async () => {
     setLoading(true);
     try {
+      const profileRes = await getMyMechanicProfile();
+      const center = {
+        lat: profileRes.data.lat ?? RICHMOND.lat,
+        lng: profileRes.data.lng ?? RICHMOND.lng,
+      };
       const [openRes, myRes] = await Promise.all([
-        getOpenRequests({ lat: RICHMOND.lat, lng: RICHMOND.lng, radius_km: 20 }),
+        getOpenRequests({ lat: center.lat, lng: center.lng, radius_km: 20 }),
         listRequests(),
       ]);
-      setOpen(openRes.data);
-      setMyJobs(myRes.data.filter((j) => j.status !== "requested"));
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  };
-
-  const handleAccept = async (jobId) => {
-    try {
-      await updateRequestStatus(jobId, { status: "accepted" });
-      await fetchAll();
-    } catch (e) {
-      alert(e.response?.data?.detail || "Could not accept job");
+      setOpenJobs(openRes.data);
+      setMyJobs(myRes.data);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleUpdate = async (jobId, status) => {
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const accepted = myJobs.filter((job) => job.status === "accepted");
+  const inProgress = myJobs.filter((job) => job.status === "in_progress");
+  const completed = myJobs.filter((job) => job.status === "completed");
+  const totalEarnings = completed.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
+
+  const handleStatus = async (jobId, status) => {
     try {
       await updateRequestStatus(jobId, { status });
       await fetchAll();
-    } catch (e) {
-      alert(e.response?.data?.detail || "Error");
+    } catch (error) {
+      alert(error.response?.data?.detail || "Could not update this job");
     }
   };
+
+  const columns = useMemo(
+    () => [
+      { id: "dispatch", title: "New Requests", jobs: openJobs, empty: "No incoming jobs nearby" },
+      { id: "accepted", title: "Accepted", jobs: accepted, empty: "No accepted jobs yet" },
+      { id: "progress", title: "In Progress", jobs: inProgress, empty: "No repairs in progress" },
+      { id: "completed", title: "Completed", jobs: completed, empty: "No completed jobs yet" },
+    ],
+    [openJobs, accepted, inProgress, completed]
+  );
 
   if (loading) return <Spinner />;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
-      <h1 className="text-xl font-semibold text-gray-900 mb-4">Jobs</h1>
+    <div className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Mechanic jobs</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#081224]">Dispatch and work history</h1>
+            <p className="mt-2 text-sm text-slate-500">Review new requests, move jobs through status, and track completed work and earnings.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 xl:w-[30rem]">
+            <MiniMetric label="New Requests" value={openJobs.length} icon={<Wrench size={16} className="text-[#2563eb]" />} />
+            <MiniMetric label="Accepted" value={accepted.length} icon={<ShieldCheck size={16} className="text-[#16a34a]" />} />
+            <MiniMetric label="In Progress" value={inProgress.length} icon={<Clock3 size={16} className="text-[#f97316]" />} />
+            <MiniMetric label="Earnings" value={formatCurrencyUSD(totalEarnings)} icon={<Navigation size={16} className="text-[#7c3aed]" />} />
+          </div>
+        </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4">
-        {[
-          { id: "open", label: `Open Requests (${open.length})` },
-          { id: "mine", label: `My Jobs (${myJobs.length})` },
-        ].map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === id
-                ? "bg-brand-600 text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:border-brand-400"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        <div className="inline-flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
+          {[
+            { id: "dispatch", label: `New (${openJobs.length})` },
+            { id: "accepted", label: `Accepted (${accepted.length})` },
+            { id: "progress", label: `In Progress (${inProgress.length})` },
+            { id: "completed", label: `Completed (${completed.length})` },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                tab === item.id ? "bg-[#0f172a] text-white" : "text-slate-600 hover:bg-white"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          {columns
+            .filter((column) => column.id === tab || (tab === "dispatch" && column.id === "dispatch"))
+            .map((column) => (
+              <Card key={column.id} className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Jobs board</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-[#081224]">{column.title}</h2>
+                  </div>
+                  <span className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                    {column.jobs.length}
+                  </span>
+                </div>
+
+                <div className="max-h-[32rem] space-y-4 overflow-y-auto pr-1">
+                  {column.jobs.length === 0 ? (
+                    <EmptyState icon="🧰" title={column.empty} subtitle="Requests will appear here as your workflow updates." />
+                  ) : (
+                    column.jobs.map((job) => (
+                      <JobSurface
+                        key={job.id}
+                        job={job}
+                        kind={column.id}
+                        onAccept={() => handleStatus(job.id, "accepted")}
+                        onStart={() => handleStatus(job.id, "in_progress")}
+                        onComplete={() => handleStatus(job.id, "completed")}
+                      />
+                    ))
+                  )}
+                </div>
+              </Card>
+            ))}
+        </div>
       </div>
-
-      {tab === "open" && (
-        open.length === 0
-          ? <EmptyState icon="📭" title="No open requests nearby" subtitle="Check back soon" />
-          : (
-            <div className="space-y-3">
-              {open.map((job) => (
-                <OpenJobCard key={job.id} job={job} onAccept={() => handleAccept(job.id)} />
-              ))}
-            </div>
-          )
-      )}
-
-      {tab === "mine" && (
-        myJobs.length === 0
-          ? <EmptyState icon="🔧" title="No jobs yet" subtitle="Accept a request to get started" />
-          : (
-            <div className="space-y-3">
-              {myJobs.map((job) => (
-                <MyJobCard key={job.id} job={job} onUpdate={handleUpdate} />
-              ))}
-            </div>
-          )
-      )}
     </div>
   );
 }
 
-function OpenJobCard({ job, onAccept }) {
+function MiniMetric({ label, value, icon }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <StatusBadge status={job.status} />
-            <span className="text-xs text-gray-400 flex items-center gap-1">
-              <Clock size={11} />
-              {new Date(job.created_at).toLocaleString("en-IN", {
-                day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-              })}
-            </span>
-          </div>
-          <p className="text-sm font-medium text-gray-800">{job.problem_desc}</p>
-          <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-            <MapPin size={11} /> Exact pickup location shared on acceptance
-          </p>
-        </div>
-        <button
-          onClick={onAccept}
-          className="shrink-0 bg-brand-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-brand-700"
-        >
-          Accept
-        </button>
-      </div>
-    </Card>
+    <div className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-4">
+      <div className="flex items-center gap-2">{icon}<p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p></div>
+      <p className="mt-3 text-2xl font-semibold text-[#081224]">{value}</p>
+    </div>
   );
 }
 
-function MyJobCard({ job, onUpdate }) {
+function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
   const actions = {
-    accepted:    { label: "Start Work",      next: "in_progress" },
-    in_progress: { label: "Mark Complete",   next: "completed"   },
+    dispatch: { label: "Accept request", onClick: onAccept, style: "bg-[#2563eb] hover:bg-[#1d4ed8]" },
+    accepted: { label: "Start work", onClick: onStart, style: "bg-[#0f172a] hover:bg-black" },
+    progress: { label: "Complete job", onClick: onComplete, style: "bg-[#16a34a] hover:bg-[#15803d]" },
   };
-  const action = actions[job.status];
+  const action = actions[kind];
 
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+    <div className="rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={job.status} />
-            <span className="text-xs text-gray-400">
-              {new Date(job.created_at).toLocaleDateString("en-IN")}
-            </span>
+            <span className="text-xs text-slate-400">{new Date(job.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
           </div>
-          <p className="text-sm font-medium text-gray-800 truncate">{job.problem_desc}</p>
-          {job.total_cost && (
-            <p className="text-xs text-green-700 mt-0.5 font-medium">Earned: {formatCurrencyUSD(job.total_cost)}</p>
-          )}
+          <p className="mt-3 text-lg font-semibold text-[#081224]">{job.problem_desc}</p>
+          <div className="mt-3 space-y-2 text-sm text-slate-600">
+            {job.owner_name ? <p>{job.owner_name}</p> : null}
+            {job.vehicle_label ? <p>{job.vehicle_label}{job.license_plate ? ` · ${job.license_plate}` : ""}</p> : null}
+            {job.owner_address ? (
+              <p className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0 text-[#2563eb]" /> <span>{job.owner_address}</span></p>
+            ) : null}
+            {job.deadline_at ? (
+              <p className="flex items-start gap-2 text-amber-700"><Clock3 size={15} className="mt-0.5 shrink-0" /> <span>Due {new Date(job.deadline_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></p>
+            ) : null}
+          </div>
         </div>
-        {action && (
-          <button
-            onClick={() => onUpdate(job.id, action.next)}
-            className="shrink-0 bg-brand-600 text-white text-xs px-2.5 py-1.5 rounded-lg hover:bg-brand-700 whitespace-nowrap"
-          >
-            {action.label}
-          </button>
-        )}
+        <div className="text-right">
+          {job.total_cost ? <p className="text-base font-semibold text-[#081224]">{formatCurrencyUSD(job.total_cost)}</p> : null}
+        </div>
       </div>
-    </Card>
+
+      {action ? (
+        <button
+          onClick={action.onClick}
+          className={`mt-4 w-full rounded-[18px] px-4 py-3 text-sm font-semibold text-white transition ${action.style}`}
+        >
+          {action.label}
+        </button>
+      ) : (
+        <div className="mt-4 rounded-[18px] border border-[#dbe7ff] bg-white px-4 py-3 text-center text-sm font-medium text-slate-500">
+          Completed on {new Date(job.updated_at ?? job.created_at).toLocaleDateString("en-US")}
+        </div>
+      )}
+    </div>
   );
 }

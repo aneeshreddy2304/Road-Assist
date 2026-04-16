@@ -62,6 +62,7 @@ CREATE TABLE mechanics (
   location        GEOGRAPHY(POINT, 4326) NOT NULL,
   address         TEXT,
   specialization  TEXT,                              -- e.g. "engine, brakes, electrical"
+  work_hours      TEXT,
   vehicle_types   vehicle_type[]  NOT NULL DEFAULT '{}',
   is_available    BOOLEAN       NOT NULL DEFAULT TRUE,
   rating          NUMERIC(3, 2) NOT NULL DEFAULT 0.00
@@ -121,6 +122,8 @@ CREATE TABLE service_requests (
   problem_desc    TEXT            NOT NULL,
   status          request_status  NOT NULL DEFAULT 'requested',
   owner_location  GEOGRAPHY(POINT, 4326) NOT NULL,
+  requested_completion_hours INTEGER,
+  deadline_at     TIMESTAMPTZ,
   total_cost      NUMERIC(10,2),                                -- filled on completion
   created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()

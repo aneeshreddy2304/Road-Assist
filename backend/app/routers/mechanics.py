@@ -82,9 +82,11 @@ async def get_my_mechanic_profile(
             m.id::TEXT AS mechanic_id,
             m.user_id::TEXT AS user_id,
             u.name,
+            u.email,
             u.phone,
             m.address,
             m.specialization,
+            m.work_hours,
             m.vehicle_types,
             m.is_available,
             CAST(m.rating AS FLOAT) AS rating,
@@ -204,6 +206,8 @@ async def update_my_profile(
         mechanic.address = payload.address
     if payload.specialization is not None:
         mechanic.specialization = payload.specialization
+    if payload.work_hours is not None:
+        mechanic.work_hours = payload.work_hours
     if payload.vehicle_types is not None:
         mechanic.vehicle_types = payload.vehicle_types
     if payload.is_available is not None:

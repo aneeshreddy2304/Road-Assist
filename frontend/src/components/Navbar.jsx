@@ -17,8 +17,10 @@ import {
 import {
   addVehicle,
   deleteVehicle,
+  getMyMechanicProfile,
   getMyVehicles,
   getOwnerHistory,
+  updateMyProfile,
   updateMe,
   updateVehicle,
 } from "../api/endpoints";
@@ -48,6 +50,21 @@ const vehicleDefaults = {
   notes: "",
 };
 
+const mechanicProfileDefaults = {
+  name: "",
+  email: "",
+  phone: "",
+  street_address: "",
+  city: "",
+  state: "",
+  postal_code: "",
+  address: "",
+  specialization: "",
+  work_hours: "",
+  vehicle_types: ["car"],
+  is_available: true,
+};
+
 export default function Navbar() {
   const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
@@ -66,6 +83,10 @@ export default function Navbar() {
   const [vehicleEditingId, setVehicleEditingId] = useState(null);
   const [vehicleForm, setVehicleForm] = useState(vehicleDefaults);
   const [vehicleSaving, setVehicleSaving] = useState(false);
+  const [mechanicProfileForm, setMechanicProfileForm] = useState(mechanicProfileDefaults);
+  const [mechanicProfileLoading, setMechanicProfileLoading] = useState(false);
+  const [mechanicProfileSaving, setMechanicProfileSaving] = useState(false);
+  const [mechanicEditMode, setMechanicEditMode] = useState(false);
 
   useEffect(() => {
     if (!user || user.role !== "owner") return;
@@ -81,6 +102,29 @@ export default function Navbar() {
     });
     setProfileEditMode(false);
   }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== "mechanic" || openPanel !== "mechanic-profile") return;
+    setMechanicProfileLoading(true);
+    getMyMechanicProfile()
+      .then((res) => {
+        setMechanicProfileForm({
+          name: user.name || "",
+          email: res.data.email || user.email || "",
+          phone: res.data.phone || user.phone || "",
+          street_address: user.street_address || "",
+          city: user.city || "Richmond",
+          state: user.state || "VA",
+          postal_code: user.postal_code || "",
+          address: res.data.address || "",
+          specialization: res.data.specialization || "",
+          work_hours: res.data.work_hours || "",
+          vehicle_types: res.data.vehicle_types?.length ? res.data.vehicle_types : ["car"],
+          is_available: res.data.is_available,
+        });
+      })
+      .finally(() => setMechanicProfileLoading(false));
+  }, [openPanel, user]);
 
   useEffect(() => {
     function handleOutsideClick(event) {
@@ -119,6 +163,7 @@ export default function Navbar() {
   const togglePanel = (panelId) => {
     setOpenPanel((current) => (current === panelId ? null : panelId));
     setProfileEditMode(false);
+    setMechanicEditMode(false);
     if (panelId !== "vehicles") {
       setVehicleFormOpen(false);
       setVehicleEditingId(null);
@@ -207,6 +252,34 @@ export default function Navbar() {
     ],
     []
   );
+
+  const submitMechanicProfile = async (event) => {
+    event.preventDefault();
+    setMechanicProfileSaving(true);
+    try {
+      await Promise.all([
+        updateMe({
+          name: mechanicProfileForm.name,
+          phone: mechanicProfileForm.phone || null,
+          street_address: mechanicProfileForm.street_address || null,
+          city: mechanicProfileForm.city || null,
+          state: mechanicProfileForm.state || null,
+          postal_code: mechanicProfileForm.postal_code || null,
+        }),
+        updateMyProfile({
+          address: mechanicProfileForm.address || null,
+          specialization: mechanicProfileForm.specialization || null,
+          work_hours: mechanicProfileForm.work_hours || null,
+          vehicle_types: mechanicProfileForm.vehicle_types,
+          is_available: mechanicProfileForm.is_available,
+        }),
+      ]);
+      await refreshUser();
+      setMechanicEditMode(false);
+    } finally {
+      setMechanicProfileSaving(false);
+    }
+  };
 
   return (
     <nav className="sticky top-0 z-[700] border-b border-[#16305f] bg-[#071225]/95 text-white shadow-[0_12px_30px_rgba(3,10,24,0.35)] backdrop-blur-xl">
@@ -501,6 +574,80 @@ export default function Navbar() {
                   </PanelShell>
                 ) : null}
               </div>
+            ) : user.role === "mechanic" ? (
+              <div ref={panelRef} className="relative flex items-center gap-2">
+                <button
+                  onClick={() => togglePanel("mechanic-profile")}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    openPanel === "mechanic-profile"
+                      ? "border-[#58a6ff] bg-[#0f2d59] text-white"
+                      : "border-white/10 bg-white/5 text-white/80 hover:border-[#58a6ff]/40 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <UserRound size={16} />
+                  Profile
+                </button>
+                <span className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 sm:block">
+                  {user.name}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="rounded-full border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                  title="Sign out"
+                >
+                  <LogOut size={17} />
+                </button>
+
+                {openPanel === "mechanic-profile" ? (
+                  <PanelShell title="Mechanic Profile" eyebrow="Mechanic tools" onClose={() => setOpenPanel(null)}>
+                    {mechanicProfileLoading ? (
+                      <PanelMessage>Loading mechanic profile...</PanelMessage>
+                    ) : (
+                      <form onSubmit={submitMechanicProfile} className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label="Name" value={mechanicProfileForm.name} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, name: value }))} />
+                          <Field label="Email" value={mechanicProfileForm.email} disabled />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label="Phone" value={mechanicProfileForm.phone} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, phone: value }))} />
+                          <Field label="Work Hours" value={mechanicProfileForm.work_hours} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, work_hours: value }))} />
+                        </div>
+                        <Field label="Workshop Address" value={mechanicProfileForm.address} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, address: value }))} />
+                        <Field label="Specialization" value={mechanicProfileForm.specialization} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, specialization: value }))} />
+                        <Field label="Street Address" value={mechanicProfileForm.street_address} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, street_address: value }))} />
+                        <div className="grid grid-cols-3 gap-3">
+                          <Field label="City" value={mechanicProfileForm.city} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, city: value }))} />
+                          <Field label="State" value={mechanicProfileForm.state} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, state: value }))} />
+                          <Field label="ZIP Code" value={mechanicProfileForm.postal_code} disabled={!mechanicEditMode} onChange={(value) => setMechanicProfileForm((f) => ({ ...f, postal_code: value }))} />
+                        </div>
+                        <SelectField
+                          label="Availability"
+                          value={mechanicProfileForm.is_available ? "online" : "offline"}
+                          disabled={!mechanicEditMode}
+                          onChange={(value) => setMechanicProfileForm((f) => ({ ...f, is_available: value === "online" }))}
+                          options={["online", "offline"]}
+                        />
+                        <div className="flex justify-end gap-2">
+                          {mechanicEditMode ? (
+                            <>
+                              <button type="button" onClick={() => setMechanicEditMode(false)} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white/75 hover:bg-white/5">
+                                Cancel
+                              </button>
+                              <button type="submit" disabled={mechanicProfileSaving} className="rounded-full bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2563eb] disabled:opacity-60">
+                                {mechanicProfileSaving ? "Saving..." : "Save changes"}
+                              </button>
+                            </>
+                          ) : (
+                            <button type="button" onClick={() => setMechanicEditMode(true)} className="rounded-full bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2563eb]">
+                              Edit Profile
+                            </button>
+                          )}
+                        </div>
+                      </form>
+                    )}
+                  </PanelShell>
+                ) : null}
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <span className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 sm:block">
@@ -535,10 +682,10 @@ function HeaderNavLink({ to, icon, label, active }) {
   return (
     <NavLink
       to={to}
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold tracking-[0.01em] transition ${
         active
-          ? "border-[#58a6ff] bg-[#0f2d59] text-white"
-          : "border-white/10 bg-white/5 text-white/70 hover:border-[#58a6ff]/40 hover:bg-white/10 hover:text-white"
+          ? "border-[#58a6ff] bg-[linear-gradient(135deg,#0f2d59_0%,#123d78_100%)] text-white shadow-[0_10px_30px_rgba(37,99,235,0.22)]"
+          : "border-white/10 bg-white/5 text-white/75 hover:border-[#58a6ff]/40 hover:bg-white/10 hover:text-white"
       }`}
     >
       {icon}
@@ -547,14 +694,14 @@ function HeaderNavLink({ to, icon, label, active }) {
   );
 }
 
-function PanelShell({ title, action, onClose, children }) {
+function PanelShell({ title, action, onClose, children, eyebrow = "Owner tools" }) {
   return (
     <>
       <div className="fixed inset-0 top-16 z-[710] bg-[#020817]/55 backdrop-blur-[2px]" />
       <div className="fixed right-6 top-24 z-[720] w-[34rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[32px] border border-[#16305f] bg-[#081224] p-5 text-white shadow-[0_30px_80px_rgba(2,8,23,0.72)]">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#58a6ff]">Owner tools</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#58a6ff]">{eyebrow}</p>
             <h3 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h3>
           </div>
           <div className="flex items-center gap-2">

@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from typing import Optional
 from geoalchemy2.elements import WKTElement
+from datetime import datetime, timedelta, timezone
 
 from app.db.session import get_db
 from app.models.user import User
@@ -35,6 +36,8 @@ REQUEST_SELECT = """
         TRIM(BOTH ', ' FROM CONCAT_WS(', ', u.street_address, u.city, u.state, u.postal_code)) AS owner_address,
         ST_Y(sr.owner_location::geometry) AS lat,
         ST_X(sr.owner_location::geometry) AS lng,
+        sr.requested_completion_hours,
+        sr.deadline_at,
         sr.created_at,
         sr.updated_at
     FROM service_requests sr
@@ -107,6 +110,12 @@ async def create_request(
         problem_desc=payload.problem_desc,
         status="requested",
         owner_location=WKTElement(f"POINT({payload.lng} {payload.lat})", srid=4326),
+        requested_completion_hours=payload.requested_completion_hours,
+        deadline_at=(
+            datetime.now(timezone.utc) + timedelta(hours=payload.requested_completion_hours)
+            if payload.requested_completion_hours
+            else None
+        ),
     )
     db.add(req)
     await db.flush()

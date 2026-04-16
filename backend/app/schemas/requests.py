@@ -9,6 +9,7 @@ class ServiceRequestCreate(BaseModel):
     lat: float
     lng: float
     mechanic_id: str | None = None
+    requested_completion_hours: int | None = None
 
 
 class StatusUpdate(BaseModel):
@@ -36,8 +37,11 @@ class ServiceRequestOut(BaseModel):
     owner_name: str | None = None
     vehicle_label: str | None = None
     license_plate: str | None = None
+    owner_address: str | None = None
     lat: float | None = None
     lng: float | None = None
+    requested_completion_hours: int | None = None
+    deadline_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

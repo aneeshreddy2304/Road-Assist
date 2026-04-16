@@ -6,9 +6,11 @@ class MechanicMe(BaseModel):
     mechanic_id: str
     user_id: str
     name: str | None = None
+    email: str | None = None
     phone: str | None = None
     address: str | None = None
     specialization: str | None = None
+    work_hours: str | None = None
     vehicle_types: list[str] = []
     is_available: bool
     rating: float
@@ -54,6 +56,7 @@ class MechanicNearbyResult(BaseModel):
 class MechanicUpdate(BaseModel):
     address: str | None = None
     specialization: str | None = None
+    work_hours: str | None = None
     vehicle_types: list[str] | None = None
     is_available: bool | None = None
     lat: float | None = None
@@ -65,6 +68,7 @@ class MechanicProfile(BaseModel):
     user_id: str
     address: str | None
     specialization: str | None
+    work_hours: str | None = None
     vehicle_types: list[str]
     is_available: bool
     rating: float
