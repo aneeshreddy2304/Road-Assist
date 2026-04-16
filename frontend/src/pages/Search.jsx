@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import { useLocation } from "react-router-dom";
 import {
+  CalendarDays,
+  Clock3,
   Crosshair,
   MapPin,
+  MessageCircle,
   Navigation,
   Search as SearchIcon,
   SlidersHorizontal,
@@ -15,11 +18,15 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 import {
+  createAppointment,
   createRequest,
   getMechanicParts,
+  getMechanicAvailability,
+  getMessageThread,
   getMyVehicles,
   getNearbyMechanics,
   searchParts,
+  sendMessage,
   suggestParts,
 } from "../api/endpoints";
 import { Card, EmptyState, Spinner } from "../components/UI";
@@ -137,6 +144,8 @@ export default function Search() {
   const [selected, setSelected] = useState(null);
   const [showRequest, setShowRequest] = useState(false);
   const [inventoryMechanic, setInventoryMechanic] = useState(null);
+  const [chatMechanic, setChatMechanic] = useState(null);
+  const [scheduleMechanic, setScheduleMechanic] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
   const selectedDetail = selected;
@@ -600,6 +609,8 @@ export default function Search() {
             pickupLabel={pickupLabel}
             onOpenRoute={() => openRoute(selectedDetail)}
             onOpenInventory={() => setInventoryMechanic(selectedDetail)}
+            onOpenChat={() => setChatMechanic(selectedDetail)}
+            onOpenSchedule={() => setScheduleMechanic(selectedDetail)}
             onRequest={() => {
               setSelected(selectedDetail);
               setShowRequest(true);
@@ -616,6 +627,8 @@ export default function Search() {
             pickupLabel={pickupLabel}
             onOpenRoute={() => openRoute(selectedDetail)}
             onOpenInventory={() => setInventoryMechanic(selectedDetail)}
+            onOpenChat={() => setChatMechanic(selectedDetail)}
+            onOpenSchedule={() => setScheduleMechanic(selectedDetail)}
             onRequest={() => {
               setSelected(selectedDetail);
               setShowRequest(true);
@@ -632,11 +645,28 @@ export default function Search() {
       {inventoryMechanic ? (
         <MechanicInventoryModal mechanic={inventoryMechanic} onClose={() => setInventoryMechanic(null)} />
       ) : null}
+
+      {chatMechanic ? (
+        <MechanicChatModal mechanic={chatMechanic} onClose={() => setChatMechanic(null)} />
+      ) : null}
+
+      {scheduleMechanic ? (
+        <ScheduleAppointmentModal mechanic={scheduleMechanic} onClose={() => setScheduleMechanic(null)} />
+      ) : null}
     </div>
   );
 }
 
-function SelectedMechanicPanel({ mechanic, pickupLabel, onOpenRoute, onOpenInventory, onRequest, onClose }) {
+function SelectedMechanicPanel({
+  mechanic,
+  pickupLabel,
+  onOpenRoute,
+  onOpenInventory,
+  onOpenChat,
+  onOpenSchedule,
+  onRequest,
+  onClose,
+}) {
   return (
     <Card className="flex h-full flex-col rounded-[28px] border border-white/80 bg-white/96 p-5 shadow-2xl backdrop-blur">
       <div className="flex items-start justify-between gap-3">
@@ -699,8 +729,20 @@ function SelectedMechanicPanel({ mechanic, pickupLabel, onOpenRoute, onOpenInven
           Parts
         </button>
         <button
+          onClick={onOpenChat}
+          className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+        >
+          Message
+        </button>
+        <button
+          onClick={onOpenSchedule}
+          className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+        >
+          Schedule
+        </button>
+        <button
           onClick={onRequest}
-          className="rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
+          className="col-span-2 rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
         >
           Request
         </button>
@@ -999,6 +1041,306 @@ function MechanicInventoryModal({ mechanic, onClose }) {
             </div>
           ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MechanicChatModal({ mechanic, onClose }) {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadMessages = async () => {
+    try {
+      const response = await getMessageThread({ mechanic_id: mechanic.mechanic_id });
+      setMessages(response.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to load messages");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMessages();
+    const interval = window.setInterval(loadMessages, 10000);
+    return () => window.clearInterval(interval);
+  }, [mechanic.mechanic_id]);
+
+  const handleSend = async (event) => {
+    event.preventDefault();
+    if (!draft.trim()) return;
+    setSending(true);
+    setError("");
+    try {
+      const response = await sendMessage({ mechanic_id: mechanic.mechanic_id, message: draft.trim() });
+      setMessages((current) => [...current, response.data]);
+      setDraft("");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not send message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 px-4">
+      <div className="flex h-[36rem] w-full max-w-2xl flex-col rounded-[28px] bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Chat with mechanic</p>
+            <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
+            <p className="mt-1 text-sm text-gray-500">Talk about pricing, timing, or the issue before dispatch.</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-3 overflow-y-auto bg-[#f8fbff] px-6 py-5">
+          {loading ? <Spinner /> : null}
+          {!loading && messages.length === 0 ? (
+            <EmptyState icon="💬" title="No messages yet" subtitle="Start the conversation with a price or timing question." />
+          ) : null}
+          {!loading &&
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
+                  message.sender_role === "owner"
+                    ? "ml-auto bg-[#0f172a] text-white"
+                    : "bg-white text-gray-900 ring-1 ring-[#dbe7ff]"
+                }`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+                <p className="mt-2 text-sm leading-6">{message.message}</p>
+                <p className={`mt-2 text-[11px] ${message.sender_role === "owner" ? "text-white/70" : "text-gray-400"}`}>
+                  {new Date(message.created_at).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            ))}
+        </div>
+
+        <form onSubmit={handleSend} className="border-t border-gray-100 px-6 py-4">
+          {error ? <p className="mb-3 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
+          <div className="flex gap-3">
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={2}
+              placeholder="Ask about price estimates, service time, or any repair details..."
+              className="min-h-[3.5rem] flex-1 rounded-[20px] border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <button
+              type="submit"
+              disabled={sending || !draft.trim()}
+              className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {sending ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ScheduleAppointmentModal({ mechanic, onClose }) {
+  const [vehicles, setVehicles] = useState([]);
+  const [vehicleId, setVehicleId] = useState("");
+  const [serviceType, setServiceType] = useState("General service");
+  const [notes, setNotes] = useState("");
+  const [selectedDate, setSelectedDate] = useState(
+    new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  );
+  const [slots, setSlots] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState("");
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getMyVehicles().then((response) => {
+      setVehicles(response.data);
+      if (response.data.length > 0) setVehicleId(response.data[0].id);
+    });
+  }, []);
+
+  useEffect(() => {
+    const loadSlots = async () => {
+      setLoadingSlots(true);
+      setError("");
+      try {
+        const response = await getMechanicAvailability({
+          mechanic_id: mechanic.mechanic_id,
+          day: selectedDate,
+        });
+        setSlots(response.data);
+        setSelectedSlot(response.data[0]?.starts_at || "");
+      } catch (err) {
+        setError(err.response?.data?.detail || "Could not load appointment slots");
+        setSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    loadSlots();
+  }, [mechanic.mechanic_id, selectedDate]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedSlot) return;
+    setSaving(true);
+    setError("");
+    try {
+      await createAppointment({
+        mechanic_id: mechanic.mechanic_id,
+        vehicle_id: vehicleId || null,
+        scheduled_for: selectedSlot,
+        service_type: serviceType,
+        notes: notes || null,
+      });
+      setSuccess(true);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to schedule appointment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 px-4">
+      <div className="w-full max-w-2xl rounded-[28px] bg-white p-6 shadow-2xl">
+        {success ? (
+          <div className="py-6 text-center">
+            <div className="mb-3 text-4xl">🗓️</div>
+            <h3 className="text-2xl font-semibold text-gray-950">Appointment requested</h3>
+            <p className="mt-2 text-sm text-gray-500">The mechanic can now see this future service slot in their system.</p>
+            <button onClick={onClose} className="mt-5 rounded-2xl bg-[#111827] px-6 py-3 text-sm font-medium text-white">
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Schedule future service</p>
+                <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
+                <p className="mt-1 text-sm text-gray-500">Choose a future time that fits the mechanic’s published work hours.</p>
+              </div>
+              <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Vehicle</label>
+                  <select
+                    value={vehicleId}
+                    onChange={(e) => setVehicleId(e.target.value)}
+                    className="h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  >
+                    {vehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.year} {vehicle.make} {vehicle.model} — {vehicle.license_plate}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Service date</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Service type</label>
+                <input
+                  value={serviceType}
+                  onChange={(e) => setServiceType(e.target.value)}
+                  className="h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Available slots</label>
+                <div className="rounded-[22px] border border-gray-200 bg-[#f8fbff] p-3">
+                  {loadingSlots ? (
+                    <div className="py-6 text-sm text-gray-500">Checking the mechanic’s open slots...</div>
+                  ) : slots.length === 0 ? (
+                    <div className="py-6 text-sm text-gray-500">No open slots on this date. Try another day.</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {slots.map((slot) => (
+                        <button
+                          key={slot.starts_at}
+                          type="button"
+                          onClick={() => setSelectedSlot(slot.starts_at)}
+                          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                            selectedSlot === slot.starts_at
+                              ? "bg-[#0f172a] text-white"
+                              : "bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          <Clock3 size={14} />
+                          {slot.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Notes for mechanic</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Mention service package, budget expectations, or anything important..."
+                  className="w-full rounded-2xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
+
+              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-2xl border border-gray-200 py-3 text-sm font-medium text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || !selectedSlot}
+                  className="rounded-2xl bg-[#111827] py-3 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {saving ? "Scheduling..." : "Request appointment"}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

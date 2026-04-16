@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import auth, mechanics, parts, requests, admin, vehicles
+from app.routers import auth, mechanics, parts, requests, admin, vehicles, engagement
 
 settings = get_settings()
 
@@ -40,6 +40,7 @@ app.include_router(auth.router)
 app.include_router(mechanics.router)
 app.include_router(parts.router)
 app.include_router(requests.router)
+app.include_router(engagement.router)
 app.include_router(vehicles.router)
 app.include_router(admin.router)
 

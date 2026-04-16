@@ -285,12 +285,12 @@ export default function Navbar() {
     <nav className="sticky top-0 z-[700] border-b border-[#16305f] bg-[#071225]/95 text-white shadow-[0_12px_30px_rgba(3,10,24,0.35)] backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 lg:px-6">
         <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0e2b57] text-[#58a6ff] shadow-[0_10px_24px_rgba(23,78,166,0.35)]">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[linear-gradient(160deg,#0e2b57_0%,#123d78_100%)] text-[#7ec0ff] shadow-[0_14px_30px_rgba(23,78,166,0.35)]">
             <Wrench size={18} />
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Roadside Network</p>
-            <p className="text-xl font-semibold tracking-tight text-white">RoadAssist</p>
+            <p className="text-[11px] uppercase tracking-[0.32em] text-white/40">Roadside Network</p>
+            <p className="text-[1.45rem] font-black tracking-[-0.03em] text-white">RoadAssist</p>
           </div>
         </Link>
 
@@ -322,10 +322,10 @@ export default function Navbar() {
                   <button
                     key={action.id}
                     onClick={() => togglePanel(action.id)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    className={`inline-flex items-center gap-2 rounded-[18px] border px-4 py-2.5 text-sm font-semibold tracking-[0.01em] transition ${
                       openPanel === action.id
-                        ? "border-[#58a6ff] bg-[#0f2d59] text-white shadow-[0_0_0_1px_rgba(88,166,255,0.25)]"
-                        : "border-white/10 bg-white/5 text-white/80 hover:border-[#58a6ff]/40 hover:bg-white/10 hover:text-white"
+                        ? "border-[#58a6ff] bg-[linear-gradient(135deg,#0f2d59_0%,#123d78_100%)] text-white shadow-[0_12px_26px_rgba(37,99,235,0.22)]"
+                        : "border-white/10 bg-white/5 text-white/80 hover:border-[#58a6ff]/45 hover:bg-white/10 hover:text-white"
                     }`}
                   >
                     {action.icon}
@@ -335,7 +335,7 @@ export default function Navbar() {
 
                 <button
                   onClick={handleLogout}
-                  className="rounded-full border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                  className="rounded-[18px] border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
                   title="Sign out"
                 >
                   <LogOut size={17} />
@@ -578,21 +578,18 @@ export default function Navbar() {
               <div ref={panelRef} className="relative flex items-center gap-2">
                 <button
                   onClick={() => togglePanel("mechanic-profile")}
-                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  className={`inline-flex items-center gap-2 rounded-[18px] border px-4 py-2.5 text-sm font-semibold tracking-[0.01em] transition ${
                     openPanel === "mechanic-profile"
-                      ? "border-[#58a6ff] bg-[#0f2d59] text-white"
+                      ? "border-[#58a6ff] bg-[linear-gradient(135deg,#0f2d59_0%,#123d78_100%)] text-white shadow-[0_12px_26px_rgba(37,99,235,0.22)]"
                       : "border-white/10 bg-white/5 text-white/80 hover:border-[#58a6ff]/40 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <UserRound size={16} />
                   Profile
                 </button>
-                <span className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 sm:block">
-                  {user.name}
-                </span>
                 <button
                   onClick={handleLogout}
-                  className="rounded-full border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                  className="rounded-[18px] border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
                   title="Sign out"
                 >
                   <LogOut size={17} />
@@ -650,12 +647,9 @@ export default function Navbar() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 sm:block">
-                  {user.name}
-                </span>
                 <button
                   onClick={handleLogout}
-                  className="rounded-full border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                  className="rounded-[18px] border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
                   title="Sign out"
                 >
                   <LogOut size={17} />
@@ -665,10 +659,10 @@ export default function Navbar() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Link to="/login" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10">
+            <Link to="/login" className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold tracking-[0.01em] text-white/80 hover:bg-white/10">
               Login
             </Link>
-            <Link to="/register" className="rounded-full bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3b82f6]">
+            <Link to="/register" className="rounded-[18px] bg-[linear-gradient(135deg,#2563eb_0%,#3b82f6_100%)] px-4 py-2.5 text-sm font-semibold tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] hover:brightness-110">
               Sign up
             </Link>
           </div>

@@ -45,6 +45,16 @@ export const getRequestHistory  = (id)     => API.get(`/requests/${id}/history`)
 export const updateRequestStatus= (id, data) => API.patch(`/requests/${id}/status`, data);
 export const getOpenRequests    = (params) => API.get("/requests/open", { params });
 
+// --- Appointments ---
+export const getMechanicAvailability = (params) => API.get("/appointments/availability", { params });
+export const createAppointment = (data) => API.post("/appointments", data);
+export const listAppointments = () => API.get("/appointments");
+export const updateAppointmentStatus = (id, data) => API.patch(`/appointments/${id}/status`, data);
+
+// --- Chat ---
+export const getMessageThread = (params) => API.get("/messages/thread", { params });
+export const sendMessage = (data) => API.post("/messages/thread", data);
+
 // --- Reviews ---
 export const submitReview = (data) => API.post("/reviews", data);
 

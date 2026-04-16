@@ -25,6 +25,7 @@ import {
   getMyMechanicProfile,
   getMechanicParts,
   getOpenRequests,
+  listAppointments,
   listRequests,
   resolveAlert,
   updateMyProfile,
@@ -67,6 +68,7 @@ export default function Dashboard() {
   const [parts, setParts] = useState([]);
   const [incomingJobs, setIncomingJobs] = useState([]);
   const [assignedJobs, setAssignedJobs] = useState([]);
+  const [appointments, setAppointments] = useState([]);
   const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
   const [range, setRange] = useState("week");
   const [selectedJobId, setSelectedJobId] = useState(null);
@@ -83,18 +85,20 @@ export default function Dashboard() {
       const centerLat = currentProfile.lat ?? DEFAULT_CENTER[0];
       const centerLng = currentProfile.lng ?? DEFAULT_CENTER[1];
 
-      const [summaryRes, alertsRes, jobsRes, openRes, partsRes] = await Promise.allSettled([
+      const [summaryRes, alertsRes, jobsRes, openRes, partsRes, appointmentsRes] = await Promise.allSettled([
         getMechanicDashboard(currentProfile.mechanic_id),
         getAlerts(),
         listRequests(),
         getOpenRequests({ lat: centerLat, lng: centerLng, radius_km: 20 }),
         getMechanicParts(currentProfile.mechanic_id),
+        listAppointments(),
       ]);
       setSummary(summaryRes.status === "fulfilled" ? summaryRes.value.data : null);
       setAlerts(alertsRes.status === "fulfilled" ? alertsRes.value.data : []);
       setAssignedJobs(jobsRes.status === "fulfilled" ? jobsRes.value.data : []);
       setIncomingJobs(openRes.status === "fulfilled" ? openRes.value.data : []);
       setParts(partsRes.status === "fulfilled" ? partsRes.value.data : []);
+      setAppointments(appointmentsRes.status === "fulfilled" ? appointmentsRes.value.data : []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -185,6 +189,9 @@ export default function Dashboard() {
     || activeJobs[0]
     || filteredCompletedJobs[0]
     || null;
+  const upcomingAppointments = appointments
+    .filter((appointment) => ["requested", "confirmed"].includes(appointment.status))
+    .slice(0, 4);
 
   useEffect(() => {
     if (!selectedJobId && selectedMapJob?.id) {
@@ -240,10 +247,23 @@ export default function Dashboard() {
       tone: "danger",
     }));
 
-    return [...deadlineEvents, ...alertEvents, ...stockEvents, ...jobEvents]
+    const appointmentEvents = upcomingAppointments.slice(0, 4).map((appointment) => ({
+      id: `appointment-${appointment.id}`,
+      title: `${appointment.owner_name || "Owner"} scheduled ${appointment.service_type}`,
+      meta: `${new Date(appointment.scheduled_for).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })} · ${appointment.status}`,
+      timestamp: new Date(appointment.scheduled_for).getTime(),
+      tone: "info",
+    }));
+
+    return [...deadlineEvents, ...appointmentEvents, ...alertEvents, ...stockEvents, ...jobEvents]
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, 7);
-  }, [assignedJobs, alerts, lowStockParts, lowDeadlineJobs]);
+  }, [assignedJobs, alerts, lowStockParts, lowDeadlineJobs, upcomingAppointments]);
 
   const queueColumns = [
     { id: "incoming", title: "New Requests", jobs: incomingJobs, empty: "No new requests nearby" },
@@ -439,7 +459,7 @@ export default function Dashboard() {
                   {profile?.is_available ? "Online" : "Offline"}
                 </span>
               </div>
-              <div className="h-72 overflow-hidden rounded-[24px] border border-[#dbe7ff]">
+              <div className="h-80 overflow-hidden rounded-[24px] border border-[#dbe7ff]">
                 <MapContainer center={center} zoom={11} style={{ height: "100%", width: "100%" }} zoomControl={false}>
                   <ZoomControl position="bottomright" />
                   <TileLayer
@@ -520,33 +540,82 @@ export default function Dashboard() {
               </div>
             </Card>
 
-            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Quick actions</p>
-                  <h2 className="mt-1 text-xl font-semibold text-[#081224]">Move fast</h2>
-                </div>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                  <QuickAction to="/jobs" label="Open jobs board" sublabel="Review queue and status updates" icon={<Wrench size={16} />} />
-                  <QuickAction to="/inventory" label="Update inventory" sublabel="Add parts or adjust stock" icon={<PackageSearch size={16} />} />
-                <QuickAction to="/inventory" label="Resolve low stock" sublabel={`${lowStockParts.length} parts below 4 in stock`} icon={<ShieldAlert size={16} />} />
-                <button
-                  onClick={toggleAvailability}
-                  className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4 text-left transition hover:border-[#2563eb]/30 hover:bg-white"
-                >
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eff6ff] text-[#2563eb]">
-                    <Gauge size={16} />
-                  </div>
-                  <p className="mt-3 text-sm font-semibold text-[#081224]">{profile?.is_available ? "Go offline" : "Go online"}</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">Control whether owners can discover you nearby.</p>
-                </button>
-              </div>
-            </Card>
           </div>
         </div>
 
-        <div className="grid items-start gap-4 xl:grid-cols-[1.15fr,0.95fr,1fr]">
+        <div className="grid items-start gap-4 xl:grid-cols-[0.88fr,1.1fr,0.95fr,1fr]">
+          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg xl:h-[27rem]">
+            <SectionHeader eyebrow="Workshop board" title="Action hub" />
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <QuickAction to="/jobs" label="Open jobs board" sublabel="Review queue and status updates" icon={<Wrench size={16} />} />
+              <QuickAction to="/inventory" label="Update inventory" sublabel={`Track ${parts.length} parts across your workshop`} icon={<PackageSearch size={16} />} />
+              <QuickAction to="/inventory" label="Resolve low stock" sublabel={`${lowStockParts.length} parts below 4 in stock`} icon={<ShieldAlert size={16} />} />
+              <button
+                onClick={toggleAvailability}
+                className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4 text-left transition hover:border-[#2563eb]/30 hover:bg-white"
+              >
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eff6ff] text-[#2563eb]">
+                  <Gauge size={16} />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-[#081224]">{profile?.is_available ? "Go offline" : "Go online"}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Control whether owners can discover you nearby.</p>
+              </button>
+            </div>
+            <div className="mt-4 rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Availability</p>
+                  <p className="mt-1 text-sm font-semibold text-[#081224]">{profile?.work_hours || "Mon-Sat · 8:00 AM - 6:00 PM"}</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                  {upcomingAppointments.length} upcoming
+                </span>
+              </div>
+              <div className="mt-3 max-h-[7rem] space-y-2 overflow-y-auto pr-1">
+                {upcomingAppointments.length === 0 ? (
+                  <p className="text-sm text-slate-500">New scheduled services will show here once owners book a future slot.</p>
+                ) : (
+                  upcomingAppointments.map((appointment) => (
+                    <div key={appointment.id} className="rounded-[16px] border border-[#e3ebff] bg-white px-3 py-2.5">
+                      <p className="text-sm font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(appointment.scheduled_for).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Missing essentials</p>
+                  <p className="mt-1 text-sm text-slate-500">Fast checklist for commonly needed service items.</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                  {missingEssentials.length}
+                </span>
+              </div>
+              <div className="mt-3 flex max-h-[8rem] flex-wrap gap-2 overflow-y-auto pr-1">
+                {missingEssentials.length === 0 ? (
+                  <span className="text-sm text-emerald-700">All core essentials are stocked.</span>
+                ) : (
+                  missingEssentials.slice(0, 12).map((name) => (
+                    <span key={name} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-[#dbe7ff]">
+                      {name}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </Card>
+
           <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg xl:h-[27rem]">
             <SectionHeader eyebrow="Inventory health" title="Inventory register" />
             <div className="mt-4 grid grid-cols-3 gap-3">
@@ -573,20 +642,6 @@ export default function Dashboard() {
                   </div>
                 ))
               )}
-            </div>
-            <div className="mt-4 rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Missing essentials</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {missingEssentials.length === 0 ? (
-                  <span className="text-sm text-emerald-700">All core essentials are stocked.</span>
-                ) : (
-                  missingEssentials.slice(0, 8).map((name) => (
-                    <span key={name} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-[#dbe7ff]">
-                      {name}
-                    </span>
-                  ))
-                )}
-              </div>
             </div>
           </Card>
 

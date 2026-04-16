@@ -24,6 +24,9 @@ CREATE TYPE request_status AS ENUM (
   'cancelled'
 );
 
+CREATE TYPE appointment_status AS ENUM ('requested', 'confirmed', 'completed', 'cancelled');
+CREATE TYPE chat_sender_role AS ENUM ('owner', 'mechanic');
+
 CREATE TYPE alert_type AS ENUM ('low_stock', 'new_request', 'system');
 
 -- ============================================================
@@ -184,6 +187,37 @@ CREATE TABLE alerts (
 );
 
 -- ------------------------------------------------------------
+-- appointments
+-- Future bookings for planned services.
+-- ------------------------------------------------------------
+CREATE TABLE appointments (
+  id              UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id        UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mechanic_id     UUID                NOT NULL REFERENCES mechanics(id) ON DELETE CASCADE,
+  vehicle_id      UUID                REFERENCES vehicles(id) ON DELETE SET NULL,
+  scheduled_for   TIMESTAMPTZ         NOT NULL,
+  service_type    VARCHAR(120)        NOT NULL,
+  notes           TEXT,
+  status          appointment_status  NOT NULL DEFAULT 'requested',
+  estimated_cost  NUMERIC(10,2),
+  created_at      TIMESTAMPTZ         NOT NULL DEFAULT NOW()
+);
+
+-- ------------------------------------------------------------
+-- chat_messages
+-- Owner-mechanic messaging thread.
+-- ------------------------------------------------------------
+CREATE TABLE chat_messages (
+  id              UUID               PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id        UUID               NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mechanic_id     UUID               NOT NULL REFERENCES mechanics(id) ON DELETE CASCADE,
+  sender_user_id  UUID               NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_role     chat_sender_role   NOT NULL,
+  message         TEXT               NOT NULL,
+  created_at      TIMESTAMPTZ        NOT NULL DEFAULT NOW()
+);
+
+-- ------------------------------------------------------------
 -- audit_log
 -- Immutable log of all sensitive table changes.
 -- old_data / new_data store full row snapshots as JSONB.
@@ -255,6 +289,15 @@ CREATE INDEX idx_audit_table
 CREATE INDEX idx_alerts_mechanic_unresolved
   ON alerts (mechanic_id, is_resolved)
   WHERE is_resolved = FALSE;
+
+CREATE INDEX idx_appointments_mechanic_time
+  ON appointments (mechanic_id, scheduled_for ASC);
+
+CREATE INDEX idx_appointments_owner_time
+  ON appointments (owner_id, scheduled_for ASC);
+
+CREATE INDEX idx_chat_messages_thread
+  ON chat_messages (owner_id, mechanic_id, created_at ASC);
 
 -- ============================================================
 -- TRIGGERS
