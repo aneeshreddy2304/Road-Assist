@@ -29,6 +29,7 @@ REQUEST_SELECT = """
         sr.vehicle_id::TEXT AS vehicle_id,
         sr.problem_desc,
         sr.status::TEXT AS status,
+        CAST(sr.estimated_cost AS FLOAT) AS estimated_cost,
         CAST(sr.total_cost AS FLOAT) AS total_cost,
         u.name AS owner_name,
         CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
@@ -234,7 +235,8 @@ async def owner_history_summary(
                 sr.id::text AS request_id,
                 sr.problem_desc,
                 sr.status::text AS status,
-                COALESCE(sr.total_cost, 0) AS total_cost,
+                CAST(sr.estimated_cost AS FLOAT) AS estimated_cost,
+                CAST(sr.total_cost AS FLOAT) AS total_cost,
                 sr.created_at,
                 COALESCE(mu.name, 'Awaiting assignment') AS mechanic_name,
                 CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
@@ -326,6 +328,8 @@ async def update_request_status(
             )
         except Exception as e:
             raise HTTPException(status_code=400, detail="Could not accept this request. Please refresh the dashboard and try again.")
+        if payload.estimated_cost is not None:
+            req.estimated_cost = payload.estimated_cost
 
     else:
         # For other transitions, update directly + log
@@ -341,8 +345,13 @@ async def update_request_status(
             )
 
         req.status = payload.status
-        if payload.status == "completed" and req.total_cost is None:
-            req.total_cost = _estimate_completion_total(req.problem_desc)
+        if payload.status == "completed":
+            if payload.final_cost is not None:
+                req.total_cost = payload.final_cost
+            elif req.total_cost is None and req.estimated_cost is not None:
+                req.total_cost = req.estimated_cost
+            elif req.total_cost is None:
+                req.total_cost = _estimate_completion_total(req.problem_desc)
         updater_id = mechanic.user_id if mechanic else current_user.id
         db.add(JobUpdate(
             request_id=req.id,

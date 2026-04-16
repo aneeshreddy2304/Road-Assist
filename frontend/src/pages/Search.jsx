@@ -23,11 +23,14 @@ import {
   getMechanicParts,
   getMechanicAvailability,
   getMessageThread,
+  getOwnerHistory,
   getMyVehicles,
   getNearbyMechanics,
+  listAppointments,
   searchParts,
   sendMessage,
   suggestParts,
+  updateAppointmentStatus,
 } from "../api/endpoints";
 import { Card, EmptyState, Spinner } from "../components/UI";
 import { formatCurrencyUSD, formatMilesFromKm } from "../lib/formatters";
@@ -146,6 +149,10 @@ export default function Search() {
   const [inventoryMechanic, setInventoryMechanic] = useState(null);
   const [chatMechanic, setChatMechanic] = useState(null);
   const [scheduleMechanic, setScheduleMechanic] = useState(null);
+  const [ownerVehicles, setOwnerVehicles] = useState([]);
+  const [ownerHistory, setOwnerHistory] = useState([]);
+  const [ownerAppointments, setOwnerAppointments] = useState([]);
+  const [ownerWorkspaceLoading, setOwnerWorkspaceLoading] = useState(true);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
   const selectedDetail = selected;
@@ -192,6 +199,28 @@ export default function Search() {
 
   useEffect(() => {
     requestCurrentLocation();
+  }, []);
+
+  const loadOwnerWorkspace = async () => {
+    setOwnerWorkspaceLoading(true);
+    try {
+      const [vehiclesRes, historyRes, appointmentsRes] = await Promise.all([
+        getMyVehicles(),
+        getOwnerHistory(),
+        listAppointments(),
+      ]);
+      setOwnerVehicles(vehiclesRes.data);
+      setOwnerHistory(historyRes.data);
+      setOwnerAppointments(appointmentsRes.data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setOwnerWorkspaceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOwnerWorkspace();
   }, []);
 
   useEffect(() => {
@@ -327,7 +356,8 @@ export default function Search() {
   };
 
   return (
-    <div className="relative h-[calc(100vh-56px)] overflow-hidden bg-[#eef2f7]">
+    <div className="min-h-[calc(100vh-56px)] bg-[#eef2f7]">
+      <section className="relative h-[calc(100vh-56px)] min-h-[52rem] overflow-hidden">
       <MapContainer center={mapCenter} zoom={12} style={{ height: "100%", width: "100%" }} zoomControl={false}>
         <MapViewport center={mapCenter} zoom={selectedDetail ? 11 : 12} />
         <ZoomControl position="bottomright" />
@@ -639,7 +669,12 @@ export default function Search() {
       ) : null}
 
       {showRequest && selectedDetail ? (
-        <RequestModal mechanic={selectedDetail} userLocation={location} onClose={() => setShowRequest(false)} />
+        <RequestModal
+          mechanic={selectedDetail}
+          userLocation={location}
+          onSuccess={loadOwnerWorkspace}
+          onClose={() => setShowRequest(false)}
+        />
       ) : null}
 
       {inventoryMechanic ? (
@@ -651,9 +686,149 @@ export default function Search() {
       ) : null}
 
       {scheduleMechanic ? (
-        <ScheduleAppointmentModal mechanic={scheduleMechanic} onClose={() => setScheduleMechanic(null)} />
+        <ScheduleAppointmentModal
+          mechanic={scheduleMechanic}
+          onSuccess={loadOwnerWorkspace}
+          onClose={() => setScheduleMechanic(null)}
+        />
       ) : null}
+      </section>
+
+      <section className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
+        <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr,0.95fr]">
+          <OwnerSurfaceCard
+            eyebrow="Service history"
+            title="Recent requests"
+            loading={ownerWorkspaceLoading}
+            itemCount={ownerHistory.length}
+            emptyTitle="No service requests yet"
+            emptySubtitle="Accepted, in-progress, and completed services will show up here."
+          >
+            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+              {ownerHistory.map((item) => (
+                <div key={item.request_id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2563eb]">
+                        {item.status.replace("_", " ")}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-[#081224]">{item.problem_desc}</p>
+                      <p className="mt-1 text-sm text-slate-600">{item.mechanic_name}</p>
+                      <p className="mt-1 text-sm text-slate-500">{item.vehicle_label} · {item.license_plate}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-semibold text-[#081224]">
+                        {item.status === "completed"
+                          ? formatCurrencyUSD(item.total_cost || 0)
+                          : item.estimated_cost
+                            ? `${formatCurrencyUSD(item.estimated_cost)} est.`
+                            : "Estimate pending"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(item.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </OwnerSurfaceCard>
+
+          <OwnerSurfaceCard
+            eyebrow="Vehicles"
+            title="Vehicle garage"
+            loading={ownerWorkspaceLoading}
+            itemCount={ownerVehicles.length}
+            emptyTitle="No vehicles added"
+            emptySubtitle="Add vehicles from the profile drawer when you need to request help."
+          >
+            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+              {ownerVehicles.map((vehicle) => (
+                <div key={vehicle.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                  <p className="text-lg font-semibold text-[#081224]">
+                    {vehicle.nickname || `${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.license_plate}
+                  </p>
+                  <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
+                    {vehicle.vehicle_type} · {vehicle.fuel_type || "fuel not set"} · {vehicle.color || "color not set"}
+                  </p>
+                  {vehicle.notes ? <p className="mt-2 text-sm text-slate-500">{vehicle.notes}</p> : null}
+                </div>
+              ))}
+            </div>
+          </OwnerSurfaceCard>
+
+          <OwnerSurfaceCard
+            eyebrow="Appointments"
+            title="Booked services"
+            loading={ownerWorkspaceLoading}
+            itemCount={ownerAppointments.length}
+            emptyTitle="No future appointments"
+            emptySubtitle="Use the Schedule action on a mechanic to reserve a future service slot."
+          >
+            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+              {ownerAppointments.map((appointment) => (
+                <div key={appointment.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2563eb]">
+                        {appointment.status}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-[#081224]">{appointment.service_type}</p>
+                      <p className="mt-1 text-sm text-slate-600">{appointment.mechanic_name}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {new Date(appointment.scheduled_for).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                      {appointment.estimated_cost ? (
+                        <p className="mt-2 text-sm font-medium text-emerald-700">
+                          Estimate: {formatCurrencyUSD(appointment.estimated_cost)}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {["requested", "confirmed"].includes(appointment.status) ? (
+                        <button
+                          onClick={async () => {
+                            await updateAppointmentStatus(appointment.id, { status: "cancelled" });
+                            await loadOwnerWorkspace();
+                          }}
+                          className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </OwnerSurfaceCard>
+        </div>
+      </section>
     </div>
+  );
+}
+
+function OwnerSurfaceCard({ eyebrow, title, loading, itemCount, emptyTitle, emptySubtitle, children }) {
+  return (
+    <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/96 p-5 shadow-lg">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
+      <h3 className="mt-2 text-2xl font-semibold text-[#081224]">{title}</h3>
+      <div className="mt-4">
+        {loading ? <Spinner /> : itemCount ? children : <EmptyState icon="🧾" title={emptyTitle} subtitle={emptySubtitle} />}
+      </div>
+    </Card>
   );
 }
 
@@ -827,7 +1002,7 @@ function PartCard({ part }) {
   );
 }
 
-function RequestModal({ mechanic, userLocation, onClose }) {
+function RequestModal({ mechanic, userLocation, onSuccess, onClose }) {
   const [vehicles, setVehicles] = useState([]);
   const [vehicleId, setVehicleId] = useState("");
   const [problemDesc, setProblemDesc] = useState("");
@@ -868,6 +1043,7 @@ function RequestModal({ mechanic, userLocation, onClose }) {
         lng: userLocation.lng,
         requested_completion_hours: requestedCompletionHours || null,
       });
+      await onSuccess?.();
       setSuccess(true);
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -1153,7 +1329,7 @@ function MechanicChatModal({ mechanic, onClose }) {
   );
 }
 
-function ScheduleAppointmentModal({ mechanic, onClose }) {
+function ScheduleAppointmentModal({ mechanic, onSuccess, onClose }) {
   const [vehicles, setVehicles] = useState([]);
   const [vehicleId, setVehicleId] = useState("");
   const [serviceType, setServiceType] = useState("General service");
@@ -1210,6 +1386,7 @@ function ScheduleAppointmentModal({ mechanic, onClose }) {
         service_type: serviceType,
         notes: notes || null,
       });
+      await onSuccess?.();
       setSuccess(true);
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to schedule appointment");

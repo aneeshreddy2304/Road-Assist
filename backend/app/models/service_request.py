@@ -22,6 +22,7 @@ class ServiceRequest(Base):
     owner_location: Mapped[object] = mapped_column(Geography(geometry_type="POINT", srid=4326), nullable=False)
     requested_completion_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    estimated_cost: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     total_cost: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("NOW()"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("NOW()"))

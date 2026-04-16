@@ -51,9 +51,13 @@ export default function MyRequests() {
                     </span>
                   </div>
                   <p className="text-sm font-medium text-gray-800 mt-1 truncate">{req.problem_desc}</p>
-                  {req.total_cost && (
-                    <p className="text-xs text-green-600 mt-0.5">Total: {formatCurrencyUSD(req.total_cost)}</p>
-                  )}
+                  <p className="text-xs mt-0.5 text-green-600">
+                    {req.status === "completed"
+                      ? `Final: ${formatCurrencyUSD(req.total_cost || 0)}`
+                      : req.estimated_cost
+                        ? `Estimate: ${formatCurrencyUSD(req.estimated_cost)}`
+                        : "Estimate pending"}
+                  </p>
                 </div>
                 <div className="ml-3 text-gray-400 shrink-0">
                   {expanded === req.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

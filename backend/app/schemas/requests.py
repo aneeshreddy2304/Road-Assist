@@ -15,6 +15,8 @@ class ServiceRequestCreate(BaseModel):
 class StatusUpdate(BaseModel):
     status: Literal["accepted", "in_progress", "completed", "cancelled"]
     note: str | None = None
+    estimated_cost: float | None = None
+    final_cost: float | None = None
 
 
 class JobUpdateOut(BaseModel):
@@ -33,6 +35,7 @@ class ServiceRequestOut(BaseModel):
     vehicle_id: str
     problem_desc: str
     status: str
+    estimated_cost: float | None
     total_cost: float | None
     owner_name: str | None = None
     vehicle_label: str | None = None

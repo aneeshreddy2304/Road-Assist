@@ -3,7 +3,6 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   CarFront,
   ClipboardList,
-  History,
   LayoutDashboard,
   LogOut,
   Pencil,
@@ -245,11 +244,7 @@ export default function Navbar() {
   };
 
   const ownerActions = useMemo(
-    () => [
-      { id: "history", label: "History", icon: <History size={16} /> },
-      { id: "vehicles", label: "Vehicles", icon: <CarFront size={16} /> },
-      { id: "profile", label: "Profile", icon: <UserRound size={16} /> },
-    ],
+    () => [{ id: "profile", label: "Profile", icon: <UserRound size={16} /> }],
     []
   );
 
@@ -556,7 +551,11 @@ export default function Navbar() {
                               </div>
                               <div className="text-right">
                                 <p className="text-sm font-semibold text-[#081224]">
-                                  {item.total_cost ? formatCurrencyUSD(item.total_cost) : "Pending"}
+                                  {item.status === "completed"
+                                    ? formatCurrencyUSD(item.total_cost || 0)
+                                    : item.estimated_cost
+                                      ? `${formatCurrencyUSD(item.estimated_cost)} est.`
+                                      : "Estimate pending"}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-500">
                                   {new Date(item.created_at).toLocaleDateString("en-US", {

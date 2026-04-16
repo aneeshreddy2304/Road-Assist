@@ -127,6 +127,7 @@ CREATE TABLE service_requests (
   owner_location  GEOGRAPHY(POINT, 4326) NOT NULL,
   requested_completion_hours INTEGER,
   deadline_at     TIMESTAMPTZ,
+  estimated_cost  NUMERIC(10,2),                                -- quote shown before completion
   total_cost      NUMERIC(10,2),                                -- filled on completion
   created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()

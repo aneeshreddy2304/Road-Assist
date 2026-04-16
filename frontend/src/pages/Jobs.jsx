@@ -78,7 +78,18 @@ export default function Jobs() {
 
   const handleStatus = async (jobId, status) => {
     try {
-      await updateRequestStatus(jobId, { status });
+      const payload = { status };
+      if (status === "accepted") {
+        const estimate = window.prompt("Enter an estimate cost for this request", "129");
+        if (estimate === null) return;
+        payload.estimated_cost = Number(estimate);
+      }
+      if (status === "completed") {
+        const finalCost = window.prompt("Enter the final cost for this job", "149");
+        if (finalCost === null) return;
+        payload.final_cost = Number(finalCost);
+      }
+      await updateRequestStatus(jobId, payload);
       await fetchAll();
     } catch (error) {
       alert(error.response?.data?.detail || "Could not update this job");
@@ -128,8 +139,7 @@ export default function Jobs() {
         <div className="flex flex-col gap-4 rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Mechanic operations</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#081224]">Jobs, appointments, and messages</h1>
-            <p className="mt-2 text-sm text-slate-500">Handle urgent roadside jobs, future service appointments, and owner conversations from one workspace.</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#081224]">Jobs workspace</h1>
           </div>
           <div className="grid grid-cols-2 gap-3 xl:w-[32rem]">
             <MiniMetric label="New Requests" value={openJobs.length} icon={<Wrench size={16} className="text-[#2563eb]" />} />
@@ -161,7 +171,7 @@ export default function Jobs() {
         </div>
 
         {(tab === "appointments" || tab === "messages") ? (
-          <div className="grid gap-4 xl:grid-cols-[0.95fr,1.25fr]">
+          <div className="grid gap-4 xl:grid-cols-[1.05fr,1.15fr]">
             {tab === "appointments" ? (
               <>
                 <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
@@ -220,16 +230,43 @@ export default function Jobs() {
 
                 <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
                   <div className="mb-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Availability</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Published work window</h2>
-                    <p className="mt-2 text-sm text-slate-500">Owners book future services against your published hours from your mechanic profile.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Manage bookings</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Appointment register</h2>
                   </div>
-                  <div className="rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Current setting</p>
-                    <p className="mt-2 text-2xl font-semibold text-[#081224]">Check mechanic profile</p>
-                    <p className="mt-3 text-sm text-slate-500">
-                      Update work hours from your profile drawer in the header to control which future slots owners can reserve.
-                    </p>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <MiniMetric label="Requested" value={appointments.filter((item) => item.status === "requested").length} icon={<CalendarDays size={16} className="text-[#2563eb]" />} />
+                    <MiniMetric label="Confirmed" value={appointments.filter((item) => item.status === "confirmed").length} icon={<ShieldCheck size={16} className="text-[#16a34a]" />} />
+                    <MiniMetric label="Cancelled" value={appointments.filter((item) => item.status === "cancelled").length} icon={<Clock3 size={16} className="text-[#f97316]" />} />
+                  </div>
+                  <div className="mt-4 max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                    {appointments.length === 0 ? (
+                      <EmptyState icon="🗓️" title="No appointment history" subtitle="Confirmed, requested, and cancelled bookings will show here." />
+                    ) : (
+                      appointments.map((appointment) => (
+                        <div key={`register-${appointment.id}`} className="rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-lg font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {new Date(appointment.scheduled_for).toLocaleString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                              <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">{appointment.status}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-[#081224]">
+                                {appointment.estimated_cost ? formatCurrencyUSD(appointment.estimated_cost) : "Estimate pending"}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">{appointment.vehicle_label || "No vehicle selected"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </Card>
               </>
@@ -315,42 +352,44 @@ export default function Jobs() {
               </>
             )}
           </div>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {columns
-              .filter((column) => column.id === tab || (tab === "dispatch" && column.id === "dispatch"))
-              .map((column) => (
-                <Card key={column.id} className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Jobs board</p>
-                      <h2 className="mt-1 text-2xl font-semibold text-[#081224]">{column.title}</h2>
-                    </div>
-                    <span className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
-                      {column.jobs.length}
-                    </span>
+        ) : (() => {
+          const activeColumn = columns.find((column) => column.id === tab || (tab === "dispatch" && column.id === "dispatch"));
+          if (!activeColumn) return null;
+          return (
+            <div className="space-y-4">
+              <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Jobs board</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-[#081224]">{activeColumn.title}</h2>
                   </div>
+                  <span className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                    {activeColumn.jobs.length}
+                  </span>
+                </div>
+              </Card>
 
-                  <div className="max-h-[32rem] space-y-4 overflow-y-auto pr-1">
-                    {column.jobs.length === 0 ? (
-                      <EmptyState icon="🧰" title={column.empty} subtitle="Requests will appear here as your workflow updates." />
-                    ) : (
-                      column.jobs.map((job) => (
-                        <JobSurface
-                          key={job.id}
-                          job={job}
-                          kind={column.id}
-                          onAccept={() => handleStatus(job.id, "accepted")}
-                          onStart={() => handleStatus(job.id, "in_progress")}
-                          onComplete={() => handleStatus(job.id, "completed")}
-                        />
-                      ))
-                    )}
-                  </div>
+              {activeColumn.jobs.length === 0 ? (
+                <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-8 shadow-sm">
+                  <EmptyState icon="🧰" title={activeColumn.empty} subtitle="Requests will appear here as your workflow updates." />
                 </Card>
-              ))}
-          </div>
-        )}
+              ) : (
+                <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+                  {activeColumn.jobs.map((job) => (
+                    <JobSurface
+                      key={job.id}
+                      job={job}
+                      kind={activeColumn.id}
+                      onAccept={() => handleStatus(job.id, "accepted")}
+                      onStart={() => handleStatus(job.id, "in_progress")}
+                      onComplete={() => handleStatus(job.id, "completed")}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -397,7 +436,13 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
           </div>
         </div>
         <div className="text-right">
-          {job.total_cost ? <p className="text-base font-semibold text-[#081224]">{formatCurrencyUSD(job.total_cost)}</p> : null}
+          <p className="text-base font-semibold text-[#081224]">
+            {job.status === "completed"
+              ? formatCurrencyUSD(job.total_cost || 0)
+              : job.estimated_cost
+                ? `${formatCurrencyUSD(job.estimated_cost)} est.`
+                : "Estimate pending"}
+          </p>
         </div>
       </div>
 
