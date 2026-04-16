@@ -234,7 +234,7 @@ async def owner_history_summary(
                 sr.id::text AS request_id,
                 sr.problem_desc,
                 sr.status::text AS status,
-                sr.total_cost,
+                COALESCE(sr.total_cost, 0) AS total_cost,
                 sr.created_at,
                 COALESCE(mu.name, 'Awaiting assignment') AS mechanic_name,
                 CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,

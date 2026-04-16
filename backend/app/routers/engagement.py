@@ -323,3 +323,60 @@ async def send_message(
         message=message.message,
         created_at=message.created_at,
     )
+
+
+@router.get("/messages/inbox")
+async def get_messages_inbox(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role == "owner":
+        result = await db.execute(
+            text(
+                """
+                SELECT DISTINCT ON (c.mechanic_id)
+                    c.id::text AS id,
+                    c.owner_id::text AS owner_id,
+                    c.mechanic_id::text AS mechanic_id,
+                    c.sender_role::text AS sender_role,
+                    c.message,
+                    c.created_at,
+                    u.name AS counterpart_name,
+                    m.address AS counterpart_address
+                FROM chat_messages c
+                JOIN mechanics m ON m.id = c.mechanic_id
+                JOIN users u ON u.id = m.user_id
+                WHERE c.owner_id = :uid
+                ORDER BY c.mechanic_id, c.created_at DESC
+                """
+            ),
+            {"uid": current_user.id},
+        )
+    elif current_user.role == "mechanic":
+        mechanic = await _get_mechanic_for_user(db, current_user.id)
+        if not mechanic:
+            return []
+        result = await db.execute(
+            text(
+                """
+                SELECT DISTINCT ON (c.owner_id)
+                    c.id::text AS id,
+                    c.owner_id::text AS owner_id,
+                    c.mechanic_id::text AS mechanic_id,
+                    c.sender_role::text AS sender_role,
+                    c.message,
+                    c.created_at,
+                    u.name AS counterpart_name,
+                    TRIM(BOTH ', ' FROM CONCAT_WS(', ', u.street_address, u.city, u.state, u.postal_code)) AS counterpart_address
+                FROM chat_messages c
+                JOIN users u ON u.id = c.owner_id
+                WHERE c.mechanic_id = :mid
+                ORDER BY c.owner_id, c.created_at DESC
+                """
+            ),
+            {"mid": mechanic.id},
+        )
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return [dict(row) for row in result.mappings().all()]
