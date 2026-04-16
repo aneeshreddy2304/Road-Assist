@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Circle, MapContainer, Marker, TileLayer, ZoomControl } from "react-leaflet";
+import { Circle, MapContainer, Marker, Popup, TileLayer, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -12,6 +11,7 @@ import {
   Clock3,
   Gauge,
   MapPinned,
+  Navigation,
   PackageSearch,
   RefreshCw,
   ShieldAlert,
@@ -66,6 +66,7 @@ export default function Dashboard() {
   const [assignedJobs, setAssignedJobs] = useState([]);
   const [availabilityUpdating, setAvailabilityUpdating] = useState(false);
   const [range, setRange] = useState("week");
+  const [selectedJobId, setSelectedJobId] = useState(null);
 
   const loadDashboard = async (background = false) => {
     if (background) setRefreshing(true);
@@ -120,6 +121,11 @@ export default function Dashboard() {
     if (range === "month") {
       return target.getMonth() === now.getMonth() && target.getFullYear() === now.getFullYear();
     }
+    if (range === "six_months") {
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(now.getMonth() - 6);
+      return target >= sixMonthsAgo;
+    }
     if (range === "year") {
       return target.getFullYear() === now.getFullYear();
     }
@@ -156,6 +162,18 @@ export default function Dashboard() {
   const filteredCompletedJobs = completedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
   const totalEarnings = filteredCompletedJobs.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
   const totalJobs = filteredAssignedJobs.length + incomingJobs.filter((job) => withinRange(job.created_at)).length;
+  const selectedMapJob =
+    [...incomingJobs, ...activeJobs, ...filteredCompletedJobs].find((job) => job.id === selectedJobId)
+    || incomingJobs[0]
+    || activeJobs[0]
+    || filteredCompletedJobs[0]
+    || null;
+
+  useEffect(() => {
+    if (!selectedJobId && selectedMapJob?.id) {
+      setSelectedJobId(selectedMapJob.id);
+    }
+  }, [selectedJobId, selectedMapJob]);
 
   const activityItems = useMemo(() => {
     const jobEvents = assignedJobs.slice(0, 6).map((job) => ({
@@ -240,74 +258,67 @@ export default function Dashboard() {
     }
   };
 
+  const openOwnerNavigation = () => {
+    if (!selectedMapJob?.lat || !selectedMapJob?.lng) return;
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${selectedMapJob.lat},${selectedMapJob.lng}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   if (loading) return <Spinner />;
 
   return (
     <div className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
       <div className="space-y-6">
-        <Card className="overflow-hidden rounded-[32px] border border-[#d8e5ff] bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_rgba(255,255,255,0.98)_36%),linear-gradient(135deg,_#071225_0%,_#0c1f3d_55%,_#153b74_100%)] p-6 text-white shadow-[0_28px_80px_rgba(6,18,37,0.18)]">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/55">Mechanic command center</p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight">
-                Dispatch, inventory, and live requests in one place.
-              </h1>
-              <p className="mt-4 max-w-xl text-sm leading-7 text-white/72">
-                Manage incoming roadside calls, track active jobs, monitor stock health, and keep your Richmond service zone live for owners nearby.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
+        <div className="flex flex-col gap-4 rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Mechanic operations</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#081224]">Welcome back, {profile?.name || "Mechanic"}</h1>
+            <p className="mt-2 text-sm text-slate-500">Track requests, monitor owner locations, and manage your Richmond service coverage.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={toggleAvailability}
+              disabled={availabilityUpdating}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                profile?.is_available
+                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                  : "bg-slate-100 text-slate-700 ring-1 ring-slate-200"
+              }`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${profile?.is_available ? "bg-emerald-500" : "bg-slate-400"}`} />
+              {availabilityUpdating ? "Updating..." : profile?.is_available ? "Online" : "Offline"}
+            </button>
+            <button
+              onClick={() => loadDashboard(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-[#dbe7ff] bg-[#f8fbff] px-4 py-2 text-sm font-semibold text-[#0f172a] transition hover:border-[#2563eb]/30"
+            >
+              <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+              Refresh
+            </button>
+            <div className="inline-flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
+              {[
+                { id: "week", label: "Week" },
+                { id: "month", label: "Month" },
+                { id: "six_months", label: "6 Months" },
+                { id: "year", label: "Year" },
+                { id: "all", label: "All" },
+              ].map((item) => (
                 <button
-                  onClick={toggleAvailability}
-                  disabled={availabilityUpdating}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    profile?.is_available
-                      ? "bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-300/30"
-                      : "bg-white/10 text-white/80 ring-1 ring-white/10"
+                  key={item.id}
+                  onClick={() => setRange(item.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    range === item.id ? "bg-[#0f172a] text-white" : "text-slate-600 hover:bg-white"
                   }`}
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full ${profile?.is_available ? "bg-emerald-300" : "bg-white/50"}`} />
-                  {availabilityUpdating
-                    ? "Updating..."
-                    : profile?.is_available
-                      ? "Online for new requests"
-                      : "Offline for new requests"}
+                  {item.label}
                 </button>
-                <button
-                  onClick={() => loadDashboard(true)}
-                  className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 transition hover:bg-white/15"
-                >
-                  <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
-                  Refresh dashboard
-                </button>
-                <div className="inline-flex rounded-full bg-white/10 p-1 ring-1 ring-white/10">
-                  {[
-                    { id: "week", label: "Week" },
-                    { id: "month", label: "Month" },
-                    { id: "year", label: "Year" },
-                    { id: "all", label: "All" },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setRange(item.id)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                        range === item.id ? "bg-white text-[#081224]" : "text-white/72 hover:bg-white/10"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 xl:w-[28rem]">
-              <HeroStat icon={<Briefcase size={16} />} label="Incoming queue" value={incomingJobs.length} />
-              <HeroStat icon={<Gauge size={16} />} label="Active jobs" value={activeJobs.length} />
-              <HeroStat icon={<CircleDollarSign size={16} />} label={`This ${range === "all" ? "period" : range}`} value={formatCurrencyUSD(totalEarnings)} />
-              <HeroStat icon={<CheckCircle2 size={16} />} label="Completed today" value={completedToday.length} />
+              ))}
             </div>
           </div>
-        </Card>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard icon={<Briefcase size={18} className="text-[#2563eb]" />} label="Total jobs" value={totalJobs} tone="blue" />
@@ -317,7 +328,7 @@ export default function Dashboard() {
           <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Inventory items" value={parts.length} tone="slate" />
         </div>
 
-        <div className="grid items-start gap-4 xl:grid-cols-[1.6fr,0.95fr]">
+        <div className="grid items-start gap-4 xl:grid-cols-[1.45fr,0.95fr]">
           <Card className="self-start rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -346,12 +357,44 @@ export default function Dashboard() {
                           variant={column.id}
                           onAccept={() => handleAcceptIncoming(job.id)}
                           onUpdate={handleStatusUpdate}
+                          onSelect={() => setSelectedJobId(job.id)}
+                          isSelected={selectedMapJob?.id === job.id}
                         />
                       ))
                     )}
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-5 rounded-[24px] border border-[#e8eefc] bg-[#f8fbff] p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Past work</p>
+                  <h3 className="mt-1 text-lg font-semibold text-[#081224]">Completed job register</h3>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                  {filteredCompletedJobs.length}
+                </span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {filteredCompletedJobs.length === 0 ? (
+                  <EmptyMiniState message="Completed jobs for this filter will show here" />
+                ) : (
+                  filteredCompletedJobs.slice(0, 6).map((job) => (
+                    <div key={`done-${job.id}`} className="flex items-start justify-between gap-4 rounded-[18px] border border-[#e3ebff] bg-white px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#081224]">{job.owner_name || "Owner"} · {job.problem_desc}</p>
+                        <p className="mt-1 text-xs text-slate-500">{job.vehicle_label || "Vehicle"} · {job.owner_address || "Owner address unavailable"}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-[#081224]">{formatCurrencyUSD(job.total_cost || 0)}</p>
+                        <p className="mt-1 text-xs text-slate-500">{new Date(job.updated_at ?? job.created_at).toLocaleDateString("en-US")}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
             </Card>
 
@@ -376,12 +419,64 @@ export default function Dashboard() {
                   <Marker position={center} icon={mechanicMarker} />
                   <Circle center={center} radius={20000} pathOptions={{ color: "#2563eb", fillColor: "#2563eb", fillOpacity: 0.06, weight: 1.6 }} />
                   {incomingJobs.slice(0, 10).map((job) => (
-                    job.lat && job.lng ? <Marker key={`incoming-${job.id}`} position={[job.lat, job.lng]} icon={incomingMarker} /> : null
+                    job.lat && job.lng ? (
+                      <Marker key={`incoming-${job.id}`} position={[job.lat, job.lng]} icon={incomingMarker}>
+                        <Popup>
+                          <div className="space-y-1">
+                            <p className="font-semibold text-slate-900">{job.owner_name || "Owner request"}</p>
+                            <p className="text-xs text-slate-500">{job.problem_desc}</p>
+                            <p className="text-xs text-slate-500">{job.owner_address || "Address unavailable"}</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    ) : null
                   ))}
                   {activeJobs.slice(0, 10).map((job) => (
-                    job.lat && job.lng ? <Marker key={`active-${job.id}`} position={[job.lat, job.lng]} icon={activeMarker} /> : null
+                    job.lat && job.lng ? (
+                      <Marker key={`active-${job.id}`} position={[job.lat, job.lng]} icon={activeMarker}>
+                        <Popup>
+                          <div className="space-y-1">
+                            <p className="font-semibold text-slate-900">{job.owner_name || "Active job"}</p>
+                            <p className="text-xs text-slate-500">{job.problem_desc}</p>
+                            <p className="text-xs text-slate-500">{job.owner_address || "Address unavailable"}</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    ) : null
                   ))}
                 </MapContainer>
+              </div>
+              <div className="mt-4 rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Selected owner</p>
+                    <h3 className="mt-1 text-lg font-semibold text-[#081224]">
+                      {selectedMapJob?.owner_name || "No owner selected"}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">{selectedMapJob?.problem_desc || "Choose a request from the queue to focus the route."}</p>
+                  </div>
+                  {selectedMapJob?.lat && selectedMapJob?.lng ? (
+                    <button
+                      onClick={openOwnerNavigation}
+                      className="inline-flex items-center gap-2 rounded-full bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white"
+                    >
+                      <Navigation size={14} />
+                      Navigate
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[18px] border border-[#e3ebff] bg-white px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Owner address</p>
+                    <p className="mt-2 text-sm font-medium text-[#081224]">{selectedMapJob?.owner_address || "Waiting for request details"}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-[#e3ebff] bg-white px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Vehicle</p>
+                    <p className="mt-2 text-sm font-medium text-[#081224]">
+                      {selectedMapJob?.vehicle_label ? `${selectedMapJob.vehicle_label}${selectedMapJob.license_plate ? ` · ${selectedMapJob.license_plate}` : ""}` : "No assigned vehicle yet"}
+                    </p>
+                  </div>
+                </div>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-medium text-slate-600">
                 <MapLegend color="bg-[#2563eb]" label="You" />
@@ -529,18 +624,6 @@ export default function Dashboard() {
   );
 }
 
-function HeroStat({ icon, label, value }) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-white/8 px-4 py-4 backdrop-blur">
-      <div className="flex items-center gap-2 text-white/65">
-        {icon}
-        <p className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</p>
-      </div>
-      <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
-    </div>
-  );
-}
-
 function MetricCard({ icon, label, value, tone }) {
   const tones = {
     blue: "bg-[#eff6ff]",
@@ -558,14 +641,21 @@ function MetricCard({ icon, label, value, tone }) {
   );
 }
 
-function DispatchJobCard({ job, variant, onAccept, onUpdate }) {
+function DispatchJobCard({ job, variant, onAccept, onUpdate, onSelect, isSelected }) {
   const next = {
     accepted: { status: "in_progress", label: "Start work" },
     in_progress: { status: "completed", label: "Complete" },
   }[job.status];
 
   return (
-    <div className="rounded-[22px] border border-[#e3ebff] bg-white p-4 shadow-sm">
+    <div
+      onClick={onSelect}
+      className={`w-full rounded-[22px] border p-4 text-left shadow-sm transition ${
+        isSelected
+          ? "border-[#2563eb] bg-[#eff6ff]"
+          : "border-[#e3ebff] bg-white hover:border-[#c7dafc]"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -578,6 +668,7 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate }) {
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
             {job.owner_name ? <span>{job.owner_name}</span> : null}
             {job.vehicle_label ? <span>{job.vehicle_label}</span> : null}
+            {job.owner_address ? <span>{job.owner_address}</span> : null}
             {job.lat && job.lng ? <span>{variant === "incoming" ? "Owner location shared" : "Route active"}</span> : null}
             {job.total_cost ? <span>{formatCurrencyUSD(job.total_cost)}</span> : null}
           </div>
@@ -587,14 +678,22 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate }) {
       <div className="mt-4">
         {variant === "incoming" ? (
           <button
-            onClick={onAccept}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAccept();
+            }}
             className="w-full rounded-[16px] bg-[#2563eb] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1d4ed8]"
           >
             Accept request
           </button>
         ) : next ? (
           <button
-            onClick={() => onUpdate(job.id, next.status)}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onUpdate(job.id, next.status);
+            }}
             className="w-full rounded-[16px] bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-black"
           >
             {next.label}

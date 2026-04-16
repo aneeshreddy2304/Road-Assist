@@ -793,6 +793,18 @@ function RequestModal({ mechanic, userLocation, onClose }) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
+  const extractErrorMessage = (err) => {
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((item) => item?.msg || item?.message || JSON.stringify(item)).join(", ");
+    }
+    if (detail && typeof detail === "object") {
+      return detail.message || JSON.stringify(detail);
+    }
+    return err?.message || "Failed to create request";
+  };
+
   useEffect(() => {
     getMyVehicles().then((response) => {
       setVehicles(response.data);
@@ -814,7 +826,7 @@ function RequestModal({ mechanic, userLocation, onClose }) {
       });
       setSuccess(true);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to create request");
+      setError(extractErrorMessage(err));
     } finally {
       setLoading(false);
     }

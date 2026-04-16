@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from typing import Optional
+from geoalchemy2.elements import WKTElement
 
 from app.db.session import get_db
 from app.models.user import User
@@ -19,6 +20,29 @@ from app.schemas.requests import (
 router = APIRouter(tags=["Service Requests"])
 
 
+REQUEST_SELECT = """
+    SELECT
+        sr.id::TEXT AS id,
+        sr.owner_id::TEXT AS owner_id,
+        sr.mechanic_id::TEXT AS mechanic_id,
+        sr.vehicle_id::TEXT AS vehicle_id,
+        sr.problem_desc,
+        sr.status::TEXT AS status,
+        CAST(sr.total_cost AS FLOAT) AS total_cost,
+        u.name AS owner_name,
+        CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
+        v.license_plate,
+        TRIM(BOTH ', ' FROM CONCAT_WS(', ', u.street_address, u.city, u.state, u.postal_code)) AS owner_address,
+        ST_Y(sr.owner_location::geometry) AS lat,
+        ST_X(sr.owner_location::geometry) AS lng,
+        sr.created_at,
+        sr.updated_at
+    FROM service_requests sr
+    JOIN users u ON u.id = sr.owner_id
+    JOIN vehicles v ON v.id = sr.vehicle_id
+"""
+
+
 def _estimate_completion_total(problem_desc: str) -> float:
     problem = (problem_desc or "").lower()
     if any(term in problem for term in ["engine", "transmission", "gear"]):
@@ -30,6 +54,22 @@ def _estimate_completion_total(problem_desc: str) -> float:
     if any(term in problem for term in ["ac", "cooling", "radiator", "coolant"]):
         return 189.0
     return 149.0
+
+
+async def _load_request_out(db: AsyncSession, request_id: str) -> ServiceRequestOut:
+    result = await db.execute(
+        text(
+            f"""
+            {REQUEST_SELECT}
+            WHERE sr.id = :rid
+            """
+        ),
+        {"rid": request_id},
+    )
+    row = result.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Request not found")
+    return ServiceRequestOut(**dict(row))
 
 
 # ------------------------------------------------------------------
@@ -60,74 +100,33 @@ async def create_request(
             raise HTTPException(status_code=404, detail="Selected mechanic not found")
         mechanic_id = mechanic.id
 
-    create_result = await db.execute(
-        text("""
-            INSERT INTO service_requests (
-                owner_id,
-                mechanic_id,
-                vehicle_id,
-                problem_desc,
-                status,
-                owner_location
-            )
-            VALUES (
-                :owner_id,
-                :mechanic_id,
-                :vehicle_id,
-                :problem_desc,
-                'requested',
-                ST_MakePoint(:lng, :lat)::GEOGRAPHY
-            )
-            RETURNING id
-        """),
-        {
-            "owner_id": current_user.id,
-            "mechanic_id": mechanic_id,
-            "vehicle_id": payload.vehicle_id,
-            "problem_desc": payload.problem_desc,
-            "lng": payload.lng,
-            "lat": payload.lat,
-        },
-    )
-    req_id = create_result.scalar_one()
-
-    # Log the initial status
-    db.add(JobUpdate(
-        request_id=req_id,
+    req = ServiceRequest(
+        owner_id=current_user.id,
+        mechanic_id=mechanic_id,
+        vehicle_id=payload.vehicle_id,
+        problem_desc=payload.problem_desc,
         status="requested",
-        updated_by=current_user.id,
-        note="Owner submitted the request" if not mechanic_id else "Owner requested a specific mechanic",
-    ))
-
-    await db.commit()
-    created = await db.execute(
-        text("""
-            SELECT
-                sr.id::TEXT AS id,
-                sr.owner_id::TEXT AS owner_id,
-                sr.mechanic_id::TEXT AS mechanic_id,
-                sr.vehicle_id::TEXT AS vehicle_id,
-                sr.problem_desc,
-                sr.status::TEXT AS status,
-                CAST(sr.total_cost AS FLOAT) AS total_cost,
-                u.name AS owner_name,
-                CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
-                v.license_plate,
-                ST_Y(sr.owner_location::geometry) AS lat,
-                ST_X(sr.owner_location::geometry) AS lng,
-                sr.created_at,
-                sr.updated_at
-            FROM service_requests sr
-            JOIN users u ON u.id = sr.owner_id
-            JOIN vehicles v ON v.id = sr.vehicle_id
-            WHERE sr.id = :rid
-        """),
-        {"rid": req_id},
+        owner_location=WKTElement(f"POINT({payload.lng} {payload.lat})", srid=4326),
     )
-    row = created.mappings().first()
-    if not row:
-        raise HTTPException(status_code=500, detail="Request was created but could not be loaded")
-    return ServiceRequestOut(**dict(row))
+    db.add(req)
+    await db.flush()
+
+    db.add(
+        JobUpdate(
+            request_id=req.id,
+            status="requested",
+            updated_by=current_user.id,
+            note="Owner submitted the request" if not mechanic_id else "Owner requested a specific mechanic",
+        )
+    )
+
+    try:
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not create request: {exc}") from exc
+
+    return await _load_request_out(db, req.id)
 
 
 # ------------------------------------------------------------------
@@ -160,28 +159,13 @@ async def list_requests(
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
     result = await db.execute(
-        text(f"""
-            SELECT
-                sr.id::TEXT AS id,
-                sr.owner_id::TEXT AS owner_id,
-                sr.mechanic_id::TEXT AS mechanic_id,
-                sr.vehicle_id::TEXT AS vehicle_id,
-                sr.problem_desc,
-                sr.status::TEXT AS status,
-                CAST(sr.total_cost AS FLOAT) AS total_cost,
-                u.name AS owner_name,
-                CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
-                v.license_plate,
-                ST_Y(sr.owner_location::geometry) AS lat,
-                ST_X(sr.owner_location::geometry) AS lng,
-                sr.created_at,
-                sr.updated_at
-            FROM service_requests sr
-            JOIN users u ON u.id = sr.owner_id
-            JOIN vehicles v ON v.id = sr.vehicle_id
+        text(
+            f"""
+            {REQUEST_SELECT}
             {where_clause}
             ORDER BY sr.created_at DESC
-        """),
+            """
+        ),
         params,
     )
     rows = result.mappings().all()
@@ -205,25 +189,9 @@ async def list_open_requests(
         return []
 
     result = await db.execute(
-        text("""
-        SELECT
-            sr.id::TEXT AS id,
-            sr.owner_id::TEXT AS owner_id,
-            sr.mechanic_id::TEXT AS mechanic_id,
-            sr.vehicle_id::TEXT AS vehicle_id,
-            sr.problem_desc,
-            sr.status::TEXT AS status,
-            CAST(sr.total_cost AS FLOAT) AS total_cost,
-            u.name AS owner_name,
-            CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
-            v.license_plate,
-            ST_Y(sr.owner_location::geometry) AS lat,
-            ST_X(sr.owner_location::geometry) AS lng,
-            sr.created_at,
-            sr.updated_at
-        FROM service_requests sr
-        JOIN users u ON u.id = sr.owner_id
-        JOIN vehicles v ON v.id = sr.vehicle_id
+        text(
+            f"""
+            {REQUEST_SELECT}
             WHERE
                 sr.status = 'requested'
                 AND (
@@ -238,7 +206,8 @@ async def list_open_requests(
                     )
                 )
             ORDER BY sr.created_at ASC
-        """),
+            """
+        ),
         {"lat": lat, "lng": lng, "radius_m": radius_km * 1000, "mechanic_id": mechanic.id},
     )
     rows = result.mappings().all()
@@ -334,13 +303,20 @@ async def update_request_status(
     if payload.status == "accepted":
         if not mechanic:
             raise HTTPException(status_code=403, detail="Only mechanics can accept jobs")
+        if req.status == "accepted" and req.mechanic_id == mechanic.id:
+            return await _load_request_out(db, req.id)
+        if req.status != "requested":
+            raise HTTPException(
+                status_code=400,
+                detail=f"This request is already {req.status.replace('_', ' ')}.",
+            )
         try:
             await db.execute(
                 text("CALL sp_accept_job(:rid, :mid)"),
                 {"rid": request_id, "mid": mechanic.id},
             )
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail="Could not accept this request. Please refresh the dashboard and try again.")
 
     else:
         # For other transitions, update directly + log
@@ -376,7 +352,7 @@ async def update_request_status(
         )
         await db.commit()
 
-    return req
+    return await _load_request_out(db, req.id)
 
 
 # ------------------------------------------------------------------
