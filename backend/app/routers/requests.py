@@ -4,6 +4,7 @@ from sqlalchemy import select, text
 from typing import Optional
 from geoalchemy2.elements import WKTElement
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from app.db.session import get_db
 from app.models.user import User
@@ -76,6 +77,22 @@ async def _load_request_out(db: AsyncSession, request_id: str) -> ServiceRequest
     if not row:
         raise HTTPException(status_code=404, detail="Request not found")
     return ServiceRequestOut(**dict(row))
+
+
+async def _chat_request_refs_enabled(db: AsyncSession) -> bool:
+    result = await db.execute(
+        text(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'chat_messages'
+                  AND column_name = 'request_id'
+            )
+            """
+        )
+    )
+    return bool(result.scalar())
 
 
 # ------------------------------------------------------------------
@@ -365,16 +382,48 @@ async def update_request_status(
 
     if payload.note and mechanic:
         request_ref = f"RA-{str(req.id)[:8].upper()}"
-        db.add(
-            ChatMessage(
-                owner_id=req.owner_id,
-                mechanic_id=req.mechanic_id or mechanic.id,
-                request_id=req.id,
-                sender_user_id=current_user.id,
-                sender_role="mechanic",
-                message=f"[{request_ref}] {payload.note}",
+        if await _chat_request_refs_enabled(db):
+            db.add(
+                ChatMessage(
+                    owner_id=req.owner_id,
+                    mechanic_id=req.mechanic_id or mechanic.id,
+                    request_id=req.id,
+                    sender_user_id=current_user.id,
+                    sender_role="mechanic",
+                    message=f"[{request_ref}] {payload.note}",
+                )
             )
-        )
+        else:
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO chat_messages (
+                        id,
+                        owner_id,
+                        mechanic_id,
+                        sender_user_id,
+                        sender_role,
+                        message
+                    )
+                    VALUES (
+                        :id,
+                        :owner_id,
+                        :mechanic_id,
+                        :sender_user_id,
+                        :sender_role,
+                        :message
+                    )
+                    """
+                ),
+                {
+                    "id": str(uuid4()),
+                    "owner_id": req.owner_id,
+                    "mechanic_id": req.mechanic_id or mechanic.id,
+                    "sender_user_id": current_user.id,
+                    "sender_role": "mechanic",
+                    "message": f"[{request_ref}] {payload.note}",
+                },
+            )
 
     await db.commit()
     await db.refresh(req)

@@ -225,22 +225,42 @@ export default function Search() {
 
   const loadOwnerWorkspace = async () => {
     setOwnerWorkspaceLoading(true);
-    try {
-      const [vehiclesRes, historyRes, appointmentsRes, inboxRes] = await Promise.all([
-        getMyVehicles(),
-        getOwnerHistory(),
-        listAppointments(),
-        getMessageInbox(),
-      ]);
-      setOwnerVehicles(vehiclesRes.data);
-      setOwnerHistory(historyRes.data);
-      setOwnerAppointments(appointmentsRes.data);
-      setOwnerInbox(inboxRes.data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setOwnerWorkspaceLoading(false);
+    const [vehiclesRes, historyRes, appointmentsRes, inboxRes] = await Promise.allSettled([
+      getMyVehicles(),
+      getOwnerHistory(),
+      listAppointments(),
+      getMessageInbox(),
+    ]);
+
+    if (vehiclesRes.status === "fulfilled") {
+      setOwnerVehicles(vehiclesRes.value.data);
+    } else {
+      console.error(vehiclesRes.reason);
+      setOwnerVehicles([]);
     }
+
+    if (historyRes.status === "fulfilled") {
+      setOwnerHistory(historyRes.value.data);
+    } else {
+      console.error(historyRes.reason);
+      setOwnerHistory([]);
+    }
+
+    if (appointmentsRes.status === "fulfilled") {
+      setOwnerAppointments(appointmentsRes.value.data);
+    } else {
+      console.error(appointmentsRes.reason);
+      setOwnerAppointments([]);
+    }
+
+    if (inboxRes.status === "fulfilled") {
+      setOwnerInbox(inboxRes.value.data);
+    } else {
+      console.error(inboxRes.reason);
+      setOwnerInbox([]);
+    }
+
+    setOwnerWorkspaceLoading(false);
   };
 
   useEffect(() => {

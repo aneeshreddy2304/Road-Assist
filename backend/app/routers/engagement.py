@@ -1,9 +1,11 @@
 import re
 from datetime import date, datetime, time, timedelta, timezone
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.security import get_current_user, require_role
 from app.db.session import get_db
@@ -40,6 +42,22 @@ def _parse_work_hours(work_hours: str | None) -> tuple[time, time]:
 async def _get_mechanic_for_user(db: AsyncSession, user_id: str) -> Mechanic | None:
     result = await db.execute(select(Mechanic).where(Mechanic.user_id == user_id))
     return result.scalar_one_or_none()
+
+
+async def _chat_request_refs_enabled(db: AsyncSession) -> bool:
+    result = await db.execute(
+        text(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'chat_messages'
+                  AND column_name = 'request_id'
+            )
+            """
+        )
+    )
+    return bool(result.scalar())
 
 
 @router.get("/appointments/availability", response_model=list[AvailabilitySlotOut])
@@ -252,6 +270,8 @@ async def get_messages_thread(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    request_refs_enabled = await _chat_request_refs_enabled(db)
+
     if current_user.role == "owner":
         if not mechanic_id:
             raise HTTPException(status_code=422, detail="mechanic_id is required")
@@ -266,30 +286,55 @@ async def get_messages_thread(
     else:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    result = await db.execute(
-        text(
-            """
-            SELECT
-                c.id::text AS id,
-                c.owner_id::text AS owner_id,
-                c.mechanic_id::text AS mechanic_id,
-                c.request_id::text AS request_id,
-                CASE WHEN c.request_id IS NOT NULL THEN CONCAT('RA-', UPPER(SUBSTRING(c.request_id::TEXT, 1, 8))) END AS request_ref,
-                c.sender_user_id::text AS sender_user_id,
-                c.sender_role::text AS sender_role,
-                u.name AS sender_name,
-                c.message,
-                c.created_at
-            FROM chat_messages c
-            JOIN users u ON u.id = c.sender_user_id
-            WHERE c.owner_id = :owner_id
-              AND c.mechanic_id = :mechanic_id
-              AND (:request_id IS NULL OR c.request_id = :request_id)
-            ORDER BY c.created_at ASC
-            """
-        ),
-        {"owner_id": owner_id, "mechanic_id": mechanic_id, "request_id": request_id},
-    )
+    if request_refs_enabled:
+        result = await db.execute(
+            text(
+                """
+                SELECT
+                    c.id::text AS id,
+                    c.owner_id::text AS owner_id,
+                    c.mechanic_id::text AS mechanic_id,
+                    c.request_id::text AS request_id,
+                    CASE WHEN c.request_id IS NOT NULL THEN CONCAT('RA-', UPPER(SUBSTRING(c.request_id::TEXT, 1, 8))) END AS request_ref,
+                    c.sender_user_id::text AS sender_user_id,
+                    c.sender_role::text AS sender_role,
+                    u.name AS sender_name,
+                    c.message,
+                    c.created_at
+                FROM chat_messages c
+                JOIN users u ON u.id = c.sender_user_id
+                WHERE c.owner_id = :owner_id
+                  AND c.mechanic_id = :mechanic_id
+                  AND (:request_id IS NULL OR c.request_id = :request_id)
+                ORDER BY c.created_at ASC
+                """
+            ),
+            {"owner_id": owner_id, "mechanic_id": mechanic_id, "request_id": request_id},
+        )
+    else:
+        result = await db.execute(
+            text(
+                """
+                SELECT
+                    c.id::text AS id,
+                    c.owner_id::text AS owner_id,
+                    c.mechanic_id::text AS mechanic_id,
+                    NULL::text AS request_id,
+                    NULL::text AS request_ref,
+                    c.sender_user_id::text AS sender_user_id,
+                    c.sender_role::text AS sender_role,
+                    u.name AS sender_name,
+                    c.message,
+                    c.created_at
+                FROM chat_messages c
+                JOIN users u ON u.id = c.sender_user_id
+                WHERE c.owner_id = :owner_id
+                  AND c.mechanic_id = :mechanic_id
+                ORDER BY c.created_at ASC
+                """
+            ),
+            {"owner_id": owner_id, "mechanic_id": mechanic_id},
+        )
     return [ChatMessageOut(**dict(row)) for row in result.mappings().all()]
 
 
@@ -299,6 +344,8 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    request_refs_enabled = await _chat_request_refs_enabled(db)
+
     if current_user.role == "owner":
         if not payload.mechanic_id:
             raise HTTPException(status_code=422, detail="mechanic_id is required")
@@ -325,29 +372,78 @@ async def send_message(
         if request.owner_id != owner_id or request.mechanic_id != mechanic_id:
             raise HTTPException(status_code=403, detail="That request does not belong to this conversation")
 
-    message = ChatMessage(
-        owner_id=owner_id,
-        mechanic_id=mechanic_id,
-        request_id=payload.request_id,
-        sender_user_id=current_user.id,
-        sender_role=sender_role,
-        message=payload.message,
+    if request_refs_enabled:
+        message = ChatMessage(
+            owner_id=owner_id,
+            mechanic_id=mechanic_id,
+            request_id=payload.request_id,
+            sender_user_id=current_user.id,
+            sender_role=sender_role,
+            message=payload.message,
+        )
+        db.add(message)
+        await db.commit()
+        await db.refresh(message)
+
+        return ChatMessageOut(
+            id=message.id,
+            owner_id=message.owner_id,
+            mechanic_id=message.mechanic_id,
+            request_id=message.request_id,
+            request_ref=f"RA-{str(message.request_id)[:8].upper()}" if message.request_id else None,
+            sender_user_id=message.sender_user_id,
+            sender_role=message.sender_role,
+            sender_name=current_user.name,
+            message=message.message,
+            created_at=message.created_at,
+        )
+
+    message_id = str(uuid4())
+    inserted = await db.execute(
+        text(
+            """
+            INSERT INTO chat_messages (
+                id,
+                owner_id,
+                mechanic_id,
+                sender_user_id,
+                sender_role,
+                message
+            )
+            VALUES (
+                :id,
+                :owner_id,
+                :mechanic_id,
+                :sender_user_id,
+                :sender_role,
+                :message
+            )
+            RETURNING created_at
+            """
+        ),
+        {
+            "id": message_id,
+            "owner_id": owner_id,
+            "mechanic_id": mechanic_id,
+            "sender_user_id": current_user.id,
+            "sender_role": sender_role,
+            "message": payload.message,
+        },
     )
-    db.add(message)
     await db.commit()
-    await db.refresh(message)
+    created_at = inserted.scalar_one()
 
     return ChatMessageOut(
-        id=message.id,
-        owner_id=message.owner_id,
-        mechanic_id=message.mechanic_id,
-        request_id=message.request_id,
-        request_ref=f"RA-{str(message.request_id)[:8].upper()}" if message.request_id else None,
-        sender_user_id=message.sender_user_id,
-        sender_role=message.sender_role,
+        id=message_id,
+        owner_id=owner_id,
+        mechanic_id=mechanic_id,
+        request_id=None,
+        request_ref=None,
+        sender_user_id=current_user.id,
+        sender_role=sender_role,
         sender_name=current_user.name,
-        message=message.message,
-        created_at=message.created_at,
+        message=payload.message,
+        created_at=created_at,
     )
 
 
@@ -356,56 +452,107 @@ async def get_messages_inbox(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    request_refs_enabled = await _chat_request_refs_enabled(db)
+
     if current_user.role == "owner":
-        result = await db.execute(
-            text(
-                """
-                SELECT DISTINCT ON (c.mechanic_id, c.request_id)
-                    c.id::text AS id,
-                    c.owner_id::text AS owner_id,
-                    c.mechanic_id::text AS mechanic_id,
-                    c.request_id::text AS request_id,
-                    CASE WHEN c.request_id IS NOT NULL THEN CONCAT('RA-', UPPER(SUBSTRING(c.request_id::TEXT, 1, 8))) END AS request_ref,
-                    c.sender_role::text AS sender_role,
-                    c.message,
-                    c.created_at,
-                    u.name AS counterpart_name,
-                    m.address AS counterpart_address
-                FROM chat_messages c
-                JOIN mechanics m ON m.id = c.mechanic_id
-                JOIN users u ON u.id = m.user_id
-                WHERE c.owner_id = :uid
-                ORDER BY c.mechanic_id, c.request_id, c.created_at DESC
-                """
-            ),
-            {"uid": current_user.id},
-        )
+        if request_refs_enabled:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (c.mechanic_id, c.request_id)
+                        c.id::text AS id,
+                        c.owner_id::text AS owner_id,
+                        c.mechanic_id::text AS mechanic_id,
+                        c.request_id::text AS request_id,
+                        CASE WHEN c.request_id IS NOT NULL THEN CONCAT('RA-', UPPER(SUBSTRING(c.request_id::TEXT, 1, 8))) END AS request_ref,
+                        c.sender_role::text AS sender_role,
+                        c.message,
+                        c.created_at,
+                        u.name AS counterpart_name,
+                        m.address AS counterpart_address
+                    FROM chat_messages c
+                    JOIN mechanics m ON m.id = c.mechanic_id
+                    JOIN users u ON u.id = m.user_id
+                    WHERE c.owner_id = :uid
+                    ORDER BY c.mechanic_id, c.request_id, c.created_at DESC
+                    """
+                ),
+                {"uid": current_user.id},
+            )
+        else:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (c.mechanic_id)
+                        c.id::text AS id,
+                        c.owner_id::text AS owner_id,
+                        c.mechanic_id::text AS mechanic_id,
+                        NULL::text AS request_id,
+                        NULL::text AS request_ref,
+                        c.sender_role::text AS sender_role,
+                        c.message,
+                        c.created_at,
+                        u.name AS counterpart_name,
+                        m.address AS counterpart_address
+                    FROM chat_messages c
+                    JOIN mechanics m ON m.id = c.mechanic_id
+                    JOIN users u ON u.id = m.user_id
+                    WHERE c.owner_id = :uid
+                    ORDER BY c.mechanic_id, c.created_at DESC
+                    """
+                ),
+                {"uid": current_user.id},
+            )
     elif current_user.role == "mechanic":
         mechanic = await _get_mechanic_for_user(db, current_user.id)
         if not mechanic:
             return []
-        result = await db.execute(
-            text(
-                """
-                SELECT DISTINCT ON (c.owner_id, c.request_id)
-                    c.id::text AS id,
-                    c.owner_id::text AS owner_id,
-                    c.mechanic_id::text AS mechanic_id,
-                    c.request_id::text AS request_id,
-                    CASE WHEN c.request_id IS NOT NULL THEN CONCAT('RA-', UPPER(SUBSTRING(c.request_id::TEXT, 1, 8))) END AS request_ref,
-                    c.sender_role::text AS sender_role,
-                    c.message,
-                    c.created_at,
-                    u.name AS counterpart_name,
-                    TRIM(BOTH ', ' FROM CONCAT_WS(', ', u.street_address, u.city, u.state, u.postal_code)) AS counterpart_address
-                FROM chat_messages c
-                JOIN users u ON u.id = c.owner_id
-                WHERE c.mechanic_id = :mid
-                ORDER BY c.owner_id, c.request_id, c.created_at DESC
-                """
-            ),
-            {"mid": mechanic.id},
-        )
+        if request_refs_enabled:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (c.owner_id, c.request_id)
+                        c.id::text AS id,
+                        c.owner_id::text AS owner_id,
+                        c.mechanic_id::text AS mechanic_id,
+                        c.request_id::text AS request_id,
+                        CASE WHEN c.request_id IS NOT NULL THEN CONCAT('RA-', UPPER(SUBSTRING(c.request_id::TEXT, 1, 8))) END AS request_ref,
+                        c.sender_role::text AS sender_role,
+                        c.message,
+                        c.created_at,
+                        u.name AS counterpart_name,
+                        TRIM(BOTH ', ' FROM CONCAT_WS(', ', u.street_address, u.city, u.state, u.postal_code)) AS counterpart_address
+                    FROM chat_messages c
+                    JOIN users u ON u.id = c.owner_id
+                    WHERE c.mechanic_id = :mid
+                    ORDER BY c.owner_id, c.request_id, c.created_at DESC
+                    """
+                ),
+                {"mid": mechanic.id},
+            )
+        else:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (c.owner_id)
+                        c.id::text AS id,
+                        c.owner_id::text AS owner_id,
+                        c.mechanic_id::text AS mechanic_id,
+                        NULL::text AS request_id,
+                        NULL::text AS request_ref,
+                        c.sender_role::text AS sender_role,
+                        c.message,
+                        c.created_at,
+                        u.name AS counterpart_name,
+                        TRIM(BOTH ', ' FROM CONCAT_WS(', ', u.street_address, u.city, u.state, u.postal_code)) AS counterpart_address
+                    FROM chat_messages c
+                    JOIN users u ON u.id = c.owner_id
+                    WHERE c.mechanic_id = :mid
+                    ORDER BY c.owner_id, c.created_at DESC
+                    """
+                ),
+                {"mid": mechanic.id},
+            )
     else:
         raise HTTPException(status_code=403, detail="Access denied")
 
