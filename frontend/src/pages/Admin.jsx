@@ -32,6 +32,7 @@ const RANGE_OPTIONS = [
 export default function Admin() {
   const [rangeKey, setRangeKey] = useState("week");
   const [volumeWindow, setVolumeWindow] = useState("week");
+  const [leaderboardFilter, setLeaderboardFilter] = useState("all");
   const [analytics, setAnalytics] = useState(null);
   const [mechanics, setMechanics] = useState([]);
   const [owners, setOwners] = useState([]);
@@ -111,6 +112,23 @@ export default function Admin() {
     ...mechanicsById.get(entry.id),
     ...entry,
   }));
+  const filteredMechanicPerformance = useMemo(() => {
+    const base =
+      leaderboardFilter === "online"
+        ? mechanicPerformance.filter((mechanic) => mechanic.is_available)
+        : leaderboardFilter === "offline"
+          ? mechanicPerformance.filter((mechanic) => !mechanic.is_available)
+          : mechanicPerformance;
+    return [...base].sort((a, b) => {
+      if (leaderboardFilter === "earnings") {
+        return Number(b.revenue || 0) - Number(a.revenue || 0);
+      }
+      return (
+        Number(b.completed_jobs || 0) - Number(a.completed_jobs || 0) ||
+        Number(b.revenue || 0) - Number(a.revenue || 0)
+      );
+    });
+  }, [leaderboardFilter, mechanicPerformance]);
   const displayedVolume = useMemo(() => {
     if (volumeWindow === "month") return requestVolume.slice(-30);
     return requestVolume.slice(-7);
@@ -299,12 +317,32 @@ export default function Admin() {
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader title="Mechanic leaderboard" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SectionHeader title="Mechanic leaderboard" />
+              <div className="flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
+                {[
+                  ["all", "All"],
+                  ["online", "Online"],
+                  ["offline", "Offline"],
+                  ["earnings", "Top earnings"],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setLeaderboardFilter(key)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      leaderboardFilter === key ? "bg-[#0f172a] text-white" : "text-slate-500 hover:bg-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="mt-4 max-h-[408px] space-y-3 overflow-y-auto pr-1">
-              {mechanicPerformance.length === 0 ? (
+              {filteredMechanicPerformance.length === 0 ? (
                 <EmptyMiniState message="No mechanic performance data yet" />
               ) : (
-                mechanicPerformance.map((mechanic, index) => (
+                filteredMechanicPerformance.map((mechanic, index) => (
                   <div key={mechanic.id} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
@@ -317,11 +355,19 @@ export default function Admin() {
                             {mechanic.completed_jobs} completed • Rating {Number(mechanic.rating || 0).toFixed(1)}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">{mechanic.email}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${mechanic.is_available ? "bg-[#dcfce7] text-[#166534]" : "bg-[#f1f5f9] text-[#475569]"}`}>
+                              {mechanic.is_available ? "Online" : "Offline"}
+                            </span>
+                            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                              {formatCurrencyUSD(mechanic.revenue || 0)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-[#081224]">{formatCurrencyUSD(mechanic.revenue || 0)}</p>
-                        <p className="mt-1 text-xs text-slate-500">{mechanic.is_available ? "Online" : "Offline"}</p>
+                        <p className="mt-1 text-xs text-slate-500">{mechanic.completed_jobs} jobs</p>
                         <button
                           onClick={() => handleDeactivate(mechanic.id)}
                           disabled={deactivatingId === mechanic.id}
@@ -404,7 +450,11 @@ export default function Admin() {
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <SectionHeader title="Demand hotspots" />
-            <div className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <MiniMetric label="Most requested" value={displayedTopParts[0]?.part_name || "--"} tone="blue" />
+              <MiniMetric label="Peak usage" value={`${displayedTopParts[0]?.times_used || 0}x`} tone="amber" />
+            </div>
+            <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto pr-1">
               {displayedTopParts.length === 0 ? (
                 <EmptyMiniState message="No part usage data yet" />
               ) : (
@@ -428,7 +478,23 @@ export default function Admin() {
 
         <div className="grid gap-4 xl:grid-cols-[0.9fr,1.35fr]">
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader title="Platform population" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SectionHeader title="Platform population" />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setManagingGroup("mechanics")}
+                  className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:bg-[#1e293b]"
+                >
+                  Manage mechanics
+                </button>
+                <button
+                  onClick={() => setManagingGroup("owners")}
+                  className="rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
+                >
+                  Manage owners
+                </button>
+              </div>
+            </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               {Object.entries(roleBreakdown)
                 .filter(([role]) => role !== "admin")
@@ -450,6 +516,7 @@ export default function Admin() {
                   <p className="text-sm font-semibold text-[#081224]">Mechanics online</p>
                   <p className="text-2xl font-semibold text-[#081224]">{mechanicsOnline}</p>
                 </div>
+                <p className="mt-2 text-xs text-slate-500">Currently visible in the network</p>
               </div>
               <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                 <div className="flex items-center justify-between">
@@ -458,6 +525,7 @@ export default function Admin() {
                     {Object.values(roleBreakdown).reduce((sum, value) => sum + Number(value || 0), 0)}
                   </p>
                 </div>
+                <p className="mt-2 text-xs text-slate-500">Owners and mechanics currently in the system</p>
               </div>
             </div>
           </Card>
