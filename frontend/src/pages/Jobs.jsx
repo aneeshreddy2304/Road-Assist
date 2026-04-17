@@ -541,11 +541,6 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
             </p>
           ) : null}
           <p className="mt-3 text-lg font-semibold text-[#081224]">{job.problem_desc}</p>
-          {job.request_ref ? (
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-              {job.request_ref}
-            </p>
-          ) : null}
           <div className="mt-3 space-y-2 text-sm text-slate-600">
             {job.owner_name ? <p>{job.owner_name}</p> : null}
             {job.vehicle_label ? <p>{job.vehicle_label}{job.license_plate ? ` · ${job.license_plate}` : ""}</p> : null}

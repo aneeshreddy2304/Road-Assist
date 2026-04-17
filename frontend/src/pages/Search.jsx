@@ -450,6 +450,16 @@ export default function Search() {
     return item.status === historyFilter;
   });
 
+  const findInboxThread = (mechanicId, requestId, requestRef) =>
+    ownerInbox.find(
+      (thread) =>
+        thread.mechanic_id === mechanicId
+        && (
+          (requestId && thread.request_id === requestId)
+          || (requestRef && thread.request_ref === requestRef)
+        )
+    ) || ownerInbox.find((thread) => thread.mechanic_id === mechanicId);
+
   const ownerPendingAppointments = ownerAppointments.filter((appointment) =>
     ["requested", "confirmed"].includes(appointment.status)
   );
@@ -871,15 +881,31 @@ export default function Search() {
                         })}
                       </p>
                       <button
-                        onClick={() =>
+                        onClick={() => {
+                          const requestRef = item.request_ref || `RA-${item.request_id.slice(0, 8).toUpperCase()}`;
+                          const matchedThread = findInboxThread(item.mechanic_id, item.request_id, requestRef);
                           setChatMechanic({
                             mechanic_id: item.mechanic_id,
                             name: item.mechanic_name,
-                            address: "",
+                            address: matchedThread?.counterpart_address || "",
                             request_id: item.request_id,
-                            request_ref: item.request_ref || `RA-${item.request_id.slice(0, 8).toUpperCase()}`,
-                          })
-                        }
+                            request_ref: requestRef,
+                            seedMessages: matchedThread
+                              ? [{
+                                  id: matchedThread.id,
+                                  owner_id: matchedThread.owner_id || null,
+                                  mechanic_id: matchedThread.mechanic_id,
+                                  request_id: matchedThread.request_id || item.request_id,
+                                  request_ref: matchedThread.request_ref || requestRef,
+                                  sender_user_id: null,
+                                  sender_role: matchedThread.sender_role,
+                                  sender_name: matchedThread.sender_role === "mechanic" ? matchedThread.counterpart_name : "You",
+                                  message: matchedThread.message,
+                                  created_at: matchedThread.created_at,
+                                }]
+                              : [],
+                          });
+                        }}
                         className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
                       >
                         Open chat
@@ -929,6 +955,18 @@ export default function Search() {
                           address: thread.counterpart_address,
                           request_id: thread.request_id || null,
                           request_ref: thread.request_ref || null,
+                          seedMessages: [{
+                            id: thread.id,
+                            owner_id: thread.owner_id || null,
+                            mechanic_id: thread.mechanic_id,
+                            request_id: thread.request_id || null,
+                            request_ref: thread.request_ref || null,
+                            sender_user_id: null,
+                            sender_role: thread.sender_role,
+                            sender_name: thread.sender_role === "mechanic" ? thread.counterpart_name : "You",
+                            message: thread.message,
+                            created_at: thread.created_at,
+                          }],
                         })
                       }
                       className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
@@ -1474,7 +1512,7 @@ function MechanicInventoryModal({ mechanic, onClose }) {
 }
 
 function MechanicChatModal({ mechanic, onClose }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(mechanic.seedMessages || []);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -1499,17 +1537,23 @@ function MechanicChatModal({ mechanic, onClose }) {
       }
       setMessages(response.data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to load messages");
+      if (mechanic.seedMessages?.length) {
+        setMessages(mechanic.seedMessages);
+      } else {
+        setMessages([]);
+        setError(err.response?.data?.detail || "Failed to load messages");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    setMessages(mechanic.seedMessages || []);
     loadMessages();
     const interval = window.setInterval(loadMessages, 10000);
     return () => window.clearInterval(interval);
-  }, [mechanic.mechanic_id, mechanic.request_id]);
+  }, [mechanic.mechanic_id, mechanic.request_id, mechanic.seedMessages]);
 
   const handleSend = async (event) => {
     event.preventDefault();

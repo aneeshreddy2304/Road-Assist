@@ -452,6 +452,11 @@ export default function Dashboard() {
                   filteredCompletedJobs.slice(0, 6).map((job) => (
                     <div key={`done-${job.id}`} className="flex items-start justify-between gap-4 rounded-[18px] border border-[#e3ebff] bg-white px-4 py-3">
                       <div>
+                        {job.request_ref ? (
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                            {job.request_ref}
+                          </p>
+                        ) : null}
                         <p className="text-sm font-semibold text-[#081224]">{job.owner_name || "Owner"} · {job.problem_desc}</p>
                         <p className="mt-1 text-xs text-slate-500">{job.vehicle_label || "Vehicle"} · {job.owner_address || "Owner address unavailable"}</p>
                       </div>
@@ -698,7 +703,7 @@ export default function Dashboard() {
                   <p className="mt-1 text-xs leading-5 text-slate-500">Control whether owners can discover you nearby.</p>
                 </button>
               </div>
-              <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
+              <div className="mt-4">
                 <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -709,7 +714,7 @@ export default function Dashboard() {
                       {upcomingAppointments.length} upcoming
                     </span>
                   </div>
-                  <div className="mt-3 max-h-[16rem] space-y-2 overflow-y-auto pr-1">
+                  <div className="mt-3 max-h-[18rem] space-y-2 overflow-y-auto pr-1">
                     {upcomingAppointments.length === 0 ? (
                       <p className="text-sm text-slate-500">New scheduled services will show here once owners book a future slot.</p>
                     ) : (
