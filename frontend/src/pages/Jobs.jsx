@@ -38,8 +38,8 @@ export default function Jobs() {
         id: `preview-${thread.id}`,
         owner_id: thread.owner_id,
         mechanic_id: thread.mechanic_id,
-        request_id: thread.request_id || null,
-        request_ref: thread.request_ref || null,
+        request_id: null,
+        request_ref: null,
         sender_role: thread.sender_role || "owner",
         sender_name: thread.counterpart_name || "Owner",
         message: thread.message,
@@ -50,24 +50,27 @@ export default function Jobs() {
 
   const isSameThread = (left, right) => {
     if (!left || !right) return false;
-    return (
-      left.owner_id === right.owner_id
-      && (left.request_id || null) === (right.request_id || null)
-    );
+    return left.owner_id === right.owner_id;
   };
 
-  const enrichInboxThreads = (threads, jobs) =>
-    threads.map((thread) => {
-      if (thread.request_ref) return thread;
+  const enrichInboxThreads = (threads, jobs) => {
+    const latestByOwner = new Map();
+    threads.forEach((thread) => {
       const matchedJob = jobs.find((job) => job.owner_id === thread.owner_id);
-      return matchedJob
+      const enriched = matchedJob
         ? {
             ...thread,
-            request_id: thread.request_id || matchedJob.id,
-            request_ref: thread.request_ref || matchedJob.request_ref || `RA-${matchedJob.id.slice(0, 8).toUpperCase()}`,
+            request_id: matchedJob.id,
+            request_ref: matchedJob.request_ref || `RA-${matchedJob.id.slice(0, 8).toUpperCase()}`,
           }
         : thread;
+      const current = latestByOwner.get(enriched.owner_id);
+      if (!current || new Date(enriched.created_at).getTime() > new Date(current.created_at).getTime()) {
+        latestByOwner.set(enriched.owner_id, enriched);
+      }
     });
+    return Array.from(latestByOwner.values());
+  };
 
   const loadThreadMessages = async (thread) => {
     if (!thread?.owner_id) {
@@ -76,25 +79,10 @@ export default function Jobs() {
     }
 
     try {
-      let response;
-      try {
-        response = await getMessageThread({
-          owner_id: thread.owner_id,
-          request_id: thread.request_id || null,
-        });
-        if (thread.request_id && (!response.data || response.data.length === 0)) {
-          response = await getMessageThread({
-            owner_id: thread.owner_id,
-            request_id: null,
-          });
-        }
-      } catch (primaryError) {
-        if (!thread.request_id) throw primaryError;
-        response = await getMessageThread({
-          owner_id: thread.owner_id,
-          request_id: null,
-        });
-      }
+      const response = await getMessageThread({
+        owner_id: thread.owner_id,
+        request_id: null,
+      });
       setThreadMessages(response.data?.length ? response.data : buildPreviewMessage(thread));
     } catch (error) {
       console.error(error);
@@ -181,7 +169,7 @@ export default function Jobs() {
     try {
       const res = await sendMessage({
         owner_id: selectedThread.owner_id,
-        request_id: selectedThread.request_id || null,
+        request_id: null,
         message: messageDraft.trim(),
       });
       setThreadMessages((current) => [...current, res.data]);
@@ -397,11 +385,6 @@ export default function Jobs() {
                           }`}
                         >
                           <p className="text-lg font-semibold text-[#081224]">{thread.counterpart_name}</p>
-                          {thread.request_ref ? (
-                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-                              {thread.request_ref}
-                            </p>
-                          ) : null}
                           <p className="mt-1 line-clamp-2 text-sm text-slate-500">{thread.message}</p>
                           <p className="mt-2 text-xs text-slate-400">
                             {new Date(thread.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
@@ -416,11 +399,6 @@ export default function Jobs() {
                   <div className="mb-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Thread</p>
                     <h2 className="mt-1 text-2xl font-semibold text-[#081224]">{selectedThread?.counterpart_name || "Select a conversation"}</h2>
-                    {selectedThread?.request_ref ? (
-                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-                        {selectedThread.request_ref}
-                      </p>
-                    ) : null}
                     <p className="mt-2 text-sm text-slate-500">{selectedThread?.counterpart_address || "Owner address will appear here when available."}</p>
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-4">
@@ -445,9 +423,6 @@ export default function Jobs() {
                           }`}
                         >
                           <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
-                          {message.request_ref ? (
-                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">{message.request_ref}</p>
-                          ) : null}
                           <p className="mt-2 text-sm leading-6">{message.message}</p>
                         </div>
                       ))
@@ -590,9 +565,9 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
             <StatusBadge status={job.status} />
             <span className="text-xs text-slate-400">{new Date(job.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
           </div>
-          {job.request_ref ? (
+          {(job.request_ref || job.id) ? (
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-              {job.request_ref}
+              {job.request_ref || `RA-${job.id.slice(0, 8).toUpperCase()}`}
             </p>
           ) : null}
           <p className="mt-3 text-lg font-semibold text-[#081224]">{job.problem_desc}</p>

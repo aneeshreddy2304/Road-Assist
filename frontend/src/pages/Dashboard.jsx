@@ -452,9 +452,9 @@ export default function Dashboard() {
                   filteredCompletedJobs.slice(0, 6).map((job) => (
                     <div key={`done-${job.id}`} className="flex items-start justify-between gap-4 rounded-[18px] border border-[#e3ebff] bg-white px-4 py-3">
                       <div>
-                        {job.request_ref ? (
+                        {(job.request_ref || job.id) ? (
                           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-                            {job.request_ref}
+                            {job.request_ref || `RA-${job.id.slice(0, 8).toUpperCase()}`}
                           </p>
                         ) : null}
                         <p className="text-sm font-semibold text-[#081224]">{job.owner_name || "Owner"} · {job.problem_desc}</p>
@@ -714,10 +714,10 @@ export default function Dashboard() {
                       {upcomingAppointments.length} upcoming
                     </span>
                   </div>
-                  <div className="mt-3 max-h-[18rem] space-y-2 overflow-y-auto pr-1">
-                    {upcomingAppointments.length === 0 ? (
-                      <p className="text-sm text-slate-500">New scheduled services will show here once owners book a future slot.</p>
-                    ) : (
+                          <div className="mt-3 max-h-[18rem] space-y-2 overflow-y-auto pr-1">
+                            {upcomingAppointments.length === 0 ? (
+                              <p className="text-sm text-slate-500">New scheduled services will show here once owners book a future slot.</p>
+                            ) : (
                       appointments
                         .filter((appointment) => ["requested", "confirmed"].includes(appointment.status))
                         .sort((a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime())
@@ -725,6 +725,9 @@ export default function Dashboard() {
                         <div key={appointment.id} className="rounded-[16px] border border-[#e3ebff] bg-white px-3 py-2.5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                                {`AP-${appointment.id.slice(0, 8).toUpperCase()}`}
+                              </p>
                               <p className="text-sm font-semibold text-[#081224]">{appointment.owner_name || "Owner"}</p>
                               <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-[#2563eb]">
                                 {appointment.service_type}
@@ -818,9 +821,9 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate, onSelect, isSelecte
             </span>
           </div>
           <p className="mt-2 text-sm font-semibold text-[#081224]">{job.problem_desc}</p>
-          {job.request_ref ? (
+          {(job.request_ref || job.id) ? (
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-              {job.request_ref}
+              {job.request_ref || `RA-${job.id.slice(0, 8).toUpperCase()}`}
             </p>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">

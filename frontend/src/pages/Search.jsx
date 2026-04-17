@@ -1526,20 +1526,10 @@ function MechanicChatModal({ mechanic, onClose }) {
       try {
         response = await getMessageThread({
           mechanic_id: mechanic.mechanic_id,
-          request_id: mechanic.request_id || null,
-        });
-        if (mechanic.request_id && (!response.data || response.data.length === 0)) {
-          response = await getMessageThread({
-            mechanic_id: mechanic.mechanic_id,
-            request_id: null,
-          });
-        }
-      } catch (primaryError) {
-        if (!mechanic.request_id) throw primaryError;
-        response = await getMessageThread({
-          mechanic_id: mechanic.mechanic_id,
           request_id: null,
         });
+      } catch (primaryError) {
+        throw primaryError;
       }
       setMessages(response.data?.length ? response.data : mechanic.seedMessages || []);
     } catch (err) {
@@ -1569,7 +1559,7 @@ function MechanicChatModal({ mechanic, onClose }) {
     try {
       const response = await sendMessage({
         mechanic_id: mechanic.mechanic_id,
-        request_id: mechanic.request_id || null,
+        request_id: null,
         message: draft.trim(),
       });
       setMessages((current) => [...current, response.data]);
@@ -1588,11 +1578,6 @@ function MechanicChatModal({ mechanic, onClose }) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Chat with mechanic</p>
             <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
-            {mechanic.request_ref ? (
-              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-                {mechanic.request_ref}
-              </p>
-            ) : null}
             <p className="mt-1 text-sm text-gray-500">Talk about pricing, timing, or the issue before dispatch.</p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
@@ -1616,9 +1601,6 @@ function MechanicChatModal({ mechanic, onClose }) {
                 }`}
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
-                {message.request_ref ? (
-                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">{message.request_ref}</p>
-                ) : null}
                 <p className="mt-2 text-sm leading-6">{message.message}</p>
                 <p className={`mt-2 text-[11px] ${message.sender_role === "owner" ? "text-white/70" : "text-gray-400"}`}>
                   {new Date(message.created_at).toLocaleString("en-US", {
