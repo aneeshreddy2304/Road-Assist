@@ -791,8 +791,9 @@ export default function Search() {
       </section>
 
       <section className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
           <OwnerSurfaceCard
+            className="xl:min-h-[49rem]"
             eyebrow="Service history"
             title="Recent requests"
             loading={ownerWorkspaceLoading}
@@ -850,61 +851,35 @@ export default function Search() {
                           year: "numeric",
                         })}
                       </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </OwnerSurfaceCard>
-
-          <OwnerSurfaceCard
-            action={(
-              <button
-                onClick={() => {
-                  setVehicleEditingId(null);
-                  setVehicleForm(vehicleDefaults);
-                  setVehicleFormOpen(true);
-                }}
-                className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white"
-              >
-                Add vehicle
-              </button>
-            )}
-            eyebrow="Vehicles"
-            title="Vehicle garage"
-            loading={ownerWorkspaceLoading}
-            itemCount={ownerVehicles.length}
-            emptyTitle="No vehicles added"
-            emptySubtitle="Add vehicles here so you can request roadside help faster."
-          >
-            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-              {ownerVehicles.map((vehicle) => (
-                <div key={vehicle.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-semibold text-[#081224]">
-                        {vehicle.nickname || `${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.license_plate}
-                      </p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
-                        {vehicle.vehicle_type} · {vehicle.fuel_type || "fuel not set"} · {vehicle.color || "color not set"}
-                      </p>
-                      {vehicle.notes ? <p className="mt-2 text-sm text-slate-500">{vehicle.notes}</p> : null}
-                    </div>
-                    <div className="flex gap-2">
                       <button
-                        onClick={() => startVehicleEdit(vehicle)}
-                        className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
+                        onClick={() => {
+                          const requestRef = item.request_ref || `RA-${item.request_id.slice(0, 8).toUpperCase()}`;
+                          const matchedThread = findInboxThread(item.mechanic_id, item.request_id, requestRef);
+                          setChatMechanic({
+                            mechanic_id: item.mechanic_id,
+                            name: item.mechanic_name,
+                            address: matchedThread?.counterpart_address || "",
+                            request_id: item.request_id,
+                            request_ref: requestRef,
+                            seedMessages: matchedThread
+                              ? [{
+                                  id: matchedThread.id,
+                                  owner_id: matchedThread.owner_id || null,
+                                  mechanic_id: matchedThread.mechanic_id,
+                                  request_id: matchedThread.request_id || item.request_id,
+                                  request_ref: matchedThread.request_ref || requestRef,
+                                  sender_user_id: null,
+                                  sender_role: matchedThread.sender_role,
+                                  sender_name: matchedThread.sender_role === "mechanic" ? matchedThread.counterpart_name : "You",
+                                  message: matchedThread.message,
+                                  created_at: matchedThread.created_at,
+                                }]
+                              : [],
+                          });
+                        }}
+                        className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
                       >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleVehicleDelete(vehicle.id)}
-                        className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600"
-                      >
-                        Remove
+                        Open chat
                       </button>
                     </div>
                   </div>
@@ -913,69 +888,127 @@ export default function Search() {
             </div>
           </OwnerSurfaceCard>
 
-          <OwnerSurfaceCard
-            action={(
-              <span className="rounded-full bg-[#f8fbff] px-3 py-2 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
-                {ownerPendingAppointments.length} active
-              </span>
-            )}
-            eyebrow="Appointments"
-            title="Booked services"
-            loading={ownerWorkspaceLoading}
-            itemCount={ownerAppointments.length}
-            emptyTitle="No future appointments"
-            emptySubtitle="Use the Schedule action on a mechanic to reserve a future service slot."
-          >
-            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-              {ownerAppointments.map((appointment) => (
-                <div key={appointment.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2563eb]">
-                        {appointment.status}
-                      </p>
-                      <p className="mt-2 text-lg font-semibold text-[#081224]">{appointment.service_type}</p>
-                      <p className="mt-1 text-sm text-slate-600">{appointment.mechanic_name}</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {new Date(appointment.scheduled_for).toLocaleString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                      {appointment.estimated_cost ? (
-                        <p className="mt-2 text-sm font-medium text-emerald-700">
-                          Estimate: {formatCurrencyUSD(appointment.estimated_cost)}
+          <div className="space-y-4">
+            <OwnerSurfaceCard
+              action={(
+                <button
+                  onClick={() => {
+                    setVehicleEditingId(null);
+                    setVehicleForm(vehicleDefaults);
+                    setVehicleFormOpen(true);
+                  }}
+                  className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Add vehicle
+                </button>
+              )}
+              eyebrow="Vehicles"
+              title="Vehicle garage"
+              loading={ownerWorkspaceLoading}
+              itemCount={ownerVehicles.length}
+              emptyTitle="No vehicles added"
+              emptySubtitle="Add vehicles here so you can request roadside help faster."
+            >
+              <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+                {ownerVehicles.map((vehicle) => (
+                  <div key={vehicle.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-semibold text-[#081224]">
+                          {vehicle.nickname || `${vehicle.year} ${vehicle.make} ${vehicle.model}`}
                         </p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {["requested", "confirmed"].includes(appointment.status) ? (
-                        <>
-                          <button
-                            onClick={() => setAppointmentToManage(appointment)}
-                            className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                          >
-                            Manage
-                          </button>
-                          <button
-                            onClick={async () => {
-                              await updateAppointmentStatus(appointment.id, { status: "cancelled" });
-                              await loadOwnerWorkspace();
-                            }}
-                            className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : null}
+                        <p className="mt-1 text-sm text-slate-600">
+                          {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.license_plate}
+                        </p>
+                        <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
+                          {vehicle.vehicle_type} · {vehicle.fuel_type || "fuel not set"} · {vehicle.color || "color not set"}
+                        </p>
+                        {vehicle.notes ? <p className="mt-2 text-sm text-slate-500">{vehicle.notes}</p> : null}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => startVehicleEdit(vehicle)}
+                          className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleVehicleDelete(vehicle.id)}
+                          className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </OwnerSurfaceCard>
+                ))}
+              </div>
+            </OwnerSurfaceCard>
+
+            <OwnerSurfaceCard
+              action={(
+                <span className="rounded-full bg-[#f8fbff] px-3 py-2 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                  {ownerPendingAppointments.length} active
+                </span>
+              )}
+              eyebrow="Appointments"
+              title="Booked services"
+              loading={ownerWorkspaceLoading}
+              itemCount={ownerAppointments.length}
+              emptyTitle="No future appointments"
+              emptySubtitle="Use the Schedule action on a mechanic to reserve a future service slot."
+            >
+              <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+                {ownerAppointments.map((appointment) => (
+                  <div key={appointment.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2563eb]">
+                          {appointment.status}
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-[#081224]">{appointment.service_type}</p>
+                        <p className="mt-1 text-sm text-slate-600">{appointment.mechanic_name}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {new Date(appointment.scheduled_for).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                        {appointment.estimated_cost ? (
+                          <p className="mt-2 text-sm font-medium text-emerald-700">
+                            Estimate: {formatCurrencyUSD(appointment.estimated_cost)}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {["requested", "confirmed"].includes(appointment.status) ? (
+                          <>
+                            <button
+                              onClick={() => setAppointmentToManage(appointment)}
+                              className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              Manage
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await updateAppointmentStatus(appointment.id, { status: "cancelled" });
+                                await loadOwnerWorkspace();
+                              }}
+                              className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </OwnerSurfaceCard>
+          </div>
         </div>
       </section>
     </div>
@@ -1004,6 +1037,7 @@ function SelectedMechanicPanel({
   pickupLabel,
   onOpenRoute,
   onOpenInventory,
+  onOpenChat,
   onOpenSchedule,
   onRequest,
   onClose,
@@ -1056,7 +1090,7 @@ function SelectedMechanicPanel({
         </div>
       </div>
 
-      <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
+      <div className="mt-auto grid grid-cols-3 gap-2 pt-5">
         <button
           onClick={onOpenRoute}
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
@@ -1070,6 +1104,12 @@ function SelectedMechanicPanel({
           Parts
         </button>
         <button
+          onClick={onOpenChat}
+          className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+        >
+          Message
+        </button>
+        <button
           onClick={onOpenSchedule}
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
         >
@@ -1077,7 +1117,7 @@ function SelectedMechanicPanel({
         </button>
         <button
           onClick={onRequest}
-          className="rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
+          className="col-span-2 rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
         >
           Request
         </button>
@@ -1377,6 +1417,133 @@ function MechanicInventoryModal({ mechanic, onClose }) {
             </div>
           ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MechanicChatModal({ mechanic, onClose }) {
+  const [messages, setMessages] = useState(mechanic.seedMessages || []);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadMessages = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      let response;
+      try {
+        response = await getMessageThread({
+          mechanic_id: mechanic.mechanic_id,
+          request_id: null,
+        });
+      } catch (primaryError) {
+        throw primaryError;
+      }
+      setMessages(response.data?.length ? response.data : mechanic.seedMessages || []);
+    } catch (err) {
+      if (mechanic.seedMessages?.length || messages.length) {
+        setMessages((current) => current.length ? current : mechanic.seedMessages || []);
+      } else {
+        setMessages([]);
+        setError(err.response?.data?.detail || "Failed to load messages");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setMessages(mechanic.seedMessages || []);
+    loadMessages();
+    const interval = window.setInterval(loadMessages, 10000);
+    return () => window.clearInterval(interval);
+  }, [mechanic.mechanic_id, mechanic.request_id, mechanic.seedMessages]);
+
+  const handleSend = async (event) => {
+    event.preventDefault();
+    if (!draft.trim()) return;
+    setSending(true);
+    setError("");
+    try {
+      const response = await sendMessage({
+        mechanic_id: mechanic.mechanic_id,
+        request_id: null,
+        message: draft.trim(),
+      });
+      setMessages((current) => [...current, response.data]);
+      setDraft("");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not send message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 px-4">
+      <div className="flex h-[36rem] w-full max-w-2xl flex-col rounded-[28px] bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Chat with mechanic</p>
+            <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
+            <p className="mt-1 text-sm text-gray-500">Talk about pricing, timing, or the issue before dispatch.</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-3 overflow-y-auto bg-[#f8fbff] px-6 py-5">
+          {loading ? <Spinner /> : null}
+          {!loading && messages.length === 0 ? (
+            <EmptyState icon="💬" title="No messages yet" subtitle="Start the conversation with a price or timing question." />
+          ) : null}
+          {!loading &&
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
+                  message.sender_role === "owner"
+                    ? "ml-auto bg-[#0f172a] text-white"
+                    : "bg-white text-gray-900 ring-1 ring-[#dbe7ff]"
+                }`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+                <p className="mt-2 text-sm leading-6">{message.message}</p>
+                <p className={`mt-2 text-[11px] ${message.sender_role === "owner" ? "text-white/70" : "text-gray-400"}`}>
+                  {new Date(message.created_at).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            ))}
+        </div>
+
+        <form onSubmit={handleSend} className="border-t border-gray-100 px-6 py-4">
+          {error ? <p className="mb-3 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
+          <div className="flex gap-3">
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={2}
+              placeholder="Ask about price estimates, service time, or any repair details..."
+              className="min-h-[3.5rem] flex-1 rounded-[20px] border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <button
+              type="submit"
+              disabled={sending || !draft.trim()}
+              className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {sending ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
