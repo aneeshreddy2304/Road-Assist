@@ -6,7 +6,6 @@ import {
   Gauge,
   ShieldAlert,
   TriangleAlert,
-  UserRoundCog,
   Wrench,
   X,
 } from "lucide-react";
@@ -166,13 +165,7 @@ export default function Admin() {
     <div className="mx-auto max-w-[1480px] px-4 py-6 lg:px-6">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Admin analytics</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#081224]">Richmond network control tower</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Review live demand, mechanic performance, revenue, appointment flow, and unresolved service risks from one place.
-            </p>
-          </div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[#081224]">Admin dashboard</h1>
 
           <div className="flex flex-wrap gap-2">
             {RANGE_OPTIONS.map((option) => (
