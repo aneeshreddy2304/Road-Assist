@@ -1481,11 +1481,22 @@ function MechanicChatModal({ mechanic, onClose }) {
   const [error, setError] = useState("");
 
   const loadMessages = async () => {
+    setLoading(true);
+    setError("");
     try {
-      const response = await getMessageThread({
-        mechanic_id: mechanic.mechanic_id,
-        request_id: mechanic.request_id || null,
-      });
+      let response;
+      try {
+        response = await getMessageThread({
+          mechanic_id: mechanic.mechanic_id,
+          request_id: mechanic.request_id || null,
+        });
+      } catch (primaryError) {
+        if (!mechanic.request_id) throw primaryError;
+        response = await getMessageThread({
+          mechanic_id: mechanic.mechanic_id,
+          request_id: null,
+        });
+      }
       setMessages(response.data);
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load messages");
@@ -1498,7 +1509,7 @@ function MechanicChatModal({ mechanic, onClose }) {
     loadMessages();
     const interval = window.setInterval(loadMessages, 10000);
     return () => window.clearInterval(interval);
-  }, [mechanic.mechanic_id]);
+  }, [mechanic.mechanic_id, mechanic.request_id]);
 
   const handleSend = async (event) => {
     event.preventDefault();

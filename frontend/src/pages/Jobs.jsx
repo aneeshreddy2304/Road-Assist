@@ -31,6 +31,33 @@ export default function Jobs() {
   const [costDialog, setCostDialog] = useState(null);
   const [appointmentDialog, setAppointmentDialog] = useState(null);
 
+  const loadThreadMessages = async (thread) => {
+    if (!thread?.owner_id) {
+      setThreadMessages([]);
+      return;
+    }
+
+    try {
+      let response;
+      try {
+        response = await getMessageThread({
+          owner_id: thread.owner_id,
+          request_id: thread.request_id || null,
+        });
+      } catch (primaryError) {
+        if (!thread.request_id) throw primaryError;
+        response = await getMessageThread({
+          owner_id: thread.owner_id,
+          request_id: null,
+        });
+      }
+      setThreadMessages(response.data);
+    } catch (error) {
+      console.error(error);
+      setThreadMessages([]);
+    }
+  };
+
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -67,9 +94,7 @@ export default function Jobs() {
       setThreadMessages([]);
       return;
     }
-    getMessageThread({ owner_id: selectedThread.owner_id, request_id: selectedThread.request_id })
-      .then((res) => setThreadMessages(res.data))
-      .catch(() => setThreadMessages([]));
+    loadThreadMessages(selectedThread);
   }, [selectedThread]);
 
   const accepted = myJobs.filter((job) => job.status === "accepted");
@@ -345,7 +370,15 @@ export default function Jobs() {
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-4">
                     {threadMessages.length === 0 ? (
-                      <EmptyState icon="📨" title="No thread selected yet" subtitle="Choose an owner conversation to start replying." />
+                      <EmptyState
+                        icon={selectedThread ? "💬" : "📨"}
+                        title={selectedThread ? "No messages in this thread yet" : "No thread selected yet"}
+                        subtitle={
+                          selectedThread
+                            ? "Start the conversation with an estimate, ETA, or service update."
+                            : "Choose an owner conversation to start replying."
+                        }
+                      />
                     ) : (
                       threadMessages.map((message) => (
                         <div
