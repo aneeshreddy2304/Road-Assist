@@ -1,317 +1,396 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
-  Briefcase,
-  CircleDollarSign,
+  AlertTriangle,
+  CalendarDays,
+  Clock3,
+  DollarSign,
+  Gauge,
   ShieldAlert,
-  ShieldOff,
-  Star,
   TrendingUp,
-  Users,
+  TriangleAlert,
+  UserRoundCog,
   Wrench,
 } from "lucide-react";
 
-import { getAnalytics, getAllMechanics, deactivateMechanic, listRequests } from "../api/endpoints";
-import { Card, EmptyState, Spinner, StatusBadge } from "../components/UI";
+import { getAnalytics } from "../api/endpoints";
+import { Card, Spinner, StatusBadge } from "../components/UI";
 import { formatCurrencyUSD } from "../lib/formatters";
 
+const RANGE_OPTIONS = [
+  { key: "day", label: "Day" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "year", label: "Year" },
+  { key: "all", label: "All" },
+];
+
 export default function Admin() {
+  const [rangeKey, setRangeKey] = useState("week");
   const [analytics, setAnalytics] = useState(null);
-  const [mechanics, setMechanics] = useState([]);
-  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("overview");
 
   useEffect(() => {
+    let alive = true;
+
     async function load() {
+      setLoading(true);
       try {
-        const [analyticsRes, mechanicsRes, requestsRes] = await Promise.all([
-          getAnalytics(),
-          getAllMechanics(),
-          listRequests(),
-        ]);
-        setAnalytics(analyticsRes.data);
-        setMechanics(mechanicsRes.data);
-        setRequests(requestsRes.data);
+        const { data } = await getAnalytics({ range: rangeKey });
+        if (alive) setAnalytics(data);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     }
-    load();
-  }, []);
 
-  const handleDeactivate = async (id, name) => {
-    if (!window.confirm(`Deactivate ${name}?`)) return;
-    await deactivateMechanic(id);
-    setMechanics((current) => current.filter((item) => item.id !== id));
-  };
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [rangeKey]);
 
   const summary = analytics?.summary || {};
-  const mechanicsOnline = mechanics.filter((mechanic) => mechanic.is_available).length;
-  const avgRating =
-    mechanics.length > 0
-      ? (mechanics.reduce((sum, mechanic) => sum + Number(mechanic.rating || 0), 0) / mechanics.length).toFixed(2)
-      : "0.00";
-
-  const requestBoard = useMemo(
-    () => [
-      { title: "Requested", jobs: requests.filter((job) => job.status === "requested") },
-      { title: "Accepted", jobs: requests.filter((job) => job.status === "accepted") },
-      { title: "In Progress", jobs: requests.filter((job) => job.status === "in_progress") },
-      { title: "Completed", jobs: requests.filter((job) => job.status === "completed").slice(0, 6) },
-    ],
-    [requests]
-  );
-
-  const topMechanics = [...mechanics]
-    .sort((a, b) => Number(b.rating) - Number(a.rating))
-    .slice(0, 5);
-
+  const leaderboard = analytics?.leaderboard || [];
+  const lowStock = analytics?.low_stock || [];
+  const appointments = analytics?.appointments_calendar || [];
+  const alerts = analytics?.unresolved_alerts || [];
+  const latestRequests = analytics?.latest_requests || [];
+  const earningsTrend = analytics?.earnings_trend || [];
+  const requestVolume = analytics?.request_volume || [];
+  const funnel = analytics?.funnel || {};
   const topParts = analytics?.top_parts || [];
   const roleBreakdown = analytics?.users_by_role || {};
+  const appointmentSummary = analytics?.appointments_summary || {};
+
+  const funnelData = useMemo(
+    () => [
+      { label: "Requested", value: Number(funnel.requested || 0), tone: "bg-[#fef3c7] text-[#92400e]" },
+      { label: "Accepted", value: Number(funnel.accepted || 0), tone: "bg-[#dbeafe] text-[#1d4ed8]" },
+      { label: "In Progress", value: Number(funnel.in_progress || 0), tone: "bg-[#ede9fe] text-[#6d28d9]" },
+      { label: "Completed", value: Number(funnel.completed || 0), tone: "bg-[#dcfce7] text-[#166534]" },
+    ],
+    [funnel]
+  );
+
+  const responseHours = Number(summary.avg_response_hours || 0);
+  const completionHours = Number(summary.avg_completion_hours || 0);
+  const maxTrend = Math.max(...earningsTrend.map((item) => Number(item.revenue || 0)), 1);
+  const maxVolume = Math.max(...requestVolume.map((item) => Number(item.total || 0)), 1);
 
   if (loading) return <Spinner />;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
+    <div className="mx-auto max-w-[1480px] px-4 py-6 lg:px-6">
       <div className="space-y-6">
-        <Card className="overflow-hidden rounded-[32px] border border-[#d8e5ff] bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_rgba(255,255,255,0.98)_36%),linear-gradient(135deg,_#071225_0%,_#0c1f3d_55%,_#153b74_100%)] p-6 text-white shadow-[0_28px_80px_rgba(6,18,37,0.18)]">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/55">Platform control tower</p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight">Monitor requests, mechanics, and network health in real time.</h1>
-              <p className="mt-4 max-w-xl text-sm leading-7 text-white/72">
-                Keep track of live roadside demand, monitor mechanic performance, and identify inventory or service risks across the Richmond network.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 xl:w-[28rem]">
-              <HeroStat icon={<Briefcase size={16} />} label="Total requests" value={summary.total_requests ?? 0} />
-              <HeroStat icon={<CircleDollarSign size={16} />} label="Revenue" value={formatCurrencyUSD(summary.total_revenue ?? 0)} />
-              <HeroStat icon={<Users size={16} />} label="Mechanics online" value={mechanicsOnline} />
-              <HeroStat icon={<Star size={16} />} label="Avg rating" value={avgRating} />
-            </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Admin analytics</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#081224]">Richmond network control tower</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              Review live demand, mechanic performance, revenue, appointment flow, and unresolved service risks from one place.
+            </p>
           </div>
-        </Card>
 
-        <div className="flex gap-2">
-          {["overview", "mechanics"].map((item) => (
-            <button
-              key={item}
-              onClick={() => setTab(item)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-                tab === item
-                  ? "bg-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.2)]"
-                  : "bg-white text-slate-600 ring-1 ring-[#dbe7ff] hover:bg-[#f8fbff]"
-              }`}
-            >
-              {item}
-            </button>
-          ))}
+          <div className="flex flex-wrap gap-2">
+            {RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => setRangeKey(option.key)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  rangeKey === option.key
+                    ? "bg-[#0f172a] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
+                    : "bg-white text-slate-600 ring-1 ring-[#dbe7ff] hover:bg-[#f8fbff]"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {tab === "overview" ? (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              <MetricCard icon={<Briefcase size={18} className="text-[#2563eb]" />} label="Open jobs" value={summary.active ?? 0} tone="blue" />
-              <MetricCard icon={<TrendingUp size={18} className="text-[#16a34a]" />} label="Completed" value={summary.completed ?? 0} tone="green" />
-              <MetricCard icon={<ShieldAlert size={18} className="text-[#f97316]" />} label="Cancelled" value={summary.cancelled ?? 0} tone="amber" />
-              <MetricCard icon={<CircleDollarSign size={18} className="text-[#7c3aed]" />} label="Avg job value" value={formatCurrencyUSD(summary.avg_job_value ?? 0)} tone="violet" />
-              <MetricCard icon={<Users size={18} className="text-[#0f172a]" />} label="Owners" value={roleBreakdown.owner ?? 0} tone="slate" />
-              <MetricCard icon={<Wrench size={18} className="text-[#1d4ed8]" />} label="Mechanics" value={roleBreakdown.mechanic ?? 0} tone="blue" />
-            </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <MetricCard icon={<Wrench size={18} className="text-[#1d4ed8]" />} label="Total requests" value={summary.total_requests ?? 0} tone="blue" />
+          <MetricCard icon={<Gauge size={18} className="text-[#2563eb]" />} label="Active jobs" value={summary.active ?? 0} tone="slate" />
+          <MetricCard icon={<DollarSign size={18} className="text-[#7c3aed]" />} label="Revenue" value={formatCurrencyUSD(summary.total_revenue ?? 0)} tone="violet" />
+          <MetricCard icon={<Clock3 size={18} className="text-[#0f766e]" />} label="Avg response" value={`${responseHours.toFixed(1)} hr`} tone="green" />
+          <MetricCard icon={<Activity size={18} className="text-[#ea580c]" />} label="Avg completion" value={`${completionHours.toFixed(1)} hr`} tone="amber" />
+          <MetricCard icon={<ShieldAlert size={18} className="text-[#dc2626]" />} label="Unresolved alerts" value={alerts.length} tone="rose" />
+        </div>
 
-            <div className="grid gap-4 xl:grid-cols-[1.65fr,0.9fr]">
-              <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-                <SectionHeader eyebrow="Live requests" title="Operations board" />
-                <div className="mt-4 grid gap-4 lg:grid-cols-4">
-                  {requestBoard.map((column) => (
-                    <div key={column.title} className="rounded-[24px] border border-[#e8eefc] bg-[#f8fbff] p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <p className="text-sm font-semibold text-[#081224]">{column.title}</p>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
-                          {column.jobs.length}
-                        </span>
-                      </div>
-                      <div className="space-y-3">
-                        {column.jobs.length === 0 ? (
-                          <EmptyMiniState message={`No ${column.title.toLowerCase()} jobs`} />
-                        ) : (
-                          column.jobs.slice(0, 5).map((job) => (
-                            <div key={job.id} className="rounded-[18px] border border-[#e3ebff] bg-white p-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <StatusBadge status={job.status} />
-                                <span className="text-[11px] text-slate-400">
-                                  {new Date(job.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                                </span>
-                              </div>
-                              <p className="mt-2 text-sm font-medium text-[#081224]">{job.problem_desc}</p>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  ))}
+        <div className="grid gap-4 xl:grid-cols-[1.05fr,1.2fr,0.95fr]">
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Request funnel" title="Status progression" />
+            <div className="mt-5 space-y-3">
+              {funnelData.map((stage, index) => (
+                <div key={stage.label} className="flex items-center gap-3">
+                  <div className={`min-w-[8.25rem] rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] ${stage.tone}`}>
+                    {stage.label}
+                  </div>
+                  <div className="h-[2px] flex-1 bg-[#dbe7ff]" />
+                  <div className="min-w-[3.5rem] text-right text-2xl font-semibold text-[#081224]">{stage.value}</div>
+                  {index < funnelData.length - 1 ? <div className="w-3 text-slate-300">→</div> : null}
                 </div>
-              </Card>
+              ))}
+            </div>
+          </Card>
 
-              <div className="space-y-4">
-                <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-                  <SectionHeader eyebrow="Network health" title="Mechanics overview" />
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <InventoryMetric label="Online" value={mechanicsOnline} tone="green" />
-                    <InventoryMetric label="Offline" value={Math.max(mechanics.length - mechanicsOnline, 0)} tone="slate" />
-                    <InventoryMetric label="Top parts" value={topParts.length} tone="blue" />
-                    <InventoryMetric label="Admins" value={roleBreakdown.admin ?? 0} tone="violet" />
-                  </div>
-                </Card>
-
-                <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-                  <SectionHeader eyebrow="Top mechanics" title="Best rated today" />
-                  <div className="mt-4 space-y-3">
-                    {topMechanics.length === 0 ? (
-                      <EmptyMiniState message="No mechanics available yet" />
-                    ) : (
-                      topMechanics.map((mechanic) => (
-                        <div key={mechanic.id} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-[#081224]">{mechanic.name}</p>
-                              <p className="mt-1 text-xs text-slate-500">{mechanic.specialization || "General mechanic"}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-[#081224]">{mechanic.rating}</p>
-                              <p className="text-xs text-slate-500">{mechanic.total_reviews} reviews</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </Card>
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Revenue trend" title={`Earnings by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
+            <div className="mt-5 grid min-h-[250px] grid-cols-1 items-end gap-3">
+              <div className="flex h-[220px] items-end gap-3 overflow-x-auto">
+                {earningsTrend.length === 0 ? (
+                  <EmptyMiniState message="No revenue data in this range" />
+                ) : (
+                  earningsTrend.map((item) => (
+                    <div key={item.label} className="flex min-w-[72px] flex-col items-center gap-2">
+                      <div className="flex h-[180px] items-end">
+                        <div
+                          className="w-12 rounded-t-[18px] bg-[linear-gradient(180deg,_#60a5fa_0%,_#1d4ed8_100%)] shadow-[0_12px_26px_rgba(37,99,235,0.18)]"
+                          style={{ height: `${Math.max((Number(item.revenue || 0) / maxTrend) * 180, 10)}px` }}
+                        />
+                      </div>
+                      <p className="text-[11px] font-semibold text-slate-500">{item.label}</p>
+                      <p className="text-xs font-medium text-[#081224]">{formatCurrencyUSD(item.revenue || 0)}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
+          </Card>
 
-            <div className="grid gap-4 xl:grid-cols-[1fr,1fr,1fr]">
-              <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-                <SectionHeader eyebrow="Popular parts" title="Most used inventory" />
-                <div className="mt-4 space-y-3">
-                  {topParts.length === 0 ? (
-                    <EmptyMiniState message="No part usage data yet" />
-                  ) : (
-                    topParts.map((part, index) => (
-                      <div key={`${part.part_name}-${index}`} className="flex items-center justify-between rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold text-[#081224]">{part.part_name}</p>
-                          <p className="mt-1 text-xs text-slate-500">Part demand indicator</p>
-                        </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
-                          {part.times_used}x
-                        </span>
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Appointments" title="Calendar summary" />
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <MiniMetric label="Requested" value={appointmentSummary.requested ?? 0} tone="amber" />
+              <MiniMetric label="Confirmed" value={appointmentSummary.confirmed ?? 0} tone="blue" />
+              <MiniMetric label="Completed" value={appointmentSummary.completed ?? 0} tone="green" />
+              <MiniMetric label="Cancelled" value={appointmentSummary.cancelled ?? 0} tone="rose" />
+            </div>
+            <div className="mt-4 space-y-3">
+              {appointments.length === 0 ? (
+                <EmptyMiniState message="No appointments scheduled" />
+              ) : (
+                appointments.map((item) => (
+                  <div key={item.id} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563eb]">{item.appointment_ref}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#081224]">{item.service_type}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {item.owner_name} • {item.mechanic_name}
+                        </p>
                       </div>
-                    ))
-                  )}
-                </div>
-              </Card>
+                      <StatusBadge status={item.status === "confirmed" ? "accepted" : item.status} />
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">{formatDateTime(item.scheduled_for)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
 
-              <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-                <SectionHeader eyebrow="User mix" title="Role breakdown" />
-                <div className="mt-4 space-y-3">
-                  {Object.entries(roleBreakdown).map(([role, count]) => (
-                    <div key={role} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold capitalize text-[#081224]">{role}</p>
-                        <p className="text-lg font-semibold text-[#081224]">{count}</p>
+        <div className="grid gap-4 xl:grid-cols-[1.1fr,1fr]">
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Request demand" title={`Volume by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
+            <div className="mt-5 grid gap-3">
+              {requestVolume.length === 0 ? (
+                <EmptyMiniState message="No request volume in this range" />
+              ) : (
+                requestVolume.map((item) => (
+                  <div key={item.label} className="grid grid-cols-[88px,1fr,44px] items-center gap-3">
+                    <p className="text-xs font-semibold text-slate-500">{item.label}</p>
+                    <div className="h-3 overflow-hidden rounded-full bg-[#eef4ff]">
+                      <div
+                        className="h-full rounded-full bg-[linear-gradient(90deg,_#38bdf8_0%,_#2563eb_100%)]"
+                        style={{ width: `${Math.max((Number(item.total || 0) / maxVolume) * 100, 8)}%` }}
+                      />
+                    </div>
+                    <p className="text-right text-sm font-semibold text-[#081224]">{item.total}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Mechanic leaderboard" title="Completed jobs and revenue" />
+            <div className="mt-4 space-y-3">
+              {leaderboard.length === 0 ? (
+                <EmptyMiniState message="No mechanic performance data yet" />
+              ) : (
+                leaderboard.map((mechanic, index) => (
+                  <div key={mechanic.id} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-[#0f172a] text-sm font-semibold text-white">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-[#081224]">{mechanic.name}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {mechanic.completed_jobs} completed • Rating {Number(mechanic.rating || 0).toFixed(1)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-[#081224]">{formatCurrencyUSD(mechanic.revenue || 0)}</p>
+                        <p className="mt-1 text-xs text-slate-500">{mechanic.is_available ? "Online" : "Offline"}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </Card>
-
-              <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-                <SectionHeader eyebrow="Recent activity" title="Latest requests" />
-                <div className="mt-4 space-y-3">
-                  {requests.length === 0 ? (
-                    <EmptyMiniState message="No recent jobs yet" />
-                  ) : (
-                    requests.slice(0, 6).map((job) => (
-                      <div key={job.id} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <StatusBadge status={job.status} />
-                          <span className="text-[11px] text-slate-400">
-                            {new Date(job.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-sm font-medium text-[#081224]">{job.problem_desc}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Card>
+                  </div>
+                ))
+              )}
             </div>
-          </>
-        ) : (
-          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Mechanic oversight" title="Network roster" />
-            <div className="mt-4 overflow-hidden rounded-[24px] border border-[#e5ecff]">
+          </Card>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr,1fr]">
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Inventory risk" title="Low-stock heatmap" />
+            <div className="mt-4 overflow-hidden rounded-[22px] border border-[#e5ecff]">
               <table className="w-full text-sm">
-                <thead className="bg-[#f8fbff] text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <thead className="bg-[#f8fbff] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   <tr>
+                    <th className="px-4 py-3">Part</th>
                     <th className="px-4 py-3">Mechanic</th>
-                    <th className="px-4 py-3">Specialization</th>
-                    <th className="px-4 py-3">Rating</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Qty</th>
+                    <th className="px-4 py-3">Risk</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#edf2ff] bg-white">
-                  {mechanics.map((mechanic) => (
-                    <tr key={mechanic.id}>
-                      <td className="px-4 py-4">
-                        <p className="font-semibold text-[#081224]">{mechanic.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">{mechanic.email}</p>
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">{mechanic.specialization || "General mechanic"}</td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-1 text-slate-700">
-                          <Star size={13} className="fill-yellow-400 text-yellow-400" />
-                          {mechanic.rating}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${mechanic.is_available ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                          {mechanic.is_available ? "Online" : "Offline"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <button
-                          onClick={() => handleDeactivate(mechanic.id, mechanic.name)}
-                          className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100"
-                        >
-                          <ShieldOff size={13} />
-                          Deactivate
-                        </button>
+                  {lowStock.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">
+                        No low-stock parts right now
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    lowStock.map((item) => (
+                      <tr key={`${item.id}-${item.part_name}`}>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-[#081224]">{item.part_name}</p>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{item.mechanic_name}</td>
+                        <td className="px-4 py-3 font-semibold text-[#081224]">{item.quantity}</td>
+                        <td className="px-4 py-3">
+                          <RiskPill severity={item.severity} />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </Card>
-        )}
-      </div>
-    </div>
-  );
-}
 
-function HeroStat({ icon, label, value }) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-white/8 px-4 py-4 backdrop-blur">
-      <div className="flex items-center gap-2 text-white/65">
-        {icon}
-        <p className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</p>
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Unresolved alerts" title="Flagged mechanics and risks" />
+            <div className="mt-4 space-y-3">
+              {alerts.length === 0 ? (
+                <EmptyMiniState message="No unresolved alerts" />
+              ) : (
+                alerts.map((alert) => (
+                  <div key={alert.id} className="rounded-[20px] border border-[#fde7d9] bg-[#fffaf5] px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1 rounded-full bg-[#fff1e7] p-2 text-[#ea580c]">
+                        <TriangleAlert size={14} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#7c2d12]">{alert.mechanic_name}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#ea580c]">{alert.part_name}</p>
+                        <p className="mt-2 text-sm text-[#9a3412]">{alert.message}</p>
+                        <p className="mt-2 text-xs text-slate-500">{formatDateTime(alert.created_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Popular parts" title="Demand hotspots" />
+            <div className="mt-4 space-y-3">
+              {topParts.length === 0 ? (
+                <EmptyMiniState message="No part usage data yet" />
+              ) : (
+                topParts.map((part, index) => (
+                  <div key={`${part.part_name}-${index}`} className="flex items-center justify-between rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#081224]">{part.part_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">Repeated service demand</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                      {part.times_used}x
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[0.9fr,1.35fr]">
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Role mix" title="Platform population" />
+            <div className="mt-4 grid gap-3">
+              {Object.entries(roleBreakdown).map(([role, count]) => (
+                <div key={role} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold capitalize text-[#081224]">{role}</p>
+                    <p className="text-2xl font-semibold text-[#081224]">{count}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+            <SectionHeader eyebrow="Latest requests" title="Tracked service stream" />
+            <div className="mt-4 overflow-hidden rounded-[22px] border border-[#e5ecff]">
+              <table className="w-full text-sm">
+                <thead className="bg-[#f8fbff] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Request</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Owner</th>
+                    <th className="px-4 py-3">Mechanic</th>
+                    <th className="px-4 py-3">Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#edf2ff] bg-white">
+                  {latestRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-400">
+                        No requests in this range
+                      </td>
+                    </tr>
+                  ) : (
+                    latestRequests.map((job) => (
+                      <tr key={job.id}>
+                        <td className="px-4 py-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563eb]">{job.request_ref}</p>
+                          <p className="mt-1 font-semibold text-[#081224]">{job.problem_desc}</p>
+                          <p className="mt-1 text-xs text-slate-500">{formatDateTime(job.created_at)}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={job.status} />
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{job.owner_name}</td>
+                        <td className="px-4 py-3 text-slate-600">{job.mechanic_name}</td>
+                        <td className="px-4 py-3 font-semibold text-[#081224]">
+                          {formatCurrencyUSD(job.total_cost || job.estimated_cost || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
       </div>
-      <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
     </div>
   );
 }
@@ -323,6 +402,7 @@ function MetricCard({ icon, label, value, tone }) {
     violet: "bg-[#f5f3ff]",
     amber: "bg-[#fff7ed]",
     slate: "bg-[#f8fafc]",
+    rose: "bg-[#fff1f2]",
   };
   return (
     <Card className={`rounded-[26px] border border-[#dbe7ff] p-4 shadow-sm ${tones[tone]}`}>
@@ -330,6 +410,21 @@ function MetricCard({ icon, label, value, tone }) {
       <p className="mt-3 text-2xl font-semibold text-[#081224]">{value}</p>
       <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-500">{label}</p>
     </Card>
+  );
+}
+
+function MiniMetric({ label, value, tone }) {
+  const tones = {
+    blue: "bg-[#eff6ff] text-[#1d4ed8]",
+    green: "bg-[#ecfdf3] text-[#166534]",
+    amber: "bg-[#fff7ed] text-[#c2410c]",
+    rose: "bg-[#fff1f2] text-[#be123c]",
+  };
+  return (
+    <div className={`rounded-[20px] px-4 py-3 ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-80">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
   );
 }
 
@@ -342,25 +437,33 @@ function SectionHeader({ eyebrow, title }) {
   );
 }
 
-function InventoryMetric({ label, value, tone }) {
-  const tones = {
-    green: "bg-[#ecfdf3] text-[#166534]",
-    slate: "bg-[#f8fafc] text-[#334155]",
-    blue: "bg-[#eff6ff] text-[#1d4ed8]",
-    violet: "bg-[#f5f3ff] text-[#6d28d9]",
-  };
-  return (
-    <div className={`rounded-[20px] px-4 py-3 ${tones[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-80">{label}</p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
 function EmptyMiniState({ message }) {
   return (
     <div className="rounded-[22px] border border-dashed border-[#dbe7ff] bg-white px-4 py-8 text-center text-sm text-slate-400">
       {message}
     </div>
   );
+}
+
+function RiskPill({ severity }) {
+  const map = {
+    critical: "bg-[#fee2e2] text-[#b91c1c]",
+    warning: "bg-[#fff7ed] text-[#c2410c]",
+    out: "bg-[#e0e7ff] text-[#4338ca]",
+  };
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${map[severity] || "bg-slate-100 text-slate-600"}`}>
+      {severity}
+    </span>
+  );
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not scheduled";
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }

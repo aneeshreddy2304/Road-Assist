@@ -64,6 +64,6 @@ export const getAlerts    = ()   => API.get("/alerts");
 export const resolveAlert = (id) => API.patch(`/alerts/${id}/resolve`);
 
 // --- Admin ---
-export const getAnalytics      = ()   => API.get("/admin/analytics");
+export const getAnalytics      = (params)   => API.get("/admin/analytics", { params });
 export const getAllMechanics    = ()   => API.get("/admin/mechanics");
 export const deactivateMechanic= (id) => API.patch(`/admin/mechanics/${id}/deactivate`);
