@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
-  AlertTriangle,
-  CalendarDays,
   Clock3,
   DollarSign,
   Gauge,
   ShieldAlert,
-  TrendingUp,
   TriangleAlert,
   UserRoundCog,
   Wrench,
 } from "lucide-react";
 
-import { getAnalytics } from "../api/endpoints";
+import { deactivateMechanic, getAllMechanics, getAnalytics } from "../api/endpoints";
 import { Card, Spinner, StatusBadge } from "../components/UI";
 import { formatCurrencyUSD } from "../lib/formatters";
 
@@ -28,7 +25,9 @@ const RANGE_OPTIONS = [
 export default function Admin() {
   const [rangeKey, setRangeKey] = useState("week");
   const [analytics, setAnalytics] = useState(null);
+  const [mechanics, setMechanics] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deactivatingId, setDeactivatingId] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -36,8 +35,14 @@ export default function Admin() {
     async function load() {
       setLoading(true);
       try {
-        const { data } = await getAnalytics({ range: rangeKey });
-        if (alive) setAnalytics(data);
+        const [{ data: analyticsData }, { data: mechanicData }] = await Promise.all([
+          getAnalytics({ range: rangeKey }),
+          getAllMechanics(),
+        ]);
+        if (alive) {
+          setAnalytics(analyticsData);
+          setMechanics(mechanicData);
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -61,6 +66,7 @@ export default function Admin() {
   const topParts = analytics?.top_parts || [];
   const roleBreakdown = analytics?.users_by_role || {};
   const appointmentSummary = analytics?.appointments_summary || {};
+  const mechanicsOnline = Number(analytics?.mechanics_online || 0);
 
   const funnelData = useMemo(
     () => [
@@ -76,6 +82,34 @@ export default function Admin() {
   const completionHours = Number(summary.avg_completion_hours || 0);
   const maxTrend = Math.max(...earningsTrend.map((item) => Number(item.revenue || 0)), 1);
   const maxVolume = Math.max(...requestVolume.map((item) => Number(item.total || 0)), 1);
+  const topVolumePoint =
+    requestVolume.length === 0
+      ? null
+      : requestVolume.reduce((best, item) => (Number(item.total || 0) > Number(best.total || 0) ? item : best), requestVolume[0]);
+  const demoTopParts = [
+    { part_name: "Brake Pads (Front)", times_used: 18 },
+    { part_name: "Battery (12V)", times_used: 15 },
+    { part_name: "Oxygen Sensor", times_used: 11 },
+    { part_name: "Air Filter", times_used: 9 },
+    { part_name: "Tyre Tube (Rear)", times_used: 7 },
+  ];
+  const displayedTopParts = topParts.length > 0 ? topParts : demoTopParts;
+  const mechanicsById = new Map(mechanics.map((mechanic) => [mechanic.id, mechanic]));
+  const mechanicPerformance = leaderboard.map((entry) => ({
+    ...mechanicsById.get(entry.id),
+    ...entry,
+  }));
+
+  async function handleDeactivate(mechanicId) {
+    setDeactivatingId(mechanicId);
+    try {
+      await deactivateMechanic(mechanicId);
+      const { data } = await getAllMechanics();
+      setMechanics(data);
+    } finally {
+      setDeactivatingId(null);
+    }
+  }
 
   if (loading) return <Spinner />;
 
@@ -114,12 +148,12 @@ export default function Admin() {
           <MetricCard icon={<DollarSign size={18} className="text-[#7c3aed]" />} label="Revenue" value={formatCurrencyUSD(summary.total_revenue ?? 0)} tone="violet" />
           <MetricCard icon={<Clock3 size={18} className="text-[#0f766e]" />} label="Avg response" value={`${responseHours.toFixed(1)} hr`} tone="green" />
           <MetricCard icon={<Activity size={18} className="text-[#ea580c]" />} label="Avg completion" value={`${completionHours.toFixed(1)} hr`} tone="amber" />
-          <MetricCard icon={<ShieldAlert size={18} className="text-[#dc2626]" />} label="Unresolved alerts" value={alerts.length} tone="rose" />
+          <MetricCard icon={<ShieldAlert size={18} className="text-[#dc2626]" />} label="Mechanics online" value={mechanicsOnline} tone="rose" />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr,1.2fr,0.95fr]">
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Request funnel" title="Status progression" />
+            <SectionHeader title="Status progression" />
             <div className="mt-5 space-y-3">
               {funnelData.map((stage, index) => (
                 <div key={stage.label} className="flex items-center gap-3">
@@ -135,7 +169,7 @@ export default function Admin() {
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Revenue trend" title={`Earnings by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
+            <SectionHeader title={`Earnings by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
             <div className="mt-5 grid min-h-[250px] grid-cols-1 items-end gap-3">
               <div className="flex h-[220px] items-end gap-3 overflow-x-auto">
                 {earningsTrend.length === 0 ? (
@@ -159,14 +193,14 @@ export default function Admin() {
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Appointments" title="Calendar summary" />
+            <SectionHeader title="Calendar summary" />
             <div className="mt-4 grid grid-cols-2 gap-3">
               <MiniMetric label="Requested" value={appointmentSummary.requested ?? 0} tone="amber" />
               <MiniMetric label="Confirmed" value={appointmentSummary.confirmed ?? 0} tone="blue" />
               <MiniMetric label="Completed" value={appointmentSummary.completed ?? 0} tone="green" />
               <MiniMetric label="Cancelled" value={appointmentSummary.cancelled ?? 0} tone="rose" />
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 max-h-[260px] space-y-3 overflow-y-auto pr-1">
               {appointments.length === 0 ? (
                 <EmptyMiniState message="No appointments scheduled" />
               ) : (
@@ -192,8 +226,13 @@ export default function Admin() {
 
         <div className="grid gap-4 xl:grid-cols-[1.1fr,1fr]">
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Request demand" title={`Volume by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
-            <div className="mt-5 grid gap-3">
+            <SectionHeader title={`Volume by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <MiniMetric label="Peak slot" value={topVolumePoint?.label || "--"} tone="blue" />
+              <MiniMetric label="Peak requests" value={topVolumePoint?.total ?? 0} tone="amber" />
+              <MiniMetric label="Active range" value={rangeKey.toUpperCase()} tone="green" />
+            </div>
+            <div className="mt-5 grid max-h-[300px] gap-3 overflow-y-auto pr-1">
               {requestVolume.length === 0 ? (
                 <EmptyMiniState message="No request volume in this range" />
               ) : (
@@ -214,12 +253,12 @@ export default function Admin() {
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Mechanic leaderboard" title="Completed jobs and revenue" />
-            <div className="mt-4 space-y-3">
-              {leaderboard.length === 0 ? (
+            <SectionHeader title="Completed jobs and revenue" />
+            <div className="mt-4 max-h-[408px] space-y-3 overflow-y-auto pr-1">
+              {mechanicPerformance.length === 0 ? (
                 <EmptyMiniState message="No mechanic performance data yet" />
               ) : (
-                leaderboard.map((mechanic, index) => (
+                mechanicPerformance.map((mechanic, index) => (
                   <div key={mechanic.id} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
@@ -231,11 +270,19 @@ export default function Admin() {
                           <p className="mt-1 text-xs text-slate-500">
                             {mechanic.completed_jobs} completed • Rating {Number(mechanic.rating || 0).toFixed(1)}
                           </p>
+                          <p className="mt-1 text-xs text-slate-500">{mechanic.email}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-[#081224]">{formatCurrencyUSD(mechanic.revenue || 0)}</p>
                         <p className="mt-1 text-xs text-slate-500">{mechanic.is_available ? "Online" : "Offline"}</p>
+                        <button
+                          onClick={() => handleDeactivate(mechanic.id)}
+                          disabled={deactivatingId === mechanic.id}
+                          className="mt-2 rounded-full border border-[#fecaca] px-3 py-1 text-xs font-semibold text-[#b91c1c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deactivatingId === mechanic.id ? "Deactivating..." : "Deactivate"}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -247,8 +294,8 @@ export default function Admin() {
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr,1fr]">
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Inventory risk" title="Low-stock heatmap" />
-            <div className="mt-4 overflow-hidden rounded-[22px] border border-[#e5ecff]">
+            <SectionHeader title="Low-stock heatmap" />
+            <div className="mt-4 max-h-[520px] overflow-auto rounded-[22px] border border-[#e5ecff]">
               <table className="w-full text-sm">
                 <thead className="bg-[#f8fbff] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   <tr>
@@ -285,8 +332,8 @@ export default function Admin() {
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Unresolved alerts" title="Flagged mechanics and risks" />
-            <div className="mt-4 space-y-3">
+            <SectionHeader title="Flagged mechanics and risks" />
+            <div className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">
               {alerts.length === 0 ? (
                 <EmptyMiniState message="No unresolved alerts" />
               ) : (
@@ -310,16 +357,18 @@ export default function Admin() {
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Popular parts" title="Demand hotspots" />
-            <div className="mt-4 space-y-3">
-              {topParts.length === 0 ? (
+            <SectionHeader title="Demand hotspots" />
+            <div className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">
+              {displayedTopParts.length === 0 ? (
                 <EmptyMiniState message="No part usage data yet" />
               ) : (
-                topParts.map((part, index) => (
+                displayedTopParts.map((part, index) => (
                   <div key={`${part.part_name}-${index}`} className="flex items-center justify-between rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                     <div>
                       <p className="text-sm font-semibold text-[#081224]">{part.part_name}</p>
-                      <p className="mt-1 text-xs text-slate-500">Repeated service demand</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {topParts.length === 0 ? "Demo demand projection" : "Repeated service demand"}
+                      </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
                       {part.times_used}x
@@ -333,8 +382,8 @@ export default function Admin() {
 
         <div className="grid gap-4 xl:grid-cols-[0.9fr,1.35fr]">
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Role mix" title="Platform population" />
-            <div className="mt-4 grid gap-3">
+            <SectionHeader title="Platform population" />
+            <div className="mt-4 grid grid-cols-2 gap-3">
               {Object.entries(roleBreakdown).map(([role, count]) => (
                 <div key={role} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -343,12 +392,24 @@ export default function Admin() {
                   </div>
                 </div>
               ))}
+              <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-[#081224]">Mechanics online</p>
+                  <p className="text-2xl font-semibold text-[#081224]">{mechanicsOnline}</p>
+                </div>
+              </div>
+              <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-[#081224]">Tracked mechanics</p>
+                  <p className="text-2xl font-semibold text-[#081224]">{mechanics.length}</p>
+                </div>
+              </div>
             </div>
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader eyebrow="Latest requests" title="Tracked service stream" />
-            <div className="mt-4 overflow-hidden rounded-[22px] border border-[#e5ecff]">
+            <SectionHeader title="Tracked service stream" />
+            <div className="mt-4 max-h-[360px] overflow-auto rounded-[22px] border border-[#e5ecff]">
               <table className="w-full text-sm">
                 <thead className="bg-[#f8fbff] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   <tr>
@@ -431,8 +492,7 @@ function MiniMetric({ label, value, tone }) {
 function SectionHeader({ eyebrow, title }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
-      <h2 className="mt-1 text-xl font-semibold text-[#081224]">{title}</h2>
+      <h2 className="text-xl font-semibold text-[#081224]">{title}</h2>
     </div>
   );
 }
