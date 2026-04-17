@@ -277,6 +277,33 @@ async def list_all_mechanics(
     return [dict(r) for r in result.mappings().all()]
 
 
+@router.get("/owners")
+async def list_all_owners(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(text("""
+        SELECT
+            u.id,
+            u.name,
+            u.email,
+            u.phone,
+            u.street_address,
+            u.city,
+            u.state,
+            u.postal_code,
+            u.created_at,
+            u.is_active,
+            COUNT(v.id) AS vehicle_count
+        FROM users u
+        LEFT JOIN vehicles v ON v.owner_id = u.id
+        WHERE u.role = 'owner'
+        GROUP BY u.id, u.name, u.email, u.phone, u.street_address, u.city, u.state, u.postal_code, u.created_at, u.is_active
+        ORDER BY u.created_at DESC
+    """))
+    return [dict(r) for r in result.mappings().all()]
+
+
 @router.patch("/mechanics/{mechanic_id}/deactivate", status_code=200)
 async def deactivate_mechanic(
     mechanic_id: str,
@@ -295,3 +322,23 @@ async def deactivate_mechanic(
     )
     await db.commit()
     return {"detail": "Mechanic deactivated"}
+
+
+@router.patch("/owners/{owner_id}/deactivate", status_code=200)
+async def deactivate_owner(
+    owner_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(select(User).where(User.id == owner_id, User.role == "owner"))
+    owner = result.scalar_one_or_none()
+    if not owner:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Owner not found")
+
+    await db.execute(
+        text("UPDATE users SET is_active = FALSE WHERE id = :uid"),
+        {"uid": owner.id},
+    )
+    await db.commit()
+    return {"detail": "Owner deactivated"}
