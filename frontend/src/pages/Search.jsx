@@ -6,7 +6,6 @@ import {
   Clock3,
   Crosshair,
   MapPin,
-  MessageCircle,
   Navigation,
   Search as SearchIcon,
   SlidersHorizontal,
@@ -24,14 +23,11 @@ import {
   deleteVehicle,
   getMechanicParts,
   getMechanicAvailability,
-  getMessageInbox,
-  getMessageThread,
   getOwnerHistory,
   getMyVehicles,
   getNearbyMechanics,
   listAppointments,
   searchParts,
-  sendMessage,
   suggestParts,
   updateAppointmentStatus,
   updateVehicle,
@@ -162,12 +158,10 @@ export default function Search() {
   const [selected, setSelected] = useState(null);
   const [showRequest, setShowRequest] = useState(false);
   const [inventoryMechanic, setInventoryMechanic] = useState(null);
-  const [chatMechanic, setChatMechanic] = useState(null);
   const [scheduleMechanic, setScheduleMechanic] = useState(null);
   const [ownerVehicles, setOwnerVehicles] = useState([]);
   const [ownerHistory, setOwnerHistory] = useState([]);
   const [ownerAppointments, setOwnerAppointments] = useState([]);
-  const [ownerInbox, setOwnerInbox] = useState([]);
   const [ownerWorkspaceLoading, setOwnerWorkspaceLoading] = useState(true);
   const [historyFilter, setHistoryFilter] = useState("all");
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
@@ -225,11 +219,10 @@ export default function Search() {
 
   const loadOwnerWorkspace = async () => {
     setOwnerWorkspaceLoading(true);
-    const [vehiclesRes, historyRes, appointmentsRes, inboxRes] = await Promise.allSettled([
+    const [vehiclesRes, historyRes, appointmentsRes] = await Promise.allSettled([
       getMyVehicles(),
       getOwnerHistory(),
       listAppointments(),
-      getMessageInbox(),
     ]);
 
     if (vehiclesRes.status === "fulfilled") {
@@ -251,13 +244,6 @@ export default function Search() {
     } else {
       console.error(appointmentsRes.reason);
       setOwnerAppointments([]);
-    }
-
-    if (inboxRes.status === "fulfilled") {
-      setOwnerInbox(inboxRes.value.data);
-    } else {
-      console.error(inboxRes.reason);
-      setOwnerInbox([]);
     }
 
     setOwnerWorkspaceLoading(false);
@@ -449,16 +435,6 @@ export default function Search() {
     if (historyFilter === "all") return true;
     return item.status === historyFilter;
   });
-
-  const findInboxThread = (mechanicId, requestId, requestRef) =>
-    ownerInbox.find(
-      (thread) =>
-        thread.mechanic_id === mechanicId
-        && (
-          (requestId && thread.request_id === requestId)
-          || (requestRef && thread.request_ref === requestRef)
-        )
-    ) || ownerInbox.find((thread) => thread.mechanic_id === mechanicId);
 
   const ownerPendingAppointments = ownerAppointments.filter((appointment) =>
     ["requested", "confirmed"].includes(appointment.status)
@@ -748,7 +724,6 @@ export default function Search() {
             pickupLabel={pickupLabel}
             onOpenRoute={() => openRoute(selectedDetail)}
             onOpenInventory={() => setInventoryMechanic(selectedDetail)}
-            onOpenChat={() => setChatMechanic(selectedDetail)}
             onOpenSchedule={() => setScheduleMechanic(selectedDetail)}
             onRequest={() => {
               setSelected(selectedDetail);
@@ -766,7 +741,6 @@ export default function Search() {
             pickupLabel={pickupLabel}
             onOpenRoute={() => openRoute(selectedDetail)}
             onOpenInventory={() => setInventoryMechanic(selectedDetail)}
-            onOpenChat={() => setChatMechanic(selectedDetail)}
             onOpenSchedule={() => setScheduleMechanic(selectedDetail)}
             onRequest={() => {
               setSelected(selectedDetail);
@@ -788,10 +762,6 @@ export default function Search() {
 
       {inventoryMechanic ? (
         <MechanicInventoryModal mechanic={inventoryMechanic} onClose={() => setInventoryMechanic(null)} />
-      ) : null}
-
-      {chatMechanic ? (
-        <MechanicChatModal mechanic={chatMechanic} onClose={() => setChatMechanic(null)} />
       ) : null}
 
       {scheduleMechanic ? (
@@ -880,99 +850,7 @@ export default function Search() {
                           year: "numeric",
                         })}
                       </p>
-                      <button
-                        onClick={() => {
-                          const requestRef = item.request_ref || `RA-${item.request_id.slice(0, 8).toUpperCase()}`;
-                          const matchedThread = findInboxThread(item.mechanic_id, item.request_id, requestRef);
-                          setChatMechanic({
-                            mechanic_id: item.mechanic_id,
-                            name: item.mechanic_name,
-                            address: matchedThread?.counterpart_address || "",
-                            request_id: item.request_id,
-                            request_ref: requestRef,
-                            seedMessages: matchedThread
-                              ? [{
-                                  id: matchedThread.id,
-                                  owner_id: matchedThread.owner_id || null,
-                                  mechanic_id: matchedThread.mechanic_id,
-                                  request_id: matchedThread.request_id || item.request_id,
-                                  request_ref: matchedThread.request_ref || requestRef,
-                                  sender_user_id: null,
-                                  sender_role: matchedThread.sender_role,
-                                  sender_name: matchedThread.sender_role === "mechanic" ? matchedThread.counterpart_name : "You",
-                                  message: matchedThread.message,
-                                  created_at: matchedThread.created_at,
-                                }]
-                              : [],
-                          });
-                        }}
-                        className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
-                      >
-                        Open chat
-                      </button>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </OwnerSurfaceCard>
-
-          <OwnerSurfaceCard
-            eyebrow="Messages"
-            title="Mechanic inbox"
-            loading={ownerWorkspaceLoading}
-            itemCount={ownerInbox.length}
-            emptyTitle="No mechanic replies yet"
-            emptySubtitle="Messages from mechanics and estimate notes will show up here."
-          >
-            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-              {ownerInbox.map((thread) => (
-                <div key={thread.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-semibold text-[#081224]">{thread.counterpart_name}</p>
-                      {thread.request_ref ? (
-                        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-                          {thread.request_ref}
-                        </p>
-                      ) : null}
-                      <p className="mt-1 text-sm text-slate-500">{thread.counterpart_address || "Richmond service area"}</p>
-                      <p className="mt-3 text-sm text-slate-700">{thread.message}</p>
-                      <p className="mt-2 text-xs text-slate-400">
-                        {new Date(thread.created_at).toLocaleString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setChatMechanic({
-                          mechanic_id: thread.mechanic_id,
-                          name: thread.counterpart_name,
-                          address: thread.counterpart_address,
-                          request_id: thread.request_id || null,
-                          request_ref: thread.request_ref || null,
-                          seedMessages: [{
-                            id: thread.id,
-                            owner_id: thread.owner_id || null,
-                            mechanic_id: thread.mechanic_id,
-                            request_id: thread.request_id || null,
-                            request_ref: thread.request_ref || null,
-                            sender_user_id: null,
-                            sender_role: thread.sender_role,
-                            sender_name: thread.sender_role === "mechanic" ? thread.counterpart_name : "You",
-                            message: thread.message,
-                            created_at: thread.created_at,
-                          }],
-                        })
-                      }
-                      className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
-                    >
-                      Open chat
-                    </button>
                   </div>
                 </div>
               ))}
@@ -1126,7 +1004,6 @@ function SelectedMechanicPanel({
   pickupLabel,
   onOpenRoute,
   onOpenInventory,
-  onOpenChat,
   onOpenSchedule,
   onRequest,
   onClose,
@@ -1179,7 +1056,7 @@ function SelectedMechanicPanel({
         </div>
       </div>
 
-      <div className="mt-auto grid grid-cols-3 gap-2 pt-5">
+      <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
         <button
           onClick={onOpenRoute}
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
@@ -1193,12 +1070,6 @@ function SelectedMechanicPanel({
           Parts
         </button>
         <button
-          onClick={onOpenChat}
-          className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
-        >
-          Message
-        </button>
-        <button
           onClick={onOpenSchedule}
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
         >
@@ -1206,7 +1077,7 @@ function SelectedMechanicPanel({
         </button>
         <button
           onClick={onRequest}
-          className="col-span-2 rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
+          className="rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
         >
           Request
         </button>
@@ -1506,133 +1377,6 @@ function MechanicInventoryModal({ mechanic, onClose }) {
             </div>
           ) : null}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MechanicChatModal({ mechanic, onClose }) {
-  const [messages, setMessages] = useState(mechanic.seedMessages || []);
-  const [draft, setDraft] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
-
-  const loadMessages = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      let response;
-      try {
-        response = await getMessageThread({
-          mechanic_id: mechanic.mechanic_id,
-          request_id: null,
-        });
-      } catch (primaryError) {
-        throw primaryError;
-      }
-      setMessages(response.data?.length ? response.data : mechanic.seedMessages || []);
-    } catch (err) {
-      if (mechanic.seedMessages?.length || messages.length) {
-        setMessages((current) => current.length ? current : mechanic.seedMessages || []);
-      } else {
-        setMessages([]);
-        setError(err.response?.data?.detail || "Failed to load messages");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setMessages(mechanic.seedMessages || []);
-    loadMessages();
-    const interval = window.setInterval(loadMessages, 10000);
-    return () => window.clearInterval(interval);
-  }, [mechanic.mechanic_id, mechanic.request_id, mechanic.seedMessages]);
-
-  const handleSend = async (event) => {
-    event.preventDefault();
-    if (!draft.trim()) return;
-    setSending(true);
-    setError("");
-    try {
-      const response = await sendMessage({
-        mechanic_id: mechanic.mechanic_id,
-        request_id: null,
-        message: draft.trim(),
-      });
-      setMessages((current) => [...current, response.data]);
-      setDraft("");
-    } catch (err) {
-      setError(err.response?.data?.detail || "Could not send message");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 px-4">
-      <div className="flex h-[36rem] w-full max-w-2xl flex-col rounded-[28px] bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Chat with mechanic</p>
-            <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
-            <p className="mt-1 text-sm text-gray-500">Talk about pricing, timing, or the issue before dispatch.</p>
-          </div>
-          <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-3 overflow-y-auto bg-[#f8fbff] px-6 py-5">
-          {loading ? <Spinner /> : null}
-          {!loading && messages.length === 0 ? (
-            <EmptyState icon="💬" title="No messages yet" subtitle="Start the conversation with a price or timing question." />
-          ) : null}
-          {!loading &&
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`max-w-[85%] rounded-[22px] px-4 py-3 ${
-                  message.sender_role === "owner"
-                    ? "ml-auto bg-[#0f172a] text-white"
-                    : "bg-white text-gray-900 ring-1 ring-[#dbe7ff]"
-                }`}
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
-                <p className="mt-2 text-sm leading-6">{message.message}</p>
-                <p className={`mt-2 text-[11px] ${message.sender_role === "owner" ? "text-white/70" : "text-gray-400"}`}>
-                  {new Date(message.created_at).toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </div>
-            ))}
-        </div>
-
-        <form onSubmit={handleSend} className="border-t border-gray-100 px-6 py-4">
-          {error ? <p className="mb-3 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
-          <div className="flex gap-3">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              rows={2}
-              placeholder="Ask about price estimates, service time, or any repair details..."
-              className="min-h-[3.5rem] flex-1 rounded-[20px] border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-900"
-            />
-            <button
-              type="submit"
-              disabled={sending || !draft.trim()}
-              className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {sending ? "Sending..." : "Send"}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
