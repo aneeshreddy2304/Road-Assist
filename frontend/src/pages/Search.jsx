@@ -1528,6 +1528,12 @@ function MechanicChatModal({ mechanic, onClose }) {
           mechanic_id: mechanic.mechanic_id,
           request_id: mechanic.request_id || null,
         });
+        if (mechanic.request_id && (!response.data || response.data.length === 0)) {
+          response = await getMessageThread({
+            mechanic_id: mechanic.mechanic_id,
+            request_id: null,
+          });
+        }
       } catch (primaryError) {
         if (!mechanic.request_id) throw primaryError;
         response = await getMessageThread({
@@ -1535,10 +1541,10 @@ function MechanicChatModal({ mechanic, onClose }) {
           request_id: null,
         });
       }
-      setMessages(response.data);
+      setMessages(response.data?.length ? response.data : mechanic.seedMessages || []);
     } catch (err) {
-      if (mechanic.seedMessages?.length) {
-        setMessages(mechanic.seedMessages);
+      if (mechanic.seedMessages?.length || messages.length) {
+        setMessages((current) => current.length ? current : mechanic.seedMessages || []);
       } else {
         setMessages([]);
         setError(err.response?.data?.detail || "Failed to load messages");

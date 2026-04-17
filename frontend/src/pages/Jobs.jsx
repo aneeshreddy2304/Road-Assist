@@ -31,6 +31,15 @@ export default function Jobs() {
   const [costDialog, setCostDialog] = useState(null);
   const [appointmentDialog, setAppointmentDialog] = useState(null);
 
+  const isSameThread = (left, right) => {
+    if (!left || !right) return false;
+    return (
+      left.owner_id === right.owner_id
+      && (left.request_id || null) === (right.request_id || null)
+      && (left.request_ref || null) === (right.request_ref || null)
+    );
+  };
+
   const loadThreadMessages = async (thread) => {
     if (!thread?.owner_id) {
       setThreadMessages([]);
@@ -44,6 +53,12 @@ export default function Jobs() {
           owner_id: thread.owner_id,
           request_id: thread.request_id || null,
         });
+        if (thread.request_id && (!response.data || response.data.length === 0)) {
+          response = await getMessageThread({
+            owner_id: thread.owner_id,
+            request_id: null,
+          });
+        }
       } catch (primaryError) {
         if (!thread.request_id) throw primaryError;
         response = await getMessageThread({
@@ -78,7 +93,11 @@ export default function Jobs() {
       setInbox(inboxRes.data);
       setSelectedThread((current) => {
         if (!current) return inboxRes.data[0] || null;
-        return inboxRes.data.find((item) => item.owner_id === current.owner_id) || current;
+        return (
+          inboxRes.data.find((item) => isSameThread(item, current))
+          || inboxRes.data.find((item) => item.owner_id === current.owner_id)
+          || current
+        );
       });
     } finally {
       setLoading(false);
@@ -336,7 +355,7 @@ export default function Jobs() {
                           key={thread.id}
                           onClick={() => setSelectedThread(thread)}
                           className={`w-full rounded-[22px] border p-4 text-left transition ${
-                            selectedThread?.owner_id === thread.owner_id
+                            isSameThread(selectedThread, thread)
                               ? "border-[#2563eb] bg-[#eff6ff]"
                               : "border-[#e3ebff] bg-[#f8fbff] hover:border-[#c7dafc]"
                           }`}
