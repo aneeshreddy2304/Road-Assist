@@ -32,18 +32,21 @@ export default function Jobs() {
   const [appointmentDialog, setAppointmentDialog] = useState(null);
 
   const buildPreviewMessage = (thread) => {
-    if (!thread?.message) return [];
+    const previewText = thread?.message || thread?.latest_message || thread?.preview_message;
+    if (!previewText) return [];
     return [
       {
         id: `preview-${thread.id}`,
         owner_id: thread.owner_id,
         mechanic_id: thread.mechanic_id,
-        request_id: null,
-        request_ref: null,
+        request_id: thread.request_id || null,
+        request_ref:
+          thread.request_ref
+          || (thread.request_id ? `RA-${String(thread.request_id).slice(0, 8).toUpperCase()}` : null),
         sender_role: thread.sender_role || "owner",
-        sender_name: thread.counterpart_name || "Owner",
-        message: thread.message,
-        created_at: thread.created_at,
+        sender_name: thread.counterpart_name || thread.owner_name || "Owner",
+        message: previewText,
+        created_at: thread.created_at || new Date().toISOString(),
       },
     ];
   };
@@ -60,7 +63,7 @@ export default function Jobs() {
       const enriched = matchedJob
         ? {
             ...thread,
-            request_id: matchedJob.id,
+            request_id: thread.request_id || matchedJob.id,
             request_ref: matchedJob.request_ref || `RA-${matchedJob.id.slice(0, 8).toUpperCase()}`,
           }
         : thread;
@@ -142,6 +145,12 @@ export default function Jobs() {
   const completed = myJobs.filter((job) => job.status === "completed");
   const totalEarnings = completed.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
   const pendingAppointments = appointments.filter((item) => ["requested", "confirmed"].includes(item.status));
+  const visibleThreadMessages =
+    threadMessages.length > 0
+      ? threadMessages
+      : (selectedThread?.message || selectedThread?.latest_message || selectedThread?.preview_message)
+        ? buildPreviewMessage(selectedThread)
+        : [];
 
   const submitStatusUpdate = async (jobId, payload) => {
     try {
@@ -384,6 +393,15 @@ export default function Jobs() {
                               : "border-[#e3ebff] bg-[#f8fbff] hover:border-[#c7dafc]"
                           }`}
                         >
+                          {thread.request_ref ? (
+                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                              {thread.request_ref}
+                            </p>
+                          ) : thread.request_id ? (
+                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                              {`RA-${String(thread.request_id).slice(0, 8).toUpperCase()}`}
+                            </p>
+                          ) : null}
                           <p className="text-lg font-semibold text-[#081224]">{thread.counterpart_name}</p>
                           <p className="mt-1 line-clamp-2 text-sm text-slate-500">{thread.message}</p>
                           <p className="mt-2 text-xs text-slate-400">
@@ -400,9 +418,18 @@ export default function Jobs() {
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Thread</p>
                     <h2 className="mt-1 text-2xl font-semibold text-[#081224]">{selectedThread?.counterpart_name || "Select a conversation"}</h2>
                     <p className="mt-2 text-sm text-slate-500">{selectedThread?.counterpart_address || "Owner address will appear here when available."}</p>
+                    {selectedThread?.request_ref ? (
+                      <p className="mt-3 inline-flex rounded-full bg-[#eff6ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+                        {selectedThread.request_ref}
+                      </p>
+                    ) : selectedThread?.request_id ? (
+                      <p className="mt-3 inline-flex rounded-full bg-[#eff6ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+                        {`RA-${String(selectedThread.request_id).slice(0, 8).toUpperCase()}`}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-4">
-                    {threadMessages.length === 0 ? (
+                    {visibleThreadMessages.length === 0 ? (
                       <EmptyState
                         icon={selectedThread ? "💬" : "📨"}
                         title={selectedThread ? "No messages in this thread yet" : "No thread selected yet"}
@@ -413,7 +440,7 @@ export default function Jobs() {
                         }
                       />
                     ) : (
-                      threadMessages.map((message) => (
+                      visibleThreadMessages.map((message) => (
                         <div
                           key={message.id}
                           className={`max-w-[85%] rounded-[20px] px-4 py-3 ${
@@ -561,15 +588,15 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
     <div className="rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
+          {(job.request_ref || job.id) ? (
+            <p className="mb-2 inline-flex rounded-full bg-[#eff6ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+              {job.request_ref || `RA-${job.id.slice(0, 8).toUpperCase()}`}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={job.status} />
             <span className="text-xs text-slate-400">{new Date(job.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
           </div>
-          {(job.request_ref || job.id) ? (
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-              {job.request_ref || `RA-${job.id.slice(0, 8).toUpperCase()}`}
-            </p>
-          ) : null}
           <p className="mt-3 text-lg font-semibold text-[#081224]">{job.problem_desc}</p>
           <div className="mt-3 space-y-2 text-sm text-slate-600">
             {job.owner_name ? <p>{job.owner_name}</p> : null}

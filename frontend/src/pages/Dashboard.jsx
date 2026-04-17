@@ -649,13 +649,18 @@ export default function Dashboard() {
                     <h3 className="mt-1 text-lg font-semibold text-[#081224]">
                       {selectedMapJob?.owner_name || "No owner selected"}
                     </h3>
-                  <p className="mt-1 text-sm text-slate-500">{selectedMapJob?.problem_desc || "Choose a request from the queue to focus the route."}</p>
-                  {selectedMapJob?.deadline_at ? (
-                    <p className="mt-2 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
-                      Due by {new Date(selectedMapJob.deadline_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                    </p>
-                  ) : null}
-                </div>
+                    <p className="mt-1 text-sm text-slate-500">{selectedMapJob?.problem_desc || "Choose a request from the queue to focus the route."}</p>
+                    {(selectedMapJob?.request_ref || selectedMapJob?.id) ? (
+                      <p className="mt-3 inline-flex rounded-full bg-[#eff6ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+                        {selectedMapJob?.request_ref || `RA-${selectedMapJob.id.slice(0, 8).toUpperCase()}`}
+                      </p>
+                    ) : null}
+                    {selectedMapJob?.deadline_at ? (
+                      <p className="mt-2 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+                        Due by {new Date(selectedMapJob.deadline_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </p>
+                    ) : null}
+                  </div>
                   {selectedMapJob?.lat && selectedMapJob?.lng ? (
                     <button
                       onClick={openOwnerNavigation}
@@ -812,6 +817,11 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate, onSelect, isSelecte
           : "border-[#e3ebff] bg-white hover:border-[#c7dafc]"
       }`}
     >
+      {(job.request_ref || job.id) ? (
+        <p className="mb-3 inline-flex rounded-full bg-[#eff6ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+          {job.request_ref || `RA-${job.id.slice(0, 8).toUpperCase()}`}
+        </p>
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -821,11 +831,6 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate, onSelect, isSelecte
             </span>
           </div>
           <p className="mt-2 text-sm font-semibold text-[#081224]">{job.problem_desc}</p>
-          {(job.request_ref || job.id) ? (
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-              {job.request_ref || `RA-${job.id.slice(0, 8).toUpperCase()}`}
-            </p>
-          ) : null}
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
             {job.owner_name ? <span>{job.owner_name}</span> : null}
             {job.vehicle_label ? <span>{job.vehicle_label}</span> : null}
