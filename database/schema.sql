@@ -212,6 +212,7 @@ CREATE TABLE chat_messages (
   id              UUID               PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id        UUID               NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   mechanic_id     UUID               NOT NULL REFERENCES mechanics(id) ON DELETE CASCADE,
+  request_id      UUID               REFERENCES service_requests(id) ON DELETE SET NULL,
   sender_user_id  UUID               NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   sender_role     chat_sender_role   NOT NULL,
   message         TEXT               NOT NULL,
@@ -299,6 +300,9 @@ CREATE INDEX idx_appointments_owner_time
 
 CREATE INDEX idx_chat_messages_thread
   ON chat_messages (owner_id, mechanic_id, created_at ASC);
+
+CREATE INDEX idx_chat_messages_request
+  ON chat_messages (request_id, created_at ASC);
 
 -- ============================================================
 -- TRIGGERS

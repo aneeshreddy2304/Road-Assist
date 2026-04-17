@@ -33,6 +33,9 @@ class ChatMessage(Base):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
     owner_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     mechanic_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("mechanics.id", ondelete="CASCADE"), nullable=False)
+    request_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("service_requests.id", ondelete="SET NULL"), nullable=True
+    )
     sender_user_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     sender_role: Mapped[str] = mapped_column(
         SAEnum("owner", "mechanic", name="chat_sender_role"),

@@ -17,7 +17,11 @@ class AppointmentCreate(BaseModel):
 
 
 class AppointmentStatusUpdate(BaseModel):
-    status: str
+    status: str | None = None
+    scheduled_for: datetime | None = None
+    service_type: str | None = None
+    notes: str | None = None
+    estimated_cost: float | None = None
 
 
 class AppointmentOut(BaseModel):
@@ -41,6 +45,7 @@ class AppointmentOut(BaseModel):
 class ChatMessageCreate(BaseModel):
     mechanic_id: str | None = None
     owner_id: str | None = None
+    request_id: str | None = None
     message: str
 
 
@@ -48,6 +53,8 @@ class ChatMessageOut(BaseModel):
     id: str
     owner_id: str
     mechanic_id: str
+    request_id: str | None = None
+    request_ref: str | None = None
     sender_user_id: str
     sender_role: str
     sender_name: str

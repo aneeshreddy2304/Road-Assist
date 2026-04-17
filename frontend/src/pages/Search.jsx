@@ -850,6 +850,20 @@ export default function Search() {
                           year: "numeric",
                         })}
                       </p>
+                      <button
+                        onClick={() =>
+                          setChatMechanic({
+                            mechanic_id: item.mechanic_id,
+                            name: item.mechanic_name,
+                            address: "",
+                            request_id: item.request_id,
+                            request_ref: item.request_ref || `RA-${item.request_id.slice(0, 8).toUpperCase()}`,
+                          })
+                        }
+                        className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
+                      >
+                        Open chat
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -871,6 +885,11 @@ export default function Search() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-semibold text-[#081224]">{thread.counterpart_name}</p>
+                      {thread.request_ref ? (
+                        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                          {thread.request_ref}
+                        </p>
+                      ) : null}
                       <p className="mt-1 text-sm text-slate-500">{thread.counterpart_address || "Richmond service area"}</p>
                       <p className="mt-3 text-sm text-slate-700">{thread.message}</p>
                       <p className="mt-2 text-xs text-slate-400">
@@ -888,6 +907,8 @@ export default function Search() {
                           mechanic_id: thread.mechanic_id,
                           name: thread.counterpart_name,
                           address: thread.counterpart_address,
+                          request_id: thread.request_id || null,
+                          request_ref: thread.request_ref || null,
                         })
                       }
                       className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
@@ -1441,7 +1462,10 @@ function MechanicChatModal({ mechanic, onClose }) {
 
   const loadMessages = async () => {
     try {
-      const response = await getMessageThread({ mechanic_id: mechanic.mechanic_id });
+      const response = await getMessageThread({
+        mechanic_id: mechanic.mechanic_id,
+        request_id: mechanic.request_id || null,
+      });
       setMessages(response.data);
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load messages");
@@ -1462,7 +1486,11 @@ function MechanicChatModal({ mechanic, onClose }) {
     setSending(true);
     setError("");
     try {
-      const response = await sendMessage({ mechanic_id: mechanic.mechanic_id, message: draft.trim() });
+      const response = await sendMessage({
+        mechanic_id: mechanic.mechanic_id,
+        request_id: mechanic.request_id || null,
+        message: draft.trim(),
+      });
       setMessages((current) => [...current, response.data]);
       setDraft("");
     } catch (err) {
@@ -1479,6 +1507,11 @@ function MechanicChatModal({ mechanic, onClose }) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Chat with mechanic</p>
             <h3 className="mt-1 text-xl font-semibold text-gray-950">{mechanic.name}</h3>
+            {mechanic.request_ref ? (
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                {mechanic.request_ref}
+              </p>
+            ) : null}
             <p className="mt-1 text-sm text-gray-500">Talk about pricing, timing, or the issue before dispatch.</p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
@@ -1502,6 +1535,9 @@ function MechanicChatModal({ mechanic, onClose }) {
                 }`}
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+                {message.request_ref ? (
+                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">{message.request_ref}</p>
+                ) : null}
                 <p className="mt-2 text-sm leading-6">{message.message}</p>
                 <p className={`mt-2 text-[11px] ${message.sender_role === "owner" ? "text-white/70" : "text-gray-400"}`}>
                   {new Date(message.created_at).toLocaleString("en-US", {

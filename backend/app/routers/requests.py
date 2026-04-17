@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.mechanic import Mechanic
 from app.models.service_request import ServiceRequest, JobUpdate
 from app.models.review import Review, Alert
+from app.models.engagement import ChatMessage
 from app.models.vehicle import Vehicle
 from app.core.security import get_current_user, require_role
 from app.schemas.requests import (
@@ -24,6 +25,7 @@ router = APIRouter(tags=["Service Requests"])
 REQUEST_SELECT = """
     SELECT
         sr.id::TEXT AS id,
+        CONCAT('RA-', UPPER(SUBSTRING(sr.id::TEXT, 1, 8))) AS request_ref,
         sr.owner_id::TEXT AS owner_id,
         sr.mechanic_id::TEXT AS mechanic_id,
         sr.vehicle_id::TEXT AS vehicle_id,
@@ -233,6 +235,7 @@ async def owner_history_summary(
         text("""
             SELECT
                 sr.id::text AS request_id,
+                CONCAT('RA-', UPPER(SUBSTRING(sr.id::text, 1, 8))) AS request_ref,
                 sr.problem_desc,
                 sr.status::text AS status,
                 CAST(sr.estimated_cost AS FLOAT) AS estimated_cost,
@@ -359,6 +362,19 @@ async def update_request_status(
             updated_by=updater_id,
             note=payload.note or f"Status updated to {payload.status}",
         ))
+
+    if payload.note and mechanic:
+        request_ref = f"RA-{str(req.id)[:8].upper()}"
+        db.add(
+            ChatMessage(
+                owner_id=req.owner_id,
+                mechanic_id=req.mechanic_id or mechanic.id,
+                request_id=req.id,
+                sender_user_id=current_user.id,
+                sender_role="mechanic",
+                message=f"[{request_ref}] {payload.note}",
+            )
+        )
 
     await db.commit()
     await db.refresh(req)

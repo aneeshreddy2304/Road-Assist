@@ -67,7 +67,7 @@ export default function Jobs() {
       setThreadMessages([]);
       return;
     }
-    getMessageThread({ owner_id: selectedThread.owner_id })
+    getMessageThread({ owner_id: selectedThread.owner_id, request_id: selectedThread.request_id })
       .then((res) => setThreadMessages(res.data))
       .catch(() => setThreadMessages([]));
   }, [selectedThread]);
@@ -102,7 +102,11 @@ export default function Jobs() {
     if (!selectedThread?.owner_id || !messageDraft.trim()) return;
     setSendingMessage(true);
     try {
-      const res = await sendMessage({ owner_id: selectedThread.owner_id, message: messageDraft.trim() });
+      const res = await sendMessage({
+        owner_id: selectedThread.owner_id,
+        request_id: selectedThread.request_id || null,
+        message: messageDraft.trim(),
+      });
       setThreadMessages((current) => [...current, res.data]);
       setMessageDraft("");
       await fetchAll();
@@ -183,7 +187,14 @@ export default function Jobs() {
                       pendingAppointments.map((appointment) => (
                         <button
                           key={appointment.id}
-                          onClick={() => setSelectedThread({ owner_id: appointment.owner_id, counterpart_name: appointment.owner_name })}
+                          onClick={() =>
+                            setSelectedThread({
+                              owner_id: appointment.owner_id,
+                              counterpart_name: appointment.owner_name,
+                              request_id: null,
+                              request_ref: null,
+                            })
+                          }
                           className="w-full rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] p-4 text-left transition hover:border-[#c7dafc]"
                         >
                           <p className="text-lg font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</p>
@@ -306,6 +317,11 @@ export default function Jobs() {
                           }`}
                         >
                           <p className="text-lg font-semibold text-[#081224]">{thread.counterpart_name}</p>
+                          {thread.request_ref ? (
+                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                              {thread.request_ref}
+                            </p>
+                          ) : null}
                           <p className="mt-1 line-clamp-2 text-sm text-slate-500">{thread.message}</p>
                           <p className="mt-2 text-xs text-slate-400">
                             {new Date(thread.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
@@ -320,6 +336,11 @@ export default function Jobs() {
                   <div className="mb-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Thread</p>
                     <h2 className="mt-1 text-2xl font-semibold text-[#081224]">{selectedThread?.counterpart_name || "Select a conversation"}</h2>
+                    {selectedThread?.request_ref ? (
+                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                        {selectedThread.request_ref}
+                      </p>
+                    ) : null}
                     <p className="mt-2 text-sm text-slate-500">{selectedThread?.counterpart_address || "Owner address will appear here when available."}</p>
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-4">
@@ -336,6 +357,9 @@ export default function Jobs() {
                           }`}
                         >
                           <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+                          {message.request_ref ? (
+                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">{message.request_ref}</p>
+                          ) : null}
                           <p className="mt-2 text-sm leading-6">{message.message}</p>
                         </div>
                       ))
