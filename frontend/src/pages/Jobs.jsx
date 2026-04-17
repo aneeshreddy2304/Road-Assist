@@ -28,6 +28,7 @@ export default function Jobs() {
   const [messageDraft, setMessageDraft] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [tab, setTab] = useState("dispatch");
+  const [costDialog, setCostDialog] = useState(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -76,21 +77,11 @@ export default function Jobs() {
   const totalEarnings = completed.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
   const pendingAppointments = appointments.filter((item) => ["requested", "confirmed"].includes(item.status));
 
-  const handleStatus = async (jobId, status) => {
+  const submitStatusUpdate = async (jobId, payload) => {
     try {
-      const payload = { status };
-      if (status === "accepted") {
-        const estimate = window.prompt("Enter an estimate cost for this request", "129");
-        if (estimate === null) return;
-        payload.estimated_cost = Number(estimate);
-      }
-      if (status === "completed") {
-        const finalCost = window.prompt("Enter the final cost for this job", "149");
-        if (finalCost === null) return;
-        payload.final_cost = Number(finalCost);
-      }
       await updateRequestStatus(jobId, payload);
       await fetchAll();
+      setCostDialog(null);
     } catch (error) {
       alert(error.response?.data?.detail || "Could not update this job");
     }
@@ -380,9 +371,25 @@ export default function Jobs() {
                       key={job.id}
                       job={job}
                       kind={activeColumn.id}
-                      onAccept={() => handleStatus(job.id, "accepted")}
-                      onStart={() => handleStatus(job.id, "in_progress")}
-                      onComplete={() => handleStatus(job.id, "completed")}
+                      onAccept={() =>
+                        setCostDialog({
+                          mode: "estimate",
+                          job,
+                          title: "Accept request",
+                          amount: job.estimated_cost || 129,
+                          actionLabel: "Accept with estimate",
+                        })
+                      }
+                      onStart={() => submitStatusUpdate(job.id, { status: "in_progress" })}
+                      onComplete={() =>
+                        setCostDialog({
+                          mode: "final",
+                          job,
+                          title: "Complete job",
+                          amount: job.total_cost || job.estimated_cost || 149,
+                          actionLabel: "Complete with final cost",
+                        })
+                      }
                     />
                   ))}
                 </div>
@@ -391,6 +398,25 @@ export default function Jobs() {
           );
         })()}
       </div>
+
+      {costDialog ? (
+        <CostActionModal
+          title={costDialog.title}
+          mode={costDialog.mode}
+          job={costDialog.job}
+          initialAmount={costDialog.amount}
+          actionLabel={costDialog.actionLabel}
+          onClose={() => setCostDialog(null)}
+          onSubmit={(amount, note) =>
+            submitStatusUpdate(costDialog.job.id, {
+              status: costDialog.mode === "estimate" ? "accepted" : "completed",
+              estimated_cost: costDialog.mode === "estimate" ? amount : undefined,
+              final_cost: costDialog.mode === "final" ? amount : undefined,
+              note: note || undefined,
+            })
+          }
+        />
+      ) : null}
     </div>
   );
 }
@@ -458,6 +484,93 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
           Completed on {new Date(job.updated_at ?? job.created_at).toLocaleDateString("en-US")}
         </div>
       )}
+    </div>
+  );
+}
+
+function CostActionModal({ title, mode, job, initialAmount, actionLabel, onClose, onSubmit }) {
+  const [amount, setAmount] = useState(initialAmount);
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await onSubmit(Number(amount), note);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[760] flex items-center justify-center bg-[#020817]/60 px-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-lg rounded-[30px] border border-[#dbe7ff] bg-white p-6 shadow-[0_30px_80px_rgba(2,8,23,0.35)]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              {mode === "estimate" ? "Estimate for owner" : "Finalize repair"}
+            </p>
+            <h3 className="mt-1 text-2xl font-semibold text-[#081224]">{title}</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              {job.owner_name || "Owner"} · {job.problem_desc}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {mode === "estimate" ? "Estimate cost" : "Final cost"}
+            <div className="mt-2 flex items-center rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4">
+              <span className="text-lg font-semibold text-slate-500">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                className="h-14 w-full bg-transparent px-2 text-base font-semibold text-[#081224] outline-none"
+                required
+              />
+            </div>
+          </label>
+
+          <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Note for owner
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={mode === "estimate" ? "Optional note about what this estimate covers..." : "Optional completion note or invoice summary..."}
+              className="mt-2 w-full rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-3 text-sm text-[#081224] outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-[#2563eb]"
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-[18px] bg-[#0f172a] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? "Saving..." : actionLabel}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
