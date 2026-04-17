@@ -29,6 +29,7 @@ export default function Jobs() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [tab, setTab] = useState("dispatch");
   const [costDialog, setCostDialog] = useState(null);
+  const [appointmentDialog, setAppointmentDialog] = useState(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -196,6 +197,16 @@ export default function Jobs() {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
+                                setAppointmentDialog(appointment);
+                              }}
+                              className="col-span-2 rounded-[16px] border border-[#dbe7ff] bg-white px-3 py-2.5 text-sm font-semibold text-slate-600"
+                            >
+                              Manage booking
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
                                 handleAppointmentStatus(appointment.id, "confirmed");
                               }}
                               className="rounded-[16px] bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white"
@@ -253,6 +264,13 @@ export default function Jobs() {
                                 {appointment.estimated_cost ? formatCurrencyUSD(appointment.estimated_cost) : "Estimate pending"}
                               </p>
                               <p className="mt-1 text-xs text-slate-500">{appointment.vehicle_label || "No vehicle selected"}</p>
+                              <button
+                                type="button"
+                                onClick={() => setAppointmentDialog(appointment)}
+                                className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
+                              >
+                                Manage
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -367,9 +385,9 @@ export default function Jobs() {
               ) : (
                 <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                   {activeColumn.jobs.map((job) => (
-                    <JobSurface
-                      key={job.id}
-                      job={job}
+          <JobSurface
+            key={job.id}
+            job={job}
                       kind={activeColumn.id}
                       onAccept={() =>
                         setCostDialog({
@@ -417,6 +435,17 @@ export default function Jobs() {
           }
         />
       ) : null}
+
+      {appointmentDialog ? (
+        <MechanicAppointmentModal
+          appointment={appointmentDialog}
+          onClose={() => setAppointmentDialog(null)}
+          onSuccess={async () => {
+            setAppointmentDialog(null);
+            await fetchAll();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -449,7 +478,17 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
             <StatusBadge status={job.status} />
             <span className="text-xs text-slate-400">{new Date(job.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
           </div>
+          {job.request_ref ? (
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+              {job.request_ref}
+            </p>
+          ) : null}
           <p className="mt-3 text-lg font-semibold text-[#081224]">{job.problem_desc}</p>
+          {job.request_ref ? (
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+              {job.request_ref}
+            </p>
+          ) : null}
           <div className="mt-3 space-y-2 text-sm text-slate-600">
             {job.owner_name ? <p>{job.owner_name}</p> : null}
             {job.vehicle_label ? <p>{job.vehicle_label}{job.license_plate ? ` · ${job.license_plate}` : ""}</p> : null}
@@ -484,6 +523,144 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
           Completed on {new Date(job.updated_at ?? job.created_at).toLocaleDateString("en-US")}
         </div>
       )}
+    </div>
+  );
+}
+
+function MechanicAppointmentModal({ appointment, onClose, onSuccess }) {
+  const toLocalInput = (value) => {
+    const date = new Date(value);
+    const offset = date.getTimezoneOffset();
+    const local = new Date(date.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const [scheduledFor, setScheduledFor] = useState(toLocalInput(appointment.scheduled_for));
+  const [serviceType, setServiceType] = useState(appointment.service_type || "General service");
+  const [notes, setNotes] = useState(appointment.notes || "");
+  const [estimatedCost, setEstimatedCost] = useState(appointment.estimated_cost || "");
+  const [status, setStatus] = useState(appointment.status || "requested");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await updateAppointmentStatus(appointment.id, {
+        status,
+        scheduled_for: new Date(scheduledFor).toISOString(),
+        service_type: serviceType,
+        notes,
+        estimated_cost: estimatedCost === "" ? null : Number(estimatedCost),
+      });
+      await onSuccess?.();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not update appointment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[760] flex items-center justify-center bg-[#020817]/60 px-4 backdrop-blur-[2px]">
+      <div className="w-full max-w-2xl rounded-[30px] border border-[#dbe7ff] bg-white p-6 shadow-[0_30px_80px_rgba(2,8,23,0.35)]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Manage appointment</p>
+            <h3 className="mt-1 text-2xl font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</h3>
+            <p className="mt-2 text-sm text-slate-500">{appointment.vehicle_label || "No vehicle selected"}{appointment.license_plate ? ` · ${appointment.license_plate}` : ""}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="block text-sm font-medium text-slate-700">
+            Status
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              className="mt-2 h-12 w-full rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 text-sm outline-none focus:ring-2 focus:ring-[#2563eb]"
+            >
+              {["requested", "confirmed", "cancelled"].map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm font-medium text-slate-700">
+            Estimate
+            <div className="mt-2 flex items-center rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4">
+              <span className="text-base font-semibold text-slate-500">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={estimatedCost}
+                onChange={(event) => setEstimatedCost(event.target.value)}
+                className="h-12 w-full bg-transparent px-2 text-sm font-semibold text-[#081224] outline-none"
+                placeholder="Optional"
+              />
+            </div>
+          </label>
+
+          <label className="block text-sm font-medium text-slate-700">
+            Scheduled for
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(event) => setScheduledFor(event.target.value)}
+              className="mt-2 h-12 w-full rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 text-sm outline-none focus:ring-2 focus:ring-[#2563eb]"
+            />
+          </label>
+
+          <label className="block text-sm font-medium text-slate-700">
+            Service type
+            <input
+              value={serviceType}
+              onChange={(event) => setServiceType(event.target.value)}
+              className="mt-2 h-12 w-full rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 text-sm outline-none focus:ring-2 focus:ring-[#2563eb]"
+            />
+          </label>
+
+          <label className="md:col-span-2 block text-sm font-medium text-slate-700">
+            Notes
+            <textarea
+              rows={4}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              className="mt-2 w-full rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-3 text-sm text-[#081224] outline-none focus:ring-2 focus:ring-[#2563eb]"
+              placeholder="Adjust the booking details or leave a note for the owner..."
+            />
+          </label>
+
+          {error ? <p className="md:col-span-2 rounded-[18px] bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p> : null}
+
+          <div className="md:col-span-2 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-[18px] bg-[#0f172a] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save appointment"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

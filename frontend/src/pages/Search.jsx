@@ -18,10 +18,13 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 import {
+  addVehicle,
   createAppointment,
   createRequest,
+  deleteVehicle,
   getMechanicParts,
   getMechanicAvailability,
+  getMessageInbox,
   getMessageThread,
   getOwnerHistory,
   getMyVehicles,
@@ -31,6 +34,7 @@ import {
   sendMessage,
   suggestParts,
   updateAppointmentStatus,
+  updateVehicle,
 } from "../api/endpoints";
 import { Card, EmptyState, Spinner } from "../components/UI";
 import { formatCurrencyUSD, formatMilesFromKm } from "../lib/formatters";
@@ -43,6 +47,17 @@ L.Icon.Default.mergeOptions({
 });
 
 const RICHMOND_CENTER = [37.5407, -77.4360];
+const vehicleDefaults = {
+  nickname: "",
+  make: "",
+  model: "",
+  year: 2022,
+  license_plate: "",
+  vehicle_type: "car",
+  fuel_type: "gasoline",
+  color: "",
+  notes: "",
+};
 
 const ownerIcon = new L.DivIcon({
   className: "",
@@ -152,7 +167,14 @@ export default function Search() {
   const [ownerVehicles, setOwnerVehicles] = useState([]);
   const [ownerHistory, setOwnerHistory] = useState([]);
   const [ownerAppointments, setOwnerAppointments] = useState([]);
+  const [ownerInbox, setOwnerInbox] = useState([]);
   const [ownerWorkspaceLoading, setOwnerWorkspaceLoading] = useState(true);
+  const [historyFilter, setHistoryFilter] = useState("all");
+  const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
+  const [vehicleEditingId, setVehicleEditingId] = useState(null);
+  const [vehicleForm, setVehicleForm] = useState(vehicleDefaults);
+  const [vehicleSaving, setVehicleSaving] = useState(false);
+  const [appointmentToManage, setAppointmentToManage] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
   const selectedDetail = selected;
@@ -204,14 +226,16 @@ export default function Search() {
   const loadOwnerWorkspace = async () => {
     setOwnerWorkspaceLoading(true);
     try {
-      const [vehiclesRes, historyRes, appointmentsRes] = await Promise.all([
+      const [vehiclesRes, historyRes, appointmentsRes, inboxRes] = await Promise.all([
         getMyVehicles(),
         getOwnerHistory(),
         listAppointments(),
+        getMessageInbox(),
       ]);
       setOwnerVehicles(vehiclesRes.data);
       setOwnerHistory(historyRes.data);
       setOwnerAppointments(appointmentsRes.data);
+      setOwnerInbox(inboxRes.data);
     } catch (error) {
       console.error(error);
     } finally {
@@ -354,6 +378,61 @@ export default function Search() {
       setSelected(null);
     }
   };
+
+  const resetVehicleForm = () => {
+    setVehicleEditingId(null);
+    setVehicleForm(vehicleDefaults);
+    setVehicleFormOpen(false);
+  };
+
+  const startVehicleEdit = (vehicle) => {
+    setVehicleEditingId(vehicle.id);
+    setVehicleForm({
+      nickname: vehicle.nickname || "",
+      make: vehicle.make || "",
+      model: vehicle.model || "",
+      year: vehicle.year || 2022,
+      license_plate: vehicle.license_plate || "",
+      vehicle_type: vehicle.vehicle_type || "car",
+      fuel_type: vehicle.fuel_type || "gasoline",
+      color: vehicle.color || "",
+      notes: vehicle.notes || "",
+    });
+    setVehicleFormOpen(true);
+  };
+
+  const handleVehicleSubmit = async (payload) => {
+    setVehicleSaving(true);
+    try {
+      const vehiclePayload = { ...payload, year: Number(payload.year) };
+      const response = vehicleEditingId
+        ? await updateVehicle(vehicleEditingId, vehiclePayload)
+        : await addVehicle(vehiclePayload);
+      setOwnerVehicles((current) =>
+        vehicleEditingId
+          ? current.map((item) => (item.id === vehicleEditingId ? response.data : item))
+          : [response.data, ...current]
+      );
+      resetVehicleForm();
+    } finally {
+      setVehicleSaving(false);
+    }
+  };
+
+  const handleVehicleDelete = async (vehicleId) => {
+    if (!window.confirm("Remove this vehicle from your garage?")) return;
+    await deleteVehicle(vehicleId);
+    setOwnerVehicles((current) => current.filter((item) => item.id !== vehicleId));
+  };
+
+  const filteredOwnerHistory = ownerHistory.filter((item) => {
+    if (historyFilter === "all") return true;
+    return item.status === historyFilter;
+  });
+
+  const ownerPendingAppointments = ownerAppointments.filter((appointment) =>
+    ["requested", "confirmed"].includes(appointment.status)
+  );
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-[#eef2f7]">
@@ -692,25 +771,65 @@ export default function Search() {
           onClose={() => setScheduleMechanic(null)}
         />
       ) : null}
+      {appointmentToManage ? (
+        <ManageAppointmentModal
+          appointment={appointmentToManage}
+          onSuccess={loadOwnerWorkspace}
+          onClose={() => setAppointmentToManage(null)}
+        />
+      ) : null}
+      {vehicleFormOpen ? (
+        <VehicleManagerModal
+          initialValues={vehicleForm}
+          editing={Boolean(vehicleEditingId)}
+          saving={vehicleSaving}
+          onClose={resetVehicleForm}
+          onSubmit={handleVehicleSubmit}
+          onChange={setVehicleForm}
+        />
+      ) : null}
       </section>
 
       <section className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
-        <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr,0.95fr]">
+        <div className="grid gap-4 xl:grid-cols-2">
           <OwnerSurfaceCard
             eyebrow="Service history"
             title="Recent requests"
             loading={ownerWorkspaceLoading}
-            itemCount={ownerHistory.length}
+            itemCount={filteredOwnerHistory.length}
             emptyTitle="No service requests yet"
             emptySubtitle="Accepted, in-progress, and completed services will show up here."
+            action={(
+              <div className="inline-flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
+                {[
+                  { id: "all", label: "All" },
+                  { id: "requested", label: "Requested" },
+                  { id: "accepted", label: "Accepted" },
+                  { id: "completed", label: "Completed" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setHistoryFilter(item.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      historyFilter === item.id ? "bg-[#0f172a] text-white" : "text-slate-500 hover:bg-white"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
           >
             <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-              {ownerHistory.map((item) => (
+              {filteredOwnerHistory.map((item) => (
                 <div key={item.request_id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2563eb]">
                         {item.status.replace("_", " ")}
+                      </p>
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                        {item.request_ref || `RA-${item.request_id.slice(0, 8).toUpperCase()}`}
                       </p>
                       <p className="mt-2 text-lg font-semibold text-[#081224]">{item.problem_desc}</p>
                       <p className="mt-1 text-sm text-slate-600">{item.mechanic_name}</p>
@@ -739,32 +858,110 @@ export default function Search() {
           </OwnerSurfaceCard>
 
           <OwnerSurfaceCard
-            eyebrow="Vehicles"
-            title="Vehicle garage"
+            eyebrow="Messages"
+            title="Mechanic inbox"
             loading={ownerWorkspaceLoading}
-            itemCount={ownerVehicles.length}
-            emptyTitle="No vehicles added"
-            emptySubtitle="Add vehicles from the profile drawer when you need to request help."
+            itemCount={ownerInbox.length}
+            emptyTitle="No mechanic replies yet"
+            emptySubtitle="Messages from mechanics and estimate notes will show up here."
           >
             <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-              {ownerVehicles.map((vehicle) => (
-                <div key={vehicle.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
-                  <p className="text-lg font-semibold text-[#081224]">
-                    {vehicle.nickname || `${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.license_plate}
-                  </p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
-                    {vehicle.vehicle_type} · {vehicle.fuel_type || "fuel not set"} · {vehicle.color || "color not set"}
-                  </p>
-                  {vehicle.notes ? <p className="mt-2 text-sm text-slate-500">{vehicle.notes}</p> : null}
+              {ownerInbox.map((thread) => (
+                <div key={thread.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-[#081224]">{thread.counterpart_name}</p>
+                      <p className="mt-1 text-sm text-slate-500">{thread.counterpart_address || "Richmond service area"}</p>
+                      <p className="mt-3 text-sm text-slate-700">{thread.message}</p>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {new Date(thread.created_at).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        setChatMechanic({
+                          mechanic_id: thread.mechanic_id,
+                          name: thread.counterpart_name,
+                          address: thread.counterpart_address,
+                        })
+                      }
+                      className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
+                    >
+                      Open chat
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </OwnerSurfaceCard>
 
           <OwnerSurfaceCard
+            action={(
+              <button
+                onClick={() => {
+                  setVehicleEditingId(null);
+                  setVehicleForm(vehicleDefaults);
+                  setVehicleFormOpen(true);
+                }}
+                className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Add vehicle
+              </button>
+            )}
+            eyebrow="Vehicles"
+            title="Vehicle garage"
+            loading={ownerWorkspaceLoading}
+            itemCount={ownerVehicles.length}
+            emptyTitle="No vehicles added"
+            emptySubtitle="Add vehicles here so you can request roadside help faster."
+          >
+            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+              {ownerVehicles.map((vehicle) => (
+                <div key={vehicle.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-[#081224]">
+                        {vehicle.nickname || `${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.license_plate}
+                      </p>
+                      <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
+                        {vehicle.vehicle_type} · {vehicle.fuel_type || "fuel not set"} · {vehicle.color || "color not set"}
+                      </p>
+                      {vehicle.notes ? <p className="mt-2 text-sm text-slate-500">{vehicle.notes}</p> : null}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startVehicleEdit(vehicle)}
+                        className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleVehicleDelete(vehicle.id)}
+                        className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </OwnerSurfaceCard>
+
+          <OwnerSurfaceCard
+            action={(
+              <span className="rounded-full bg-[#f8fbff] px-3 py-2 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                {ownerPendingAppointments.length} active
+              </span>
+            )}
             eyebrow="Appointments"
             title="Booked services"
             loading={ownerWorkspaceLoading}
@@ -798,15 +995,23 @@ export default function Search() {
                     </div>
                     <div className="flex flex-col gap-2">
                       {["requested", "confirmed"].includes(appointment.status) ? (
-                        <button
-                          onClick={async () => {
-                            await updateAppointmentStatus(appointment.id, { status: "cancelled" });
-                            await loadOwnerWorkspace();
-                          }}
-                          className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                        >
-                          Cancel
-                        </button>
+                        <>
+                          <button
+                            onClick={() => setAppointmentToManage(appointment)}
+                            className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                          >
+                            Manage
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await updateAppointmentStatus(appointment.id, { status: "cancelled" });
+                              await loadOwnerWorkspace();
+                            }}
+                            className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                          >
+                            Cancel
+                          </button>
+                        </>
                       ) : null}
                     </div>
                   </div>
@@ -820,11 +1025,16 @@ export default function Search() {
   );
 }
 
-function OwnerSurfaceCard({ eyebrow, title, loading, itemCount, emptyTitle, emptySubtitle, children }) {
+function OwnerSurfaceCard({ eyebrow, title, loading, itemCount, emptyTitle, emptySubtitle, children, action = null, className = "" }) {
   return (
-    <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/96 p-5 shadow-lg">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
-      <h3 className="mt-2 text-2xl font-semibold text-[#081224]">{title}</h3>
+    <Card className={`min-h-[24rem] rounded-[28px] border border-[#dbe7ff] bg-white/96 p-5 shadow-lg ${className}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
+          <h3 className="mt-2 text-2xl font-semibold text-[#081224]">{title}</h3>
+        </div>
+        {action}
+      </div>
       <div className="mt-4">
         {loading ? <Spinner /> : itemCount ? children : <EmptyState icon="🧾" title={emptyTitle} subtitle={emptySubtitle} />}
       </div>
@@ -1321,6 +1531,256 @@ function MechanicChatModal({ mechanic, onClose }) {
               className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
               {sending ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function VehicleManagerModal({ initialValues, editing, saving, onClose, onSubmit, onChange }) {
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    try {
+      await onSubmit(initialValues);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not save vehicle");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 px-4">
+      <div className="w-full max-w-xl rounded-[28px] bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Vehicle garage</p>
+            <h3 className="mt-1 text-xl font-semibold text-gray-950">{editing ? "Edit vehicle" : "Add vehicle"}</h3>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-2">
+          {[
+            ["nickname", "Nickname"],
+            ["make", "Make"],
+            ["model", "Model"],
+            ["year", "Year", "number"],
+            ["license_plate", "License plate"],
+            ["color", "Color"],
+          ].map(([field, label, type = "text"]) => (
+            <label key={field} className="block text-sm font-medium text-gray-700">
+              {label}
+              <input
+                type={type}
+                value={initialValues[field]}
+                onChange={(event) =>
+                  onChange((current) => ({
+                    ...current,
+                    [field]: type === "number" ? Number(event.target.value) : event.target.value,
+                  }))
+                }
+                className="mt-2 h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </label>
+          ))}
+
+          <label className="block text-sm font-medium text-gray-700">
+            Vehicle type
+            <select
+              value={initialValues.vehicle_type}
+              onChange={(event) => onChange((current) => ({ ...current, vehicle_type: event.target.value }))}
+              className="mt-2 h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              {["car", "bike", "suv", "truck", "other"].map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm font-medium text-gray-700">
+            Fuel type
+            <select
+              value={initialValues.fuel_type}
+              onChange={(event) => onChange((current) => ({ ...current, fuel_type: event.target.value }))}
+              className="mt-2 h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              {["gasoline", "diesel", "hybrid", "electric", "other"].map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="md:col-span-2 block text-sm font-medium text-gray-700">
+            Notes
+            <textarea
+              rows={3}
+              value={initialValues.notes}
+              onChange={(event) => onChange((current) => ({ ...current, notes: event.target.value }))}
+              className="mt-2 w-full rounded-2xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              placeholder="Useful details about this vehicle..."
+            />
+          </label>
+
+          {error ? <p className="md:col-span-2 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
+
+          <div className="md:col-span-2 grid grid-cols-2 gap-3">
+            <button type="button" onClick={onClose} className="rounded-2xl border border-gray-200 py-3 text-sm font-medium text-gray-700">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className="rounded-2xl bg-[#111827] py-3 text-sm font-medium text-white disabled:opacity-50">
+              {saving ? "Saving..." : editing ? "Save changes" : "Add vehicle"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ManageAppointmentModal({ appointment, onSuccess, onClose }) {
+  const [selectedDate, setSelectedDate] = useState(
+    new Date(appointment.scheduled_for).toISOString().slice(0, 10)
+  );
+  const [slots, setSlots] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState(appointment.scheduled_for);
+  const [notes, setNotes] = useState(appointment.notes || "");
+  const [serviceType, setServiceType] = useState(appointment.service_type);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadSlots = async () => {
+      setLoadingSlots(true);
+      setError("");
+      try {
+        const response = await getMechanicAvailability({
+          mechanic_id: appointment.mechanic_id,
+          day: selectedDate,
+        });
+        setSlots(response.data);
+        const stillAvailable = response.data.find((slot) => slot.starts_at === selectedSlot);
+        setSelectedSlot(stillAvailable ? selectedSlot : response.data[0]?.starts_at || "");
+      } catch (err) {
+        setError(err.response?.data?.detail || "Could not load appointment slots");
+        setSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    loadSlots();
+  }, [appointment.mechanic_id, selectedDate]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await updateAppointmentStatus(appointment.id, {
+        status: appointment.status,
+        scheduled_for: selectedSlot,
+        notes,
+        service_type: serviceType,
+      });
+      await onSuccess?.();
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not update appointment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 px-4">
+      <div className="w-full max-w-2xl rounded-[28px] bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Manage appointment</p>
+            <h3 className="mt-1 text-xl font-semibold text-gray-950">{appointment.mechanic_name}</h3>
+            <p className="mt-1 text-sm text-gray-500">Adjust the date, time, or service details without cancelling the booking.</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Service date
+              <input
+                type="date"
+                value={selectedDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="mt-2 h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </label>
+            <label className="block text-sm font-medium text-gray-700">
+              Service type
+              <input
+                value={serviceType}
+                onChange={(e) => setServiceType(e.target.value)}
+                className="mt-2 h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </label>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Available slots</label>
+            <div className="rounded-[22px] border border-gray-200 bg-[#f8fbff] p-3">
+              {loadingSlots ? (
+                <div className="py-6 text-sm text-gray-500">Checking updated slots...</div>
+              ) : slots.length === 0 ? (
+                <div className="py-6 text-sm text-gray-500">No open slots on this date. Try another day.</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {slots.map((slot) => (
+                    <button
+                      key={slot.starts_at}
+                      type="button"
+                      onClick={() => setSelectedSlot(slot.starts_at)}
+                      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                        selectedSlot === slot.starts_at
+                          ? "bg-[#0f172a] text-white"
+                          : "bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Clock3 size={14} />
+                      {slot.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <label className="block text-sm font-medium text-gray-700">
+            Notes
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="mt-2 w-full rounded-2xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+          </label>
+
+          {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={onClose} className="rounded-2xl border border-gray-200 py-3 text-sm font-medium text-gray-700">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className="rounded-2xl bg-[#111827] py-3 text-sm font-medium text-white disabled:opacity-50">
+              {saving ? "Saving..." : "Save appointment"}
             </button>
           </div>
         </form>
