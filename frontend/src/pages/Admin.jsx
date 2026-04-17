@@ -8,9 +8,16 @@ import {
   TriangleAlert,
   UserRoundCog,
   Wrench,
+  X,
 } from "lucide-react";
 
-import { deactivateMechanic, getAllMechanics, getAnalytics } from "../api/endpoints";
+import {
+  deactivateMechanic,
+  deactivateOwner,
+  getAllMechanics,
+  getAllOwners,
+  getAnalytics,
+} from "../api/endpoints";
 import { Card, Spinner, StatusBadge } from "../components/UI";
 import { formatCurrencyUSD } from "../lib/formatters";
 
@@ -24,10 +31,13 @@ const RANGE_OPTIONS = [
 
 export default function Admin() {
   const [rangeKey, setRangeKey] = useState("week");
+  const [volumeWindow, setVolumeWindow] = useState("week");
   const [analytics, setAnalytics] = useState(null);
   const [mechanics, setMechanics] = useState([]);
+  const [owners, setOwners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deactivatingId, setDeactivatingId] = useState(null);
+  const [managingGroup, setManagingGroup] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -35,13 +45,15 @@ export default function Admin() {
     async function load() {
       setLoading(true);
       try {
-        const [{ data: analyticsData }, { data: mechanicData }] = await Promise.all([
+        const [{ data: analyticsData }, { data: mechanicData }, { data: ownerData }] = await Promise.all([
           getAnalytics({ range: rangeKey }),
           getAllMechanics(),
+          getAllOwners(),
         ]);
         if (alive) {
           setAnalytics(analyticsData);
           setMechanics(mechanicData);
+          setOwners(ownerData);
         }
       } finally {
         if (alive) setLoading(false);
@@ -99,6 +111,14 @@ export default function Admin() {
     ...mechanicsById.get(entry.id),
     ...entry,
   }));
+  const displayedVolume = useMemo(() => {
+    if (volumeWindow === "month") return requestVolume.slice(-30);
+    return requestVolume.slice(-7);
+  }, [requestVolume, volumeWindow]);
+  const topVolumeVisible =
+    displayedVolume.length === 0
+      ? null
+      : displayedVolume.reduce((best, item) => (Number(item.total || 0) > Number(best.total || 0) ? item : best), displayedVolume[0]);
 
   async function handleDeactivate(mechanicId) {
     setDeactivatingId(mechanicId);
@@ -106,6 +126,17 @@ export default function Admin() {
       await deactivateMechanic(mechanicId);
       const { data } = await getAllMechanics();
       setMechanics(data);
+    } finally {
+      setDeactivatingId(null);
+    }
+  }
+
+  async function handleDeactivateOwner(ownerId) {
+    setDeactivatingId(ownerId);
+    try {
+      await deactivateOwner(ownerId);
+      const { data } = await getAllOwners();
+      setOwners(data);
     } finally {
       setDeactivatingId(null);
     }
@@ -226,17 +257,32 @@ export default function Admin() {
 
         <div className="grid gap-4 xl:grid-cols-[1.1fr,1fr]">
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader title={`Volume by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SectionHeader title={`Volume by ${volumeWindow === "month" ? "month" : rangeKey === "day" ? "hour" : "day"}`} />
+              <div className="flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
+                {["week", "month"].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => setVolumeWindow(option)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      volumeWindow === option ? "bg-[#0f172a] text-white" : "text-slate-500 hover:bg-white"
+                    }`}
+                  >
+                    {option === "week" ? "Week" : "Month"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="mt-4 grid grid-cols-3 gap-3">
-              <MiniMetric label="Peak slot" value={topVolumePoint?.label || "--"} tone="blue" />
-              <MiniMetric label="Peak requests" value={topVolumePoint?.total ?? 0} tone="amber" />
-              <MiniMetric label="Active range" value={rangeKey.toUpperCase()} tone="green" />
+              <MiniMetric label="Peak slot" value={topVolumeVisible?.label || "--"} tone="blue" />
+              <MiniMetric label="Peak requests" value={topVolumeVisible?.total ?? 0} tone="amber" />
+              <MiniMetric label="Window" value={volumeWindow.toUpperCase()} tone="green" />
             </div>
             <div className="mt-5 grid max-h-[300px] gap-3 overflow-y-auto pr-1">
-              {requestVolume.length === 0 ? (
+              {displayedVolume.length === 0 ? (
                 <EmptyMiniState message="No request volume in this range" />
               ) : (
-                requestVolume.map((item) => (
+                displayedVolume.map((item) => (
                   <div key={item.label} className="grid grid-cols-[88px,1fr,44px] items-center gap-3">
                     <p className="text-xs font-semibold text-slate-500">{item.label}</p>
                     <div className="h-3 overflow-hidden rounded-full bg-[#eef4ff]">
@@ -253,7 +299,7 @@ export default function Admin() {
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader title="Completed jobs and revenue" />
+            <SectionHeader title="Mechanic leaderboard" />
             <div className="mt-4 max-h-[408px] space-y-3 overflow-y-auto pr-1">
               {mechanicPerformance.length === 0 ? (
                 <EmptyMiniState message="No mechanic performance data yet" />
@@ -384,13 +430,20 @@ export default function Admin() {
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <SectionHeader title="Platform population" />
             <div className="mt-4 grid grid-cols-2 gap-3">
-              {Object.entries(roleBreakdown).map(([role, count]) => (
-                <div key={role} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+              {Object.entries(roleBreakdown)
+                .filter(([role]) => role !== "admin")
+                .map(([role, count]) => (
+                <button
+                  key={role}
+                  onClick={() => setManagingGroup(role === "mechanic" ? "mechanics" : "owners")}
+                  className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3 text-left transition hover:border-[#bfdbfe] hover:bg-white"
+                >
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold capitalize text-[#081224]">{role}</p>
                     <p className="text-2xl font-semibold text-[#081224]">{count}</p>
                   </div>
-                </div>
+                  <p className="mt-2 text-xs text-slate-500">Open management</p>
+                </button>
               ))}
               <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                 <div className="flex items-center justify-between">
@@ -400,8 +453,10 @@ export default function Admin() {
               </div>
               <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[#081224]">Tracked mechanics</p>
-                  <p className="text-2xl font-semibold text-[#081224]">{mechanics.length}</p>
+                  <p className="text-sm font-semibold text-[#081224]">Registered users</p>
+                  <p className="text-2xl font-semibold text-[#081224]">
+                    {Object.values(roleBreakdown).reduce((sum, value) => sum + Number(value || 0), 0)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -452,6 +507,71 @@ export default function Admin() {
           </Card>
         </div>
       </div>
+
+      {managingGroup ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#081224]/45 px-4 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[#dbe7ff] bg-white shadow-[0_30px_80px_rgba(8,18,36,0.28)]">
+            <div className="flex items-center justify-between border-b border-[#edf2ff] px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Manage</p>
+                <h2 className="mt-1 text-2xl font-semibold text-[#081224]">
+                  {managingGroup === "mechanics" ? "Mechanics" : "Owners"}
+                </h2>
+              </div>
+              <button
+                onClick={() => setManagingGroup(null)}
+                className="rounded-full p-2 text-slate-400 transition hover:bg-[#f8fbff] hover:text-[#081224]"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="max-h-[72vh] overflow-y-auto px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                {(managingGroup === "mechanics" ? mechanics : owners).map((person) => (
+                  <div key={person.id} className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-lg font-semibold text-[#081224]">{person.name}</p>
+                        <p className="mt-1 text-sm text-slate-500">{person.email}</p>
+                        {"phone" in person ? <p className="mt-1 text-sm text-slate-500">{person.phone || "No phone listed"}</p> : null}
+                      </div>
+                      <StatusBadge status={person.is_active ? "active" : "cancelled"} />
+                    </div>
+
+                    <div className="mt-4 space-y-2 text-sm text-slate-600">
+                      {managingGroup === "mechanics" ? (
+                        <>
+                          <p><span className="font-semibold text-[#081224]">Specialization:</span> {person.specialization || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Address:</span> {person.address || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Joined:</span> {formatDateTime(person.created_at)}</p>
+                          <p><span className="font-semibold text-[#081224]">Rating:</span> {Number(person.rating || 0).toFixed(1)}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p><span className="font-semibold text-[#081224]">Address:</span> {[person.street_address, person.city, person.state, person.postal_code].filter(Boolean).join(", ") || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Joined:</span> {formatDateTime(person.created_at)}</p>
+                          <p><span className="font-semibold text-[#081224]">Vehicles:</span> {person.vehicle_count || 0}</p>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={() => managingGroup === "mechanics" ? handleDeactivate(person.id) : handleDeactivateOwner(person.id)}
+                        disabled={deactivatingId === person.id}
+                        className="rounded-full border border-[#fecaca] px-4 py-2 text-sm font-semibold text-[#b91c1c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {deactivatingId === person.id ? "Deactivating..." : "Deactivate"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
