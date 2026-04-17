@@ -793,7 +793,7 @@ export default function Search() {
       <section className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
         <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
           <OwnerSurfaceCard
-            className="xl:min-h-[49rem]"
+            className="xl:min-h-[56rem]"
             eyebrow="Service history"
             title="Recent requests"
             loading={ownerWorkspaceLoading}
@@ -851,36 +851,6 @@ export default function Search() {
                           year: "numeric",
                         })}
                       </p>
-                      <button
-                        onClick={() => {
-                          const requestRef = item.request_ref || `RA-${item.request_id.slice(0, 8).toUpperCase()}`;
-                          const matchedThread = findInboxThread(item.mechanic_id, item.request_id, requestRef);
-                          setChatMechanic({
-                            mechanic_id: item.mechanic_id,
-                            name: item.mechanic_name,
-                            address: matchedThread?.counterpart_address || "",
-                            request_id: item.request_id,
-                            request_ref: requestRef,
-                            seedMessages: matchedThread
-                              ? [{
-                                  id: matchedThread.id,
-                                  owner_id: matchedThread.owner_id || null,
-                                  mechanic_id: matchedThread.mechanic_id,
-                                  request_id: matchedThread.request_id || item.request_id,
-                                  request_ref: matchedThread.request_ref || requestRef,
-                                  sender_user_id: null,
-                                  sender_role: matchedThread.sender_role,
-                                  sender_name: matchedThread.sender_role === "mechanic" ? matchedThread.counterpart_name : "You",
-                                  message: matchedThread.message,
-                                  created_at: matchedThread.created_at,
-                                }]
-                              : [],
-                          });
-                        }}
-                        className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
-                      >
-                        Open chat
-                      </button>
                     </div>
                   </div>
                 </div>
