@@ -31,14 +31,43 @@ export default function Jobs() {
   const [costDialog, setCostDialog] = useState(null);
   const [appointmentDialog, setAppointmentDialog] = useState(null);
 
+  const buildPreviewMessage = (thread) => {
+    if (!thread?.message) return [];
+    return [
+      {
+        id: `preview-${thread.id}`,
+        owner_id: thread.owner_id,
+        mechanic_id: thread.mechanic_id,
+        request_id: thread.request_id || null,
+        request_ref: thread.request_ref || null,
+        sender_role: thread.sender_role || "owner",
+        sender_name: thread.counterpart_name || "Owner",
+        message: thread.message,
+        created_at: thread.created_at,
+      },
+    ];
+  };
+
   const isSameThread = (left, right) => {
     if (!left || !right) return false;
     return (
       left.owner_id === right.owner_id
       && (left.request_id || null) === (right.request_id || null)
-      && (left.request_ref || null) === (right.request_ref || null)
     );
   };
+
+  const enrichInboxThreads = (threads, jobs) =>
+    threads.map((thread) => {
+      if (thread.request_ref) return thread;
+      const matchedJob = jobs.find((job) => job.owner_id === thread.owner_id);
+      return matchedJob
+        ? {
+            ...thread,
+            request_id: thread.request_id || matchedJob.id,
+            request_ref: thread.request_ref || matchedJob.request_ref || `RA-${matchedJob.id.slice(0, 8).toUpperCase()}`,
+          }
+        : thread;
+    });
 
   const loadThreadMessages = async (thread) => {
     if (!thread?.owner_id) {
@@ -66,10 +95,10 @@ export default function Jobs() {
           request_id: null,
         });
       }
-      setThreadMessages(response.data);
+      setThreadMessages(response.data?.length ? response.data : buildPreviewMessage(thread));
     } catch (error) {
       console.error(error);
-      setThreadMessages([]);
+      setThreadMessages(buildPreviewMessage(thread));
     }
   };
 
@@ -87,15 +116,19 @@ export default function Jobs() {
         listAppointments(),
         getMessageInbox(),
       ]);
+      const relatedJobs = [...myRes.data, ...openRes.data]
+        .filter((job) => job.owner_id)
+        .sort((a, b) => new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime());
+      const enrichedInbox = enrichInboxThreads(inboxRes.data, relatedJobs);
       setOpenJobs(openRes.data);
       setMyJobs(myRes.data);
       setAppointments(apptRes.data);
-      setInbox(inboxRes.data);
+      setInbox(enrichedInbox);
       setSelectedThread((current) => {
-        if (!current) return inboxRes.data[0] || null;
+        if (!current) return enrichedInbox[0] || null;
         return (
-          inboxRes.data.find((item) => isSameThread(item, current))
-          || inboxRes.data.find((item) => item.owner_id === current.owner_id)
+          enrichedInbox.find((item) => isSameThread(item, current))
+          || enrichedInbox.find((item) => item.owner_id === current.owner_id)
           || current
         );
       });
@@ -353,7 +386,10 @@ export default function Jobs() {
                       inbox.map((thread) => (
                         <button
                           key={thread.id}
-                          onClick={() => setSelectedThread(thread)}
+                          onClick={() => {
+                            setSelectedThread(thread);
+                            setThreadMessages(buildPreviewMessage(thread));
+                          }}
                           className={`w-full rounded-[22px] border p-4 text-left transition ${
                             isSameThread(selectedThread, thread)
                               ? "border-[#2563eb] bg-[#eff6ff]"
