@@ -702,21 +702,32 @@ export default function Dashboard() {
                 <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Availability</p>
-                      <p className="mt-1 text-sm font-semibold text-[#081224]">{profile?.work_hours || "Mon-Sat · 8:00 AM - 6:00 PM"}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Appointments</p>
+                      <p className="mt-1 text-sm font-semibold text-[#081224]">Booked service schedule</p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
                       {upcomingAppointments.length} upcoming
                     </span>
                   </div>
-                  <div className="mt-3 max-h-[7rem] space-y-2 overflow-y-auto pr-1">
+                  <div className="mt-3 max-h-[16rem] space-y-2 overflow-y-auto pr-1">
                     {upcomingAppointments.length === 0 ? (
                       <p className="text-sm text-slate-500">New scheduled services will show here once owners book a future slot.</p>
                     ) : (
-                      upcomingAppointments.map((appointment) => (
+                      appointments
+                        .filter((appointment) => ["requested", "confirmed"].includes(appointment.status))
+                        .sort((a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime())
+                        .map((appointment) => (
                         <div key={appointment.id} className="rounded-[16px] border border-[#e3ebff] bg-white px-3 py-2.5">
-                          <p className="text-sm font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-[#081224]">{appointment.owner_name || "Owner"}</p>
+                              <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-[#2563eb]">
+                                {appointment.service_type}
+                              </p>
+                            </div>
+                            <StatusBadge status={appointment.status} />
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">
                             {new Date(appointment.scheduled_for).toLocaleString("en-US", {
                               month: "short",
                               day: "numeric",
@@ -724,30 +735,10 @@ export default function Dashboard() {
                               minute: "2-digit",
                             })}
                           </p>
+                          {appointment.notes ? (
+                            <p className="mt-1 text-xs leading-5 text-slate-500">{appointment.notes}</p>
+                          ) : null}
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Missing essentials</p>
-                      <p className="mt-1 text-sm text-slate-500">Fast checklist for commonly needed service items.</p>
-                    </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
-                      {missingEssentials.length}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex max-h-[10rem] flex-wrap gap-2 overflow-y-auto pr-1">
-                    {missingEssentials.length === 0 ? (
-                      <span className="text-sm text-emerald-700">All core essentials are stocked.</span>
-                    ) : (
-                      missingEssentials.slice(0, 12).map((name) => (
-                        <span key={name} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-[#dbe7ff]">
-                          {name}
-                        </span>
                       ))
                     )}
                   </div>
