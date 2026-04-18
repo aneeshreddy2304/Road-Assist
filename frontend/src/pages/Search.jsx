@@ -822,7 +822,7 @@ export default function Search() {
               </div>
             )}
           >
-            <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+            <div className="min-h-[40rem] max-h-[40rem] space-y-3 overflow-y-auto pr-1">
               {filteredOwnerHistory.map((item) => (
                 <div key={item.request_id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -1063,7 +1063,7 @@ function SelectedMechanicPanel({
         </div>
       </div>
 
-      <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
+      <div className="mt-auto grid grid-cols-3 gap-2 pt-5">
         <button
           onClick={onOpenRoute}
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
@@ -1084,7 +1084,7 @@ function SelectedMechanicPanel({
         </button>
         <button
           onClick={onRequest}
-          className="col-span-2 rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
+          className="col-span-3 rounded-[18px] bg-[#0f172a] px-3 py-3 text-sm font-medium text-white transition hover:bg-black"
         >
           Request
         </button>
