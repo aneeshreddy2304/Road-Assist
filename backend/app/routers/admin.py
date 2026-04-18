@@ -67,8 +67,18 @@ async def get_analytics(
             COUNT(*) FILTER (WHERE status IN ('requested','accepted','in_progress')) AS active,
             COALESCE(SUM(total_cost) FILTER (WHERE status = 'completed'), 0) AS total_revenue,
             ROUND(AVG(total_cost) FILTER (WHERE status = 'completed'), 2) AS avg_job_value,
-            ROUND(AVG(EXTRACT(EPOCH FROM (accepted_at - created_at)) / 3600) FILTER (WHERE accepted_at IS NOT NULL), 2) AS avg_response_hours,
-            ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - accepted_at)) / 3600) FILTER (WHERE accepted_at IS NOT NULL AND completed_at IS NOT NULL), 2) AS avg_completion_hours
+            ROUND(
+                AVG(
+                    GREATEST(EXTRACT(EPOCH FROM (accepted_at - created_at)) / 3600, 0)
+                ) FILTER (WHERE accepted_at IS NOT NULL),
+                2
+            ) AS avg_response_hours,
+            ROUND(
+                AVG(
+                    GREATEST(EXTRACT(EPOCH FROM (completed_at - accepted_at)) / 3600, 0)
+                ) FILTER (WHERE accepted_at IS NOT NULL AND completed_at IS NOT NULL),
+                2
+            ) AS avg_completion_hours
         FROM request_times
     """))
     stats = dict(summary.mappings().first())

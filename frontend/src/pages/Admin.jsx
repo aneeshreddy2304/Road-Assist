@@ -90,8 +90,8 @@ export default function Admin() {
     [funnel]
   );
 
-  const responseHours = Number(summary.avg_response_hours || 0);
-  const completionHours = Number(summary.avg_completion_hours || 0);
+  const responseHours = Math.max(Number(summary.avg_response_hours || 0), 0);
+  const completionHours = Math.max(Number(summary.avg_completion_hours || 0), 0);
   const maxTrend = Math.max(...earningsTrend.map((item) => Number(item.revenue || 0)), 1);
   const maxVolume = Math.max(...requestVolume.map((item) => Number(item.total || 0)), 1);
   const topVolumePoint =
@@ -194,21 +194,76 @@ export default function Admin() {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr,1.2fr,0.95fr]">
-          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader title="Status progression" />
-            <div className="mt-5 space-y-3">
-              {funnelData.map((stage, index) => (
-                <div key={stage.label} className="flex items-center gap-3">
-                  <div className={`min-w-[8.25rem] rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] ${stage.tone}`}>
-                    {stage.label}
+          <div className="grid gap-4">
+            <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+              <SectionHeader title="Status progression" />
+              <div className="mt-5 space-y-3">
+                {funnelData.map((stage, index) => (
+                  <div key={stage.label} className="flex items-center gap-3">
+                    <div className={`min-w-[8.25rem] rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] ${stage.tone}`}>
+                      {stage.label}
+                    </div>
+                    <div className="h-[2px] flex-1 bg-[#dbe7ff]" />
+                    <div className="min-w-[3.5rem] text-right text-2xl font-semibold text-[#081224]">{stage.value}</div>
+                    {index < funnelData.length - 1 ? <div className="w-3 text-slate-300">→</div> : null}
                   </div>
-                  <div className="h-[2px] flex-1 bg-[#dbe7ff]" />
-                  <div className="min-w-[3.5rem] text-right text-2xl font-semibold text-[#081224]">{stage.value}</div>
-                  {index < funnelData.length - 1 ? <div className="w-3 text-slate-300">→</div> : null}
+                ))}
+              </div>
+            </Card>
+
+            <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <SectionHeader title="Platform population" />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setManagingGroup("mechanics")}
+                    className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:bg-[#1e293b]"
+                  >
+                    Manage mechanics
+                  </button>
+                  <button
+                    onClick={() => setManagingGroup("owners")}
+                    className="rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
+                  >
+                    Manage owners
+                  </button>
                 </div>
-              ))}
-            </div>
-          </Card>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {Object.entries(roleBreakdown)
+                  .filter(([role]) => role !== "admin")
+                  .map(([role, count]) => (
+                    <button
+                      key={role}
+                      onClick={() => setManagingGroup(role === "mechanic" ? "mechanics" : "owners")}
+                      className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3 text-left transition hover:border-[#bfdbfe] hover:bg-white"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold capitalize text-[#081224]">{role}</p>
+                        <p className="text-2xl font-semibold text-[#081224]">{count}</p>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">Open management</p>
+                    </button>
+                  ))}
+                <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-[#081224]">Mechanics online</p>
+                    <p className="text-2xl font-semibold text-[#081224]">{mechanicsOnline}</p>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Currently visible in the network</p>
+                </div>
+                <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-[#081224]">Registered users</p>
+                    <p className="text-2xl font-semibold text-[#081224]">
+                      {Object.values(roleBreakdown).reduce((sum, value) => sum + Number(value || 0), 0)}
+                    </p>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Owners and mechanics currently in the system</p>
+                </div>
+              </div>
+            </Card>
+          </div>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <SectionHeader title={`Earnings by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
@@ -469,60 +524,7 @@ export default function Admin() {
           </Card>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[0.9fr,1.35fr]">
-          <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <SectionHeader title="Platform population" />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setManagingGroup("mechanics")}
-                  className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:bg-[#1e293b]"
-                >
-                  Manage mechanics
-                </button>
-                <button
-                  onClick={() => setManagingGroup("owners")}
-                  className="rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
-                >
-                  Manage owners
-                </button>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {Object.entries(roleBreakdown)
-                .filter(([role]) => role !== "admin")
-                .map(([role, count]) => (
-                <button
-                  key={role}
-                  onClick={() => setManagingGroup(role === "mechanic" ? "mechanics" : "owners")}
-                  className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3 text-left transition hover:border-[#bfdbfe] hover:bg-white"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold capitalize text-[#081224]">{role}</p>
-                    <p className="text-2xl font-semibold text-[#081224]">{count}</p>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">Open management</p>
-                </button>
-              ))}
-              <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[#081224]">Mechanics online</p>
-                  <p className="text-2xl font-semibold text-[#081224]">{mechanicsOnline}</p>
-                </div>
-                <p className="mt-2 text-xs text-slate-500">Currently visible in the network</p>
-              </div>
-              <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[#081224]">Registered users</p>
-                  <p className="text-2xl font-semibold text-[#081224]">
-                    {Object.values(roleBreakdown).reduce((sum, value) => sum + Number(value || 0), 0)}
-                  </p>
-                </div>
-                <p className="mt-2 text-xs text-slate-500">Owners and mechanics currently in the system</p>
-              </div>
-            </div>
-          </Card>
-
+        <div className="grid gap-4">
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <SectionHeader title="Tracked service stream" />
             <div className="mt-4 max-h-[360px] overflow-auto rounded-[22px] border border-[#e5ecff]">
