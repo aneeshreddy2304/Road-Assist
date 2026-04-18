@@ -74,6 +74,21 @@ export default function Dashboard() {
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [costDialog, setCostDialog] = useState(null);
 
+  const extractErrorMessage = (error, fallback) => {
+    const detail = error?.response?.data?.detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) => item?.msg || item?.message || (typeof item === "string" ? item : JSON.stringify(item)))
+        .join(", ");
+    }
+    if (detail && typeof detail === "object") {
+      return detail.message || JSON.stringify(detail);
+    }
+    if (typeof error?.response?.data === "string" && error.response.data.trim()) return error.response.data;
+    return error?.message || fallback;
+  };
+
   const loadDashboard = async (background = false) => {
     if (background) setRefreshing(true);
     else setLoading(true);
@@ -297,7 +312,7 @@ export default function Dashboard() {
       setCostDialog(null);
       await loadDashboard(true);
     } catch (error) {
-      alert(error.response?.data?.detail || "Could not update job status");
+      alert(extractErrorMessage(error, "Could not update job status"));
     }
   };
 

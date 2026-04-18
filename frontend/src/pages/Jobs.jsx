@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock3, MapPin, Navigation, ShieldCheck, Wrench } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, MessageCircle, Navigation, ShieldCheck, Wrench } from "lucide-react";
 
 import {
+  getMessageInbox,
+  getMessageThread,
   getMyMechanicProfile,
   getOpenRequests,
   listAppointments,
   listRequests,
+  sendMessage,
   updateAppointmentStatus,
   updateRequestStatus,
 } from "../api/endpoints";
@@ -19,9 +22,91 @@ export default function Jobs() {
   const [openJobs, setOpenJobs] = useState([]);
   const [myJobs, setMyJobs] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [inbox, setInbox] = useState([]);
+  const [selectedThread, setSelectedThread] = useState(null);
+  const [threadMessages, setThreadMessages] = useState([]);
+  const [messageDraft, setMessageDraft] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [tab, setTab] = useState("dispatch");
   const [costDialog, setCostDialog] = useState(null);
   const [appointmentDialog, setAppointmentDialog] = useState(null);
+
+  const extractErrorMessage = (error, fallback) => {
+    const detail = error?.response?.data?.detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) => item?.msg || item?.message || (typeof item === "string" ? item : JSON.stringify(item)))
+        .join(", ");
+    }
+    if (detail && typeof detail === "object") {
+      return detail.message || JSON.stringify(detail);
+    }
+    if (typeof error?.response?.data === "string" && error.response.data.trim()) return error.response.data;
+    return error?.message || fallback;
+  };
+
+  const buildPreviewMessage = (thread) => {
+    const previewText = thread?.message || thread?.latest_message || thread?.preview_message;
+    if (!previewText) return [];
+    return [
+      {
+        id: `preview-${thread.id}`,
+        owner_id: thread.owner_id,
+        mechanic_id: thread.mechanic_id,
+        request_id: thread.request_id || null,
+        request_ref:
+          thread.request_ref
+          || (thread.request_id ? `RA-${String(thread.request_id).slice(0, 8).toUpperCase()}` : null),
+        sender_role: thread.sender_role || "owner",
+        sender_name: thread.counterpart_name || thread.owner_name || "Owner",
+        message: previewText,
+        created_at: thread.created_at || new Date().toISOString(),
+      },
+    ];
+  };
+
+  const isSameThread = (left, right) => {
+    if (!left || !right) return false;
+    return left.owner_id === right.owner_id;
+  };
+
+  const enrichInboxThreads = (threads, jobs) => {
+    const latestByOwner = new Map();
+    threads.forEach((thread) => {
+      const matchedJob = jobs.find((job) => job.owner_id === thread.owner_id);
+      const enriched = matchedJob
+        ? {
+            ...thread,
+            request_id: thread.request_id || matchedJob.id,
+            request_ref: matchedJob.request_ref || `RA-${matchedJob.id.slice(0, 8).toUpperCase()}`,
+          }
+        : thread;
+      const current = latestByOwner.get(enriched.owner_id);
+      if (!current || new Date(enriched.created_at).getTime() > new Date(current.created_at).getTime()) {
+        latestByOwner.set(enriched.owner_id, enriched);
+      }
+    });
+    return Array.from(latestByOwner.values());
+  };
+
+  const loadThreadMessages = async (thread) => {
+    if (!thread?.owner_id) {
+      setThreadMessages([]);
+      return;
+    }
+
+    try {
+      const response = await getMessageThread({
+        owner_id: thread.owner_id,
+        request_id: null,
+      });
+      setThreadMessages(response.data?.length ? response.data : buildPreviewMessage(thread));
+    } catch (error) {
+      console.error(error);
+      setThreadMessages(buildPreviewMessage(thread));
+    }
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -31,14 +116,28 @@ export default function Jobs() {
         lat: profileRes.data.lat ?? RICHMOND.lat,
         lng: profileRes.data.lng ?? RICHMOND.lng,
       };
-      const [openRes, myRes, apptRes] = await Promise.all([
+      const [openRes, myRes, apptRes, inboxRes] = await Promise.all([
         getOpenRequests({ lat: center.lat, lng: center.lng, radius_km: 20 }),
         listRequests(),
         listAppointments(),
+        getMessageInbox(),
       ]);
+      const relatedJobs = [...myRes.data, ...openRes.data]
+        .filter((job) => job.owner_id)
+        .sort((a, b) => new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime());
+      const enrichedInbox = enrichInboxThreads(inboxRes.data, relatedJobs);
       setOpenJobs(openRes.data);
       setMyJobs(myRes.data);
       setAppointments(apptRes.data);
+      setInbox(enrichedInbox);
+      setSelectedThread((current) => {
+        if (!current) return enrichedInbox[0] || null;
+        return (
+          enrichedInbox.find((item) => isSameThread(item, current))
+          || enrichedInbox.find((item) => item.owner_id === current.owner_id)
+          || current
+        );
+      });
     } finally {
       setLoading(false);
     }
@@ -48,11 +147,25 @@ export default function Jobs() {
     fetchAll();
   }, []);
 
+  useEffect(() => {
+    if (!selectedThread?.owner_id) {
+      setThreadMessages([]);
+      return;
+    }
+    loadThreadMessages(selectedThread);
+  }, [selectedThread]);
+
   const accepted = myJobs.filter((job) => job.status === "accepted");
   const inProgress = myJobs.filter((job) => job.status === "in_progress");
   const completed = myJobs.filter((job) => job.status === "completed");
   const totalEarnings = completed.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
   const pendingAppointments = appointments.filter((item) => ["requested", "confirmed"].includes(item.status));
+  const visibleThreadMessages =
+    threadMessages.length > 0
+      ? threadMessages
+      : (selectedThread?.message || selectedThread?.latest_message || selectedThread?.preview_message)
+        ? buildPreviewMessage(selectedThread)
+        : [];
 
   const submitStatusUpdate = async (jobId, payload) => {
     try {
@@ -60,7 +173,7 @@ export default function Jobs() {
       await fetchAll();
       setCostDialog(null);
     } catch (error) {
-      alert(error.response?.data?.detail || "Could not update this job");
+      alert(extractErrorMessage(error, "Could not update this job"));
     }
   };
 
@@ -69,7 +182,27 @@ export default function Jobs() {
       await updateAppointmentStatus(appointmentId, { status });
       await fetchAll();
     } catch (error) {
-      alert(error.response?.data?.detail || "Could not update appointment");
+      alert(extractErrorMessage(error, "Could not update appointment"));
+    }
+  };
+
+  const handleSendMessage = async (event) => {
+    event.preventDefault();
+    if (!selectedThread?.owner_id || !messageDraft.trim()) return;
+    setSendingMessage(true);
+    try {
+      const res = await sendMessage({
+        owner_id: selectedThread.owner_id,
+        request_id: null,
+        message: messageDraft.trim(),
+      });
+      setThreadMessages((current) => [...current, res.data]);
+      setMessageDraft("");
+      await fetchAll();
+    } catch (error) {
+      alert(extractErrorMessage(error, "Could not send message"));
+    } finally {
+      setSendingMessage(false);
     }
   };
 
@@ -96,7 +229,7 @@ export default function Jobs() {
           <div className="grid grid-cols-2 gap-3 xl:w-[32rem]">
             <MiniMetric label="New Requests" value={openJobs.length} icon={<Wrench size={16} className="text-[#2563eb]" />} />
             <MiniMetric label="Appointments" value={pendingAppointments.length} icon={<CalendarDays size={16} className="text-[#16a34a]" />} />
-            <MiniMetric label="Accepted Jobs" value={accepted.length} icon={<ShieldCheck size={16} className="text-[#f97316]" />} />
+            <MiniMetric label="Messages" value={inbox.length} icon={<MessageCircle size={16} className="text-[#f97316]" />} />
             <MiniMetric label="Earnings" value={formatCurrencyUSD(totalEarnings)} icon={<Navigation size={16} className="text-[#7c3aed]" />} />
           </div>
         </div>
@@ -107,6 +240,7 @@ export default function Jobs() {
             { id: "accepted", label: `Accepted (${accepted.length})` },
             { id: "progress", label: `In Progress (${inProgress.length})` },
             { id: "appointments", label: `Appointments (${pendingAppointments.length})` },
+            { id: "messages", label: `Messages (${inbox.length})` },
             { id: "completed", label: `Completed (${completed.length})` },
           ].map((item) => (
             <button
@@ -121,107 +255,240 @@ export default function Jobs() {
           ))}
         </div>
 
-        {tab === "appointments" ? (
+        {(tab === "appointments" || tab === "messages") ? (
           <div className="grid gap-4 xl:grid-cols-[1.05fr,1.15fr]">
-            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Future service</p>
-                  <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Appointment queue</h2>
-                </div>
-                <span className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
-                  {pendingAppointments.length}
-                </span>
-              </div>
-              <div className="max-h-[34rem] space-y-3 overflow-y-auto pr-1">
-                {pendingAppointments.length === 0 ? (
-                  <EmptyState icon="🗓️" title="No upcoming appointments" subtitle="Owner-scheduled services will appear here." />
-                ) : (
-                  pendingAppointments.map((appointment) => (
-                    <div key={appointment.id} className="rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] p-4 text-left">
-                      <p className="text-lg font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {new Date(appointment.scheduled_for).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-600">{appointment.vehicle_label || "Vehicle not selected"}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">{appointment.status}</p>
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAppointmentDialog(appointment)}
-                          className="col-span-2 rounded-[16px] border border-[#dbe7ff] bg-white px-3 py-2.5 text-sm font-semibold text-slate-600"
-                        >
-                          Manage booking
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAppointmentStatus(appointment.id, "confirmed")}
-                          className="rounded-[16px] bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white"
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAppointmentStatus(appointment.id, "cancelled")}
-                          className="rounded-[16px] border border-[#dbe7ff] bg-white px-3 py-2.5 text-sm font-semibold text-slate-600"
-                        >
-                          Decline
-                        </button>
-                      </div>
+            {tab === "appointments" ? (
+              <>
+                <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Future service</p>
+                      <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Appointment queue</h2>
                     </div>
-                  ))
-                )}
-              </div>
-            </Card>
-
-            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
-              <div className="mb-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Manage bookings</p>
-                <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Appointment register</h2>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <MiniMetric label="Requested" value={appointments.filter((item) => item.status === "requested").length} icon={<CalendarDays size={16} className="text-[#2563eb]" />} />
-                <MiniMetric label="Confirmed" value={appointments.filter((item) => item.status === "confirmed").length} icon={<ShieldCheck size={16} className="text-[#16a34a]" />} />
-                <MiniMetric label="Cancelled" value={appointments.filter((item) => item.status === "cancelled").length} icon={<Clock3 size={16} className="text-[#f97316]" />} />
-              </div>
-              <div className="mt-4 max-h-[24rem] space-y-3 overflow-y-auto pr-1">
-                {appointments.length === 0 ? (
-                  <EmptyState icon="🗓️" title="No appointment history" subtitle="Confirmed, requested, and cancelled bookings will show here." />
-                ) : (
-                  appointments.map((appointment) => (
-                    <div key={`register-${appointment.id}`} className="rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
+                    <span className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                      {pendingAppointments.length}
+                    </span>
+                  </div>
+                  <div className="max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+                    {pendingAppointments.length === 0 ? (
+                      <EmptyState icon="🗓️" title="No upcoming appointments" subtitle="Owner-scheduled services will appear here." />
+                    ) : (
+                      pendingAppointments.map((appointment) => (
+                        <button
+                          key={appointment.id}
+                          onClick={() =>
+                            setSelectedThread({
+                              owner_id: appointment.owner_id,
+                              counterpart_name: appointment.owner_name,
+                              request_id: null,
+                              request_ref: null,
+                            })
+                          }
+                          className="w-full rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] p-4 text-left transition hover:border-[#c7dafc]"
+                        >
                           <p className="text-lg font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</p>
                           <p className="mt-1 text-sm text-slate-500">
-                            {new Date(appointment.scheduled_for).toLocaleString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
+                            {new Date(appointment.scheduled_for).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                           </p>
-                          <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">{appointment.status}</p>
+                          <p className="mt-2 text-sm text-slate-600">{appointment.vehicle_label || "Vehicle not selected"}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">{appointment.status}</p>
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setAppointmentDialog(appointment);
+                              }}
+                              className="col-span-2 rounded-[16px] border border-[#dbe7ff] bg-white px-3 py-2.5 text-sm font-semibold text-slate-600"
+                            >
+                              Manage booking
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleAppointmentStatus(appointment.id, "confirmed");
+                              }}
+                              className="rounded-[16px] bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleAppointmentStatus(appointment.id, "cancelled");
+                              }}
+                              className="rounded-[16px] border border-[#dbe7ff] bg-white px-3 py-2.5 text-sm font-semibold text-slate-600"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </Card>
+
+                <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Manage bookings</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Appointment register</h2>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <MiniMetric label="Requested" value={appointments.filter((item) => item.status === "requested").length} icon={<CalendarDays size={16} className="text-[#2563eb]" />} />
+                    <MiniMetric label="Confirmed" value={appointments.filter((item) => item.status === "confirmed").length} icon={<ShieldCheck size={16} className="text-[#16a34a]" />} />
+                    <MiniMetric label="Cancelled" value={appointments.filter((item) => item.status === "cancelled").length} icon={<Clock3 size={16} className="text-[#f97316]" />} />
+                  </div>
+                  <div className="mt-4 max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                    {appointments.length === 0 ? (
+                      <EmptyState icon="🗓️" title="No appointment history" subtitle="Confirmed, requested, and cancelled bookings will show here." />
+                    ) : (
+                      appointments.map((appointment) => (
+                        <div key={`register-${appointment.id}`} className="rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-lg font-semibold text-[#081224]">{appointment.owner_name || "Owner"} · {appointment.service_type}</p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {new Date(appointment.scheduled_for).toLocaleString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                              <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">{appointment.status}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-[#081224]">
+                                {appointment.estimated_cost ? formatCurrencyUSD(appointment.estimated_cost) : "Estimate pending"}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">{appointment.vehicle_label || "No vehicle selected"}</p>
+                              <button
+                                type="button"
+                                onClick={() => setAppointmentDialog(appointment)}
+                                className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
+                              >
+                                Manage
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-[#081224]">
-                            {appointment.estimated_cost ? formatCurrencyUSD(appointment.estimated_cost) : "Estimate pending"}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">{appointment.vehicle_label || "No vehicle selected"}</p>
-                          <button
-                            type="button"
-                            onClick={() => setAppointmentDialog(appointment)}
-                            className="mt-3 rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
-                          >
-                            Manage
-                          </button>
-                        </div>
-                      </div>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              </>
+            ) : (
+              <>
+                <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Conversations</p>
+                      <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Owner inbox</h2>
                     </div>
-                  ))
-                )}
-              </div>
-            </Card>
+                    <span className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                      {inbox.length}
+                    </span>
+                  </div>
+                  <div className="max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+                    {inbox.length === 0 ? (
+                      <EmptyState icon="💬" title="No conversations yet" subtitle="Owner messages will appear here." />
+                    ) : (
+                      inbox.map((thread) => (
+                        <button
+                          key={thread.id}
+                          onClick={() => {
+                            setSelectedThread(thread);
+                            setThreadMessages(buildPreviewMessage(thread));
+                          }}
+                          className={`w-full rounded-[22px] border p-4 text-left transition ${
+                            isSameThread(selectedThread, thread)
+                              ? "border-[#2563eb] bg-[#eff6ff]"
+                              : "border-[#e3ebff] bg-[#f8fbff] hover:border-[#c7dafc]"
+                          }`}
+                        >
+                          {thread.request_ref ? (
+                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                              {thread.request_ref}
+                            </p>
+                          ) : thread.request_id ? (
+                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                              {`RA-${String(thread.request_id).slice(0, 8).toUpperCase()}`}
+                            </p>
+                          ) : null}
+                          <p className="text-lg font-semibold text-[#081224]">{thread.counterpart_name}</p>
+                          <p className="mt-1 line-clamp-2 text-sm text-slate-500">{thread.message}</p>
+                          <p className="mt-2 text-xs text-slate-400">
+                            {new Date(thread.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </Card>
+
+                <Card className="flex h-[40rem] flex-col rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Thread</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-[#081224]">{selectedThread?.counterpart_name || "Select a conversation"}</h2>
+                    <p className="mt-2 text-sm text-slate-500">{selectedThread?.counterpart_address || "Owner address will appear here when available."}</p>
+                    {selectedThread?.request_ref ? (
+                      <p className="mt-3 inline-flex rounded-full bg-[#eff6ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+                        {selectedThread.request_ref}
+                      </p>
+                    ) : selectedThread?.request_id ? (
+                      <p className="mt-3 inline-flex rounded-full bg-[#eff6ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+                        {`RA-${String(selectedThread.request_id).slice(0, 8).toUpperCase()}`}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[#e3ebff] bg-[#f8fbff] p-4">
+                    {visibleThreadMessages.length === 0 ? (
+                      <EmptyState
+                        icon={selectedThread ? "💬" : "📨"}
+                        title={selectedThread ? "No messages in this thread yet" : "No thread selected yet"}
+                        subtitle={
+                          selectedThread
+                            ? "Start the conversation with an estimate, ETA, or service update."
+                            : "Choose an owner conversation to start replying."
+                        }
+                      />
+                    ) : (
+                      visibleThreadMessages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`max-w-[85%] rounded-[20px] px-4 py-3 ${
+                            message.sender_role === "mechanic"
+                              ? "ml-auto bg-[#0f172a] text-white"
+                              : "bg-white text-[#081224] ring-1 ring-[#dbe7ff]"
+                          }`}
+                        >
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+                          <p className="mt-2 text-sm leading-6">{message.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <form onSubmit={handleSendMessage} className="mt-4 flex gap-3">
+                    <textarea
+                      value={messageDraft}
+                      onChange={(event) => setMessageDraft(event.target.value)}
+                      rows={2}
+                      placeholder="Reply to the owner about ETA, price, or service details..."
+                      className="min-h-[3.5rem] flex-1 rounded-[20px] border border-gray-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                    />
+                    <button
+                      type="submit"
+                      disabled={sendingMessage || !selectedThread?.owner_id || !messageDraft.trim()}
+                      className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      {sendingMessage ? "Sending..." : "Send"}
+                    </button>
+                  </form>
+                </Card>
+              </>
+            )}
           </div>
         ) : (() => {
           const activeColumn = columns.find((column) => column.id === tab || (tab === "dispatch" && column.id === "dispatch"));
@@ -247,9 +514,9 @@ export default function Jobs() {
               ) : (
                 <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                   {activeColumn.jobs.map((job) => (
-                    <JobSurface
-                      key={job.id}
-                      job={job}
+          <JobSurface
+            key={job.id}
+            job={job}
                       kind={activeColumn.id}
                       onAccept={() =>
                         setCostDialog({
