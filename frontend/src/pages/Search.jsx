@@ -793,7 +793,7 @@ export default function Search() {
       <section className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
         <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
           <OwnerSurfaceCard
-            className="xl:min-h-[56rem]"
+            className="xl:min-h-[50rem]"
             eyebrow="Service history"
             title="Recent requests"
             loading={ownerWorkspaceLoading}
@@ -1007,7 +1007,6 @@ function SelectedMechanicPanel({
   pickupLabel,
   onOpenRoute,
   onOpenInventory,
-  onOpenChat,
   onOpenSchedule,
   onRequest,
   onClose,
@@ -1060,7 +1059,7 @@ function SelectedMechanicPanel({
         </div>
       </div>
 
-      <div className="mt-auto grid grid-cols-3 gap-2 pt-5">
+      <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
         <button
           onClick={onOpenRoute}
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
@@ -1072,12 +1071,6 @@ function SelectedMechanicPanel({
           className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
         >
           Parts
-        </button>
-        <button
-          onClick={onOpenChat}
-          className="rounded-[18px] border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
-        >
-          Message
         </button>
         <button
           onClick={onOpenSchedule}
