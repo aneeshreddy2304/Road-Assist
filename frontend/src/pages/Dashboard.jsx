@@ -164,9 +164,14 @@ export default function Dashboard() {
     const now = new Date();
     return created.toDateString() === now.toDateString();
   });
+  const filteredIncomingJobs = incomingJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
+  const filteredAssignedJobs = assignedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
+  const filteredCompletedJobs = completedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
+  const filteredParts = parts.filter((part) => withinRange(part.updated_at ?? part.created_at));
   const lowStockParts = parts.filter((part) => Number(part.quantity) < 4);
-  const outOfStockParts = parts.filter((part) => Number(part.quantity) === 0);
-  const topStockedParts = [...parts]
+  const filteredLowStockParts = filteredParts.filter((part) => Number(part.quantity) < 4);
+  const outOfStockParts = filteredParts.filter((part) => Number(part.quantity) === 0);
+  const topStockedParts = [...filteredParts]
     .sort((a, b) => Number(b.quantity) - Number(a.quantity))
     .slice(0, 4);
   const essentialParts = [
@@ -183,17 +188,9 @@ export default function Dashboard() {
     (name) => !parts.some((part) => part.part_name?.toLowerCase() === name.toLowerCase())
   );
 
-  const filteredAssignedJobs = assignedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
-  const filteredCompletedJobs = completedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
-  const totalEarnings =
-    range === "all"
-      ? Number(summary?.total_earnings || 0)
-      : filteredCompletedJobs.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
-  const totalJobs =
-    range === "all"
-      ? Number(summary?.total_jobs || 0)
-      : filteredAssignedJobs.length + incomingJobs.filter((job) => withinRange(job.created_at)).length;
-  const completedCount = range === "all" ? Number(summary?.completed_jobs || 0) : filteredCompletedJobs.length;
+  const totalEarnings = filteredCompletedJobs.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
+  const totalJobs = filteredAssignedJobs.length + filteredIncomingJobs.length;
+  const completedCount = filteredCompletedJobs.length;
   const lowDeadlineJobs = activeJobs.filter((job) => {
     if (!job.deadline_at || job.status === "completed" || job.status === "cancelled") return false;
     const hoursLeft = (new Date(job.deadline_at).getTime() - Date.now()) / 36e5;
@@ -394,8 +391,8 @@ export default function Dashboard() {
           <MetricCard icon={<Briefcase size={18} className="text-[#2563eb]" />} label="Total jobs" value={totalJobs} tone="blue" />
           <MetricCard icon={<CheckCircle2 size={18} className="text-[#16a34a]" />} label="Completed" value={completedCount} tone="green" />
           <MetricCard icon={<CircleDollarSign size={18} className="text-[#7c3aed]" />} label="Total earnings" value={formatCurrencyUSD(totalEarnings)} tone="violet" />
-          <MetricCard icon={<Activity size={18} className="text-[#f97316]" />} label="Low stock alerts" value={lowStockParts.length} tone="amber" />
-          <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Inventory items" value={parts.length} tone="slate" />
+          <MetricCard icon={<Activity size={18} className="text-[#f97316]" />} label="Low stock alerts" value={filteredLowStockParts.length} tone="amber" />
+          <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Inventory items" value={filteredParts.length} tone="slate" />
         </div>
 
         <div className="grid items-start gap-4 xl:grid-cols-[1.28fr,0.92fr]">
@@ -490,8 +487,8 @@ export default function Dashboard() {
               <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg xl:min-h-[27rem]">
                 <SectionHeader eyebrow="Inventory health" title="Inventory register" />
                 <div className="mt-4 grid grid-cols-3 gap-3">
-                  <InventoryMetric label="Tracked" value={parts.length} tone="blue" />
-                  <InventoryMetric label="Low stock" value={lowStockParts.length} tone="amber" />
+                  <InventoryMetric label="Tracked" value={filteredParts.length} tone="blue" />
+                  <InventoryMetric label="Low stock" value={filteredLowStockParts.length} tone="amber" />
                   <InventoryMetric label="Out of stock" value={outOfStockParts.length} tone="red" />
                 </div>
                 <div className="mt-4 max-h-[11rem] space-y-3 overflow-y-auto pr-1">
@@ -887,7 +884,7 @@ function DispatchJobCard({ job, variant, onAccept, onUpdate, onSelect, isSelecte
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              onUpdate(job.id, next.status);
+              onUpdate(next.status);
             }}
             className="w-full rounded-[16px] bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-black"
           >
