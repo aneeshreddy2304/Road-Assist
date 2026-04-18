@@ -312,7 +312,7 @@ export default function Dashboard() {
       setCostDialog(null);
       await loadDashboard(true);
     } catch (error) {
-      alert(extractErrorMessage(error, "Could not update job status"));
+      console.error("Could not update job status", extractErrorMessage(error, "Could not update job status"));
     }
   };
 
