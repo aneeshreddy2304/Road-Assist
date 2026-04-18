@@ -16,8 +16,8 @@ export const getMyMechanicProfile = () =>
 export const getMechanicProfile = (id, params) =>
   API.get(`/mechanics/${id}`, { params });
 
-export const getMechanicDashboard = (id) =>
-  API.get(`/mechanics/${id}/dashboard`);
+export const getMechanicDashboard = (id, params) =>
+  API.get(`/mechanics/${id}/dashboard`, { params });
 
 export const updateMyProfile = (data) =>
   API.patch("/mechanics/me", data);

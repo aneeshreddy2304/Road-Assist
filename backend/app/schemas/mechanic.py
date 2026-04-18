@@ -87,3 +87,5 @@ class MechanicDashboard(BaseModel):
     active_jobs: int
     total_earnings: float
     earnings_this_week: float
+    low_stock_alerts: int = 0
+    inventory_items: int = 0

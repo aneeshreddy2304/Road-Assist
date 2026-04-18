@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Circle, MapContainer, Marker, Popup, TileLayer, ZoomControl } from "react-leaflet";
 import L from "leaflet";
@@ -89,7 +89,7 @@ export default function Dashboard() {
     return error?.message || fallback;
   };
 
-  const loadDashboard = async (background = false) => {
+  const loadDashboard = useCallback(async (background = false) => {
     if (background) setRefreshing(true);
     else setLoading(true);
 
@@ -102,7 +102,7 @@ export default function Dashboard() {
       const centerLng = currentProfile.lng ?? DEFAULT_CENTER[1];
 
       const [summaryRes, alertsRes, jobsRes, openRes, partsRes, appointmentsRes] = await Promise.allSettled([
-        getMechanicDashboard(currentProfile.mechanic_id),
+        getMechanicDashboard(currentProfile.mechanic_id, { range }),
         getAlerts(),
         listRequests(),
         getOpenRequests({ lat: centerLat, lng: centerLng, radius_km: 20 }),
@@ -121,16 +121,16 @@ export default function Dashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [range]);
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [loadDashboard]);
 
   useEffect(() => {
     const interval = window.setInterval(() => loadDashboard(true), 20000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [loadDashboard]);
 
   const withinRange = (value) => {
     if (!value) return false;
@@ -188,9 +188,11 @@ export default function Dashboard() {
     (name) => !parts.some((part) => part.part_name?.toLowerCase() === name.toLowerCase())
   );
 
-  const totalEarnings = filteredCompletedJobs.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
-  const totalJobs = filteredAssignedJobs.length + filteredIncomingJobs.length;
-  const completedCount = filteredCompletedJobs.length;
+  const totalEarnings = Number(summary?.total_earnings || 0);
+  const totalJobs = Number(summary?.total_jobs || 0);
+  const completedCount = Number(summary?.completed_jobs || 0);
+  const lowStockCount = Number(summary?.low_stock_alerts ?? filteredLowStockParts.length);
+  const inventoryCount = Number(summary?.inventory_items ?? filteredParts.length);
   const lowDeadlineJobs = activeJobs.filter((job) => {
     if (!job.deadline_at || job.status === "completed" || job.status === "cancelled") return false;
     const hoursLeft = (new Date(job.deadline_at).getTime() - Date.now()) / 36e5;
@@ -391,8 +393,8 @@ export default function Dashboard() {
           <MetricCard icon={<Briefcase size={18} className="text-[#2563eb]" />} label="Total jobs" value={totalJobs} tone="blue" />
           <MetricCard icon={<CheckCircle2 size={18} className="text-[#16a34a]" />} label="Completed" value={completedCount} tone="green" />
           <MetricCard icon={<CircleDollarSign size={18} className="text-[#7c3aed]" />} label="Total earnings" value={formatCurrencyUSD(totalEarnings)} tone="violet" />
-          <MetricCard icon={<Activity size={18} className="text-[#f97316]" />} label="Low stock alerts" value={filteredLowStockParts.length} tone="amber" />
-          <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Inventory items" value={filteredParts.length} tone="slate" />
+          <MetricCard icon={<Activity size={18} className="text-[#f97316]" />} label="Low stock alerts" value={lowStockCount} tone="amber" />
+          <MetricCard icon={<PackageSearch size={18} className="text-[#0f172a]" />} label="Inventory items" value={inventoryCount} tone="slate" />
         </div>
 
         <div className="grid items-start gap-4 xl:grid-cols-[1.28fr,0.92fr]">
