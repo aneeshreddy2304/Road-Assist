@@ -28,6 +28,7 @@ import {
   getNearbyMechanics,
   listAppointments,
   searchParts,
+  submitReview,
   suggestParts,
   updateAppointmentStatus,
   updateVehicle,
@@ -853,6 +854,9 @@ export default function Search() {
                       </p>
                     </div>
                   </div>
+                  {item.status === "completed" ? (
+                    <RequestReviewSection item={item} onReviewed={loadOwnerWorkspace} />
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -1086,6 +1090,99 @@ function SelectedMechanicPanel({
         </button>
       </div>
     </Card>
+  );
+}
+
+function RequestReviewSection({ item, onReviewed }) {
+  const [rating, setRating] = useState(item.review_rating || 0);
+  const [comment, setComment] = useState(item.review_comment || "");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(Boolean(item.has_review));
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setRating(item.review_rating || 0);
+    setComment(item.review_comment || "");
+    setSubmitted(Boolean(item.has_review));
+    setError("");
+  }, [item.has_review, item.review_comment, item.review_rating, item.request_id]);
+
+  const handleSubmit = async () => {
+    if (!rating || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await submitReview({
+        request_id: item.request_id,
+        rating,
+        comment: comment.trim() || undefined,
+      });
+      setSubmitted(true);
+      await onReviewed?.();
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : "Could not submit rating");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Owner review</p>
+        <div className="mt-2 flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map((value) => (
+            <Star
+              key={value}
+              size={16}
+              className={value <= rating ? "fill-yellow-400 text-yellow-400" : "text-slate-300"}
+            />
+          ))}
+          <span className="ml-2 text-sm font-medium text-emerald-700">{rating}/5 submitted</span>
+        </div>
+        {comment ? <p className="mt-2 text-sm text-emerald-800/80">{comment}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-[18px] border border-[#dbe7ff] bg-white px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Rate mechanic</p>
+      <p className="mt-1 text-sm text-slate-500">This job is complete. Share a quick rating out of 5 stars.</p>
+      <div className="mt-3 flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setRating(value)}
+            className="rounded-full p-1 transition hover:bg-slate-100"
+            aria-label={`Rate ${value} stars`}
+          >
+            <Star
+              size={18}
+              className={value <= rating ? "fill-yellow-400 text-yellow-400" : "text-slate-300"}
+            />
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={comment}
+        onChange={(event) => setComment(event.target.value)}
+        rows={2}
+        placeholder="Optional comment about the service..."
+        className="mt-3 w-full rounded-[16px] border border-[#dbe7ff] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f172a]"
+      />
+      {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={!rating || submitting}
+        className="mt-3 rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+      >
+        {submitting ? "Submitting..." : "Submit rating"}
+      </button>
+    </div>
   );
 }
 

@@ -260,11 +260,15 @@ async def owner_history_summary(
                 sr.created_at,
                 COALESCE(mu.name, 'Awaiting assignment') AS mechanic_name,
                 CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
-                v.license_plate
+                v.license_plate,
+                CASE WHEN r.id IS NOT NULL THEN TRUE ELSE FALSE END AS has_review,
+                r.rating AS review_rating,
+                r.comment AS review_comment
             FROM service_requests sr
             JOIN vehicles v ON v.id = sr.vehicle_id
             LEFT JOIN mechanics m ON m.id = sr.mechanic_id
             LEFT JOIN users mu ON mu.id = m.user_id
+            LEFT JOIN reviews r ON r.request_id = sr.id
             WHERE sr.owner_id = :owner_id
             ORDER BY sr.created_at DESC
         """),
