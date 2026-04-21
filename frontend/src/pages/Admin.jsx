@@ -492,10 +492,10 @@ export default function Admin() {
                   ))
                 )}
               </div>
-              <div className="grid gap-4 lg:grid-cols-[0.9fr,1.1fr] lg:items-start">
+              <div className="grid gap-4 lg:grid-cols-[0.9fr,1.1fr] lg:items-stretch">
                 <div className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
                   <p className="text-sm font-semibold text-[#081224]">Revenue snapshot</p>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="mt-4 grid grid-cols-1 gap-3">
                     <MiniMetric label="Peak slot" value={peakRevenuePoint?.label || "--"} tone="blue" compact />
                     <MiniMetric label="Peak revenue" value={formatCurrencyUSD(peakRevenuePoint?.revenue || 0)} tone="amber" compact />
                     <MiniMetric label="Active days" value={revenueDaysWithActivity.length} tone="green" compact />
