@@ -21,13 +21,17 @@ import {
   createAppointment,
   createRequest,
   deleteVehicle,
+  getMechanicProfile,
   getMechanicParts,
+  getMessageInbox,
+  getMessageThread,
   getMechanicAvailability,
   getOwnerHistory,
   getMyVehicles,
   getNearbyMechanics,
   listAppointments,
   searchParts,
+  sendMessage,
   submitReview,
   suggestParts,
   updateAppointmentStatus,
@@ -165,6 +169,14 @@ export default function Search() {
   const [ownerAppointments, setOwnerAppointments] = useState([]);
   const [ownerWorkspaceLoading, setOwnerWorkspaceLoading] = useState(true);
   const [historyFilter, setHistoryFilter] = useState("all");
+  const [ownerInbox, setOwnerInbox] = useState([]);
+  const [ownerInboxLoading, setOwnerInboxLoading] = useState(true);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationError, setConversationError] = useState("");
+  const [messageDraft, setMessageDraft] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
   const [vehicleEditingId, setVehicleEditingId] = useState(null);
   const [vehicleForm, setVehicleForm] = useState(vehicleDefaults);
@@ -250,9 +262,76 @@ export default function Search() {
     setOwnerWorkspaceLoading(false);
   };
 
+  const loadOwnerInbox = async () => {
+    setOwnerInboxLoading(true);
+    try {
+      const response = await getMessageInbox();
+      setOwnerInbox(response.data || []);
+      setSelectedConversation((current) => {
+        if (!response.data?.length) return null;
+        if (!current) return current;
+        return (
+          response.data.find(
+            (item) =>
+              item.mechanic_id === current.mechanic_id &&
+              (item.request_id || null) === (current.request_id || null)
+          ) || current
+        );
+      });
+    } catch (error) {
+      console.error(error);
+      setOwnerInbox([]);
+    } finally {
+      setOwnerInboxLoading(false);
+    }
+  };
+
+  const loadConversation = async (conversation) => {
+    if (!conversation?.mechanic_id) {
+      setConversationMessages([]);
+      return;
+    }
+    setConversationLoading(true);
+    setConversationError("");
+    try {
+      const response = await getMessageThread({
+        mechanic_id: conversation.mechanic_id,
+        request_id: conversation.request_id || undefined,
+      });
+      setConversationMessages(response.data || []);
+    } catch (error) {
+      setConversationMessages([]);
+      setConversationError(error.response?.data?.detail || "Could not load this conversation");
+    } finally {
+      setConversationLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadOwnerWorkspace();
+    loadOwnerInbox();
   }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      loadOwnerWorkspace();
+      loadOwnerInbox();
+    }, 12000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedConversation) {
+      setConversationMessages([]);
+      return;
+    }
+    loadConversation(selectedConversation);
+    const interval = window.setInterval(() => {
+      loadConversation(selectedConversation);
+      loadOwnerInbox();
+    }, 4000);
+    return () => window.clearInterval(interval);
+  }, [selectedConversation]);
 
   useEffect(() => {
     const selectedId = pageLocation.state?.selectedMechanicId;
@@ -356,6 +435,23 @@ export default function Search() {
     }
   };
 
+  const handleSelectPartMechanic = async (part) => {
+    try {
+      const existing = mechanics.find((item) => item.mechanic_id === part.mechanic_id);
+      if (existing) {
+        setSelected(existing);
+        return;
+      }
+      const response = await getMechanicProfile(part.mechanic_id, {
+        lat: location.lat,
+        lng: location.lng,
+      });
+      setSelected(response.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const applyPartSuggestion = async (suggestion) => {
     setPartQuery(suggestion.part_name);
     setPartSuggestions([]);
@@ -440,6 +536,35 @@ export default function Search() {
   const ownerPendingAppointments = ownerAppointments.filter((appointment) =>
     ["requested", "confirmed"].includes(appointment.status)
   );
+
+  const openOwnerConversation = (conversation) => {
+    setSelectedConversation(conversation);
+    window.setTimeout(() => {
+      const node = document.getElementById("owner-messages-section");
+      node?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
+
+  const handleOwnerMessageSend = async (event) => {
+    event.preventDefault();
+    if (!selectedConversation?.mechanic_id || !messageDraft.trim()) return;
+    setMessageSending(true);
+    setConversationError("");
+    try {
+      const response = await sendMessage({
+        mechanic_id: selectedConversation.mechanic_id,
+        request_id: selectedConversation.request_id || undefined,
+        message: messageDraft.trim(),
+      });
+      setConversationMessages((current) => [...current, response.data]);
+      setMessageDraft("");
+      await loadOwnerInbox();
+    } catch (error) {
+      setConversationError(error.response?.data?.detail || "Could not send message");
+    } finally {
+      setMessageSending(false);
+    }
+  };
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-[#eef2f7]">
@@ -711,7 +836,7 @@ export default function Search() {
 
             {tab === "parts" &&
               parts.map((part, index) => (
-                <PartCard key={`${part.mechanic_id}-${part.part_name}-${index}`} part={part} />
+                <PartCard key={`${part.mechanic_id}-${part.part_name}-${index}`} part={part} onSelect={() => handleSelectPartMechanic(part)} />
               ))}
           </div>
         </Card>
@@ -757,6 +882,7 @@ export default function Search() {
           mechanic={selectedDetail}
           userLocation={location}
           onSuccess={loadOwnerWorkspace}
+          onOpenConversation={(conversation) => openOwnerConversation(conversation)}
           onClose={() => setShowRequest(false)}
         />
       ) : null}
@@ -769,6 +895,7 @@ export default function Search() {
         <ScheduleAppointmentModal
           mechanic={scheduleMechanic}
           onSuccess={loadOwnerWorkspace}
+          onOpenConversation={(conversation) => openOwnerConversation(conversation)}
           onClose={() => setScheduleMechanic(null)}
         />
       ) : null}
@@ -854,6 +981,25 @@ export default function Search() {
                       </p>
                     </div>
                   </div>
+                  {item.mechanic_id ? (
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openOwnerConversation({
+                            mechanic_id: item.mechanic_id,
+                            request_id: item.request_id,
+                            request_ref: item.request_ref,
+                            counterpart_name: item.mechanic_name,
+                            counterpart_address: "Service request conversation",
+                          })
+                        }
+                        className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        Message
+                      </button>
+                    </div>
+                  ) : null}
                   {item.status === "completed" ? (
                     <RequestReviewSection item={item} onReviewed={loadOwnerWorkspace} />
                   ) : null}
@@ -960,6 +1106,20 @@ export default function Search() {
                         {["requested", "confirmed"].includes(appointment.status) ? (
                           <>
                             <button
+                              onClick={() =>
+                                openOwnerConversation({
+                                  mechanic_id: appointment.mechanic_id,
+                                  request_id: null,
+                                  request_ref: null,
+                                  counterpart_name: appointment.mechanic_name,
+                                  counterpart_address: appointment.work_hours || "Appointment conversation",
+                                })
+                              }
+                              className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              Message
+                            </button>
+                            <button
                               onClick={() => setAppointmentToManage(appointment)}
                               className="rounded-full border border-[#dbe7ff] bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                             >
@@ -984,6 +1144,75 @@ export default function Search() {
             </OwnerSurfaceCard>
           </div>
         </div>
+
+        <OwnerSurfaceCard
+          className="xl:col-span-2"
+          eyebrow="Messages"
+          title="Owner inbox"
+          loading={ownerInboxLoading && !ownerInbox.length}
+          itemCount={ownerInbox.length || (selectedConversation ? 1 : 0)}
+          emptyTitle="No conversations yet"
+          emptySubtitle="Once you send a request or book an appointment, you can continue the conversation with the mechanic here."
+          action={(
+            <span className="rounded-full bg-[#f8fbff] px-3 py-2 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+              {ownerInbox.length} thread{ownerInbox.length === 1 ? "" : "s"}
+            </span>
+          )}
+        >
+          <div id="owner-messages-section" className="grid gap-4 xl:grid-cols-[0.95fr,1.25fr]">
+            <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
+              {ownerInbox.map((thread) => (
+                <button
+                  key={`${thread.mechanic_id}-${thread.request_id || "general"}`}
+                  type="button"
+                  onClick={() => setSelectedConversation(thread)}
+                  className={`w-full rounded-[22px] border p-4 text-left transition ${
+                    selectedConversation?.mechanic_id === thread.mechanic_id &&
+                    (selectedConversation?.request_id || null) === (thread.request_id || null)
+                      ? "border-[#0f172a] bg-[#0f172a] text-white shadow-lg"
+                      : "border-[#dbe7ff] bg-[#f8fbff] text-[#081224] hover:border-[#c7dafc]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{thread.counterpart_name}</p>
+                      <p className={`mt-1 text-xs uppercase tracking-[0.14em] ${selectedConversation?.mechanic_id === thread.mechanic_id ? "text-white/65" : "text-[#2563eb]"}`}>
+                        {thread.request_ref || "General conversation"}
+                      </p>
+                      <p className={`mt-2 line-clamp-2 text-sm ${selectedConversation?.mechanic_id === thread.mechanic_id ? "text-white/80" : "text-slate-500"}`}>
+                        {thread.message}
+                      </p>
+                    </div>
+                    <p className={`text-[11px] ${selectedConversation?.mechanic_id === thread.mechanic_id ? "text-white/65" : "text-slate-400"}`}>
+                      {new Date(thread.created_at).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <ConversationSurface
+              title={selectedConversation?.counterpart_name || "Select a mechanic"}
+              subtitle={selectedConversation?.request_ref || "Choose a thread from the inbox to continue the conversation."}
+              loading={conversationLoading}
+              error={conversationError}
+              messages={conversationMessages}
+              draft={messageDraft}
+              onDraftChange={setMessageDraft}
+              onSubmit={handleOwnerMessageSend}
+              sending={messageSending}
+              currentRole="owner"
+              disabled={!selectedConversation}
+              emptyTitle="No messages yet"
+              emptySubtitle="Start with pricing, ETA, or repair details."
+            />
+          </div>
+        </OwnerSurfaceCard>
       </section>
     </div>
   );
@@ -1238,9 +1467,13 @@ function MechanicCard({ mechanic, selected, onSelect, onDeselect }) {
   );
 }
 
-function PartCard({ part }) {
+function PartCard({ part, onSelect }) {
   return (
-    <div className="rounded-[22px] border border-gray-200 bg-white p-4">
+    <button
+      type="button"
+      onClick={onSelect}
+      className="w-full rounded-[22px] border border-gray-200 bg-white p-4 text-left transition hover:border-gray-300 hover:shadow-sm"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-lg font-semibold text-gray-950">{part.part_name}</p>
@@ -1258,17 +1491,93 @@ function PartCard({ part }) {
           </div>
         </div>
       </div>
+    </button>
+  );
+}
+
+function ConversationSurface({
+  title,
+  subtitle,
+  loading,
+  error,
+  messages,
+  draft,
+  onDraftChange,
+  onSubmit,
+  sending,
+  currentRole,
+  disabled,
+  emptyTitle,
+  emptySubtitle,
+}) {
+  return (
+    <div className="flex min-h-[32rem] flex-col rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff]">
+      <div className="border-b border-[#dbe7ff] px-5 py-4">
+        <p className="text-lg font-semibold text-[#081224]">{title}</p>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      </div>
+
+      <div className="flex-1 space-y-3 overflow-y-auto px-5 py-5">
+        {loading ? <Spinner /> : null}
+        {!loading && !disabled && messages.length === 0 ? (
+          <EmptyState icon="💬" title={emptyTitle} subtitle={emptySubtitle} />
+        ) : null}
+        {!loading &&
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`max-w-[82%] rounded-[22px] px-4 py-3 ${
+                message.sender_role === currentRole
+                  ? "ml-auto bg-[#0f172a] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
+                  : "bg-white text-[#081224] ring-1 ring-[#dbe7ff]"
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.message}</p>
+              <p className={`mt-2 text-[11px] ${message.sender_role === currentRole ? "text-white/65" : "text-slate-400"}`}>
+                {new Date(message.created_at).toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          ))}
+      </div>
+
+      <form onSubmit={onSubmit} className="border-t border-[#dbe7ff] bg-white px-5 py-4">
+        {error ? <p className="mb-3 rounded-[18px] bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p> : null}
+        <div className="flex gap-3">
+          <textarea
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            rows={2}
+            disabled={disabled}
+            placeholder={disabled ? "Select a conversation to start messaging." : "Type a message..."}
+            className="min-h-[3.75rem] flex-1 rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-3 text-sm text-[#081224] outline-none focus:ring-2 focus:ring-[#0f172a] disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={disabled || sending || !draft.trim()}
+            className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {sending ? "Sending..." : "Send"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
 
-function RequestModal({ mechanic, userLocation, onSuccess, onClose }) {
+function RequestModal({ mechanic, userLocation, onSuccess, onOpenConversation, onClose }) {
   const [vehicles, setVehicles] = useState([]);
   const [vehicleId, setVehicleId] = useState("");
   const [problemDesc, setProblemDesc] = useState("");
   const [requestedCompletionHours, setRequestedCompletionHours] = useState(6);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [createdRequest, setCreatedRequest] = useState(null);
   const [error, setError] = useState("");
 
   const extractErrorMessage = (err) => {
@@ -1295,7 +1604,7 @@ function RequestModal({ mechanic, userLocation, onSuccess, onClose }) {
     setLoading(true);
     setError("");
     try {
-      await createRequest({
+      const response = await createRequest({
         vehicle_id: vehicleId,
         mechanic_id: mechanic.mechanic_id,
         problem_desc: problemDesc,
@@ -1303,6 +1612,7 @@ function RequestModal({ mechanic, userLocation, onSuccess, onClose }) {
         lng: userLocation.lng,
         requested_completion_hours: requestedCompletionHours || null,
       });
+      setCreatedRequest(response.data);
       await onSuccess?.();
       setSuccess(true);
     } catch (err) {
@@ -1319,13 +1629,32 @@ function RequestModal({ mechanic, userLocation, onSuccess, onClose }) {
           <div className="py-4 text-center">
             <div className="mb-3 text-4xl">✅</div>
             <h3 className="text-xl font-semibold text-gray-950">Assistance request sent</h3>
-            <p className="mt-2 text-sm text-gray-500">You can track the status from My Jobs.</p>
-            <button
-              onClick={onClose}
-              className="mt-5 w-full rounded-2xl bg-[#111827] py-3 text-sm font-medium text-white"
-            >
-              Done
-            </button>
+            <p className="mt-2 text-sm text-gray-500">You can track the status from My Jobs and message the mechanic right away.</p>
+            <div className="mt-5 grid gap-2">
+              <button
+                onClick={() => {
+                  if (createdRequest) {
+                    onOpenConversation?.({
+                      mechanic_id: mechanic.mechanic_id,
+                      request_id: createdRequest.id,
+                      request_ref: createdRequest.request_ref,
+                      counterpart_name: mechanic.name,
+                      counterpart_address: mechanic.address || "Service request conversation",
+                    });
+                  }
+                  onClose();
+                }}
+                className="w-full rounded-2xl border border-[#dbe7ff] bg-white py-3 text-sm font-medium text-slate-700"
+              >
+                Message mechanic
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full rounded-2xl bg-[#111827] py-3 text-sm font-medium text-white"
+              >
+                Done
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -1859,7 +2188,7 @@ function ManageAppointmentModal({ appointment, onSuccess, onClose }) {
   );
 }
 
-function ScheduleAppointmentModal({ mechanic, onSuccess, onClose }) {
+function ScheduleAppointmentModal({ mechanic, onSuccess, onOpenConversation, onClose }) {
   const [vehicles, setVehicles] = useState([]);
   const [vehicleId, setVehicleId] = useState("");
   const [serviceType, setServiceType] = useState("General service");
@@ -1932,10 +2261,27 @@ function ScheduleAppointmentModal({ mechanic, onSuccess, onClose }) {
           <div className="py-6 text-center">
             <div className="mb-3 text-4xl">🗓️</div>
             <h3 className="text-2xl font-semibold text-gray-950">Appointment requested</h3>
-            <p className="mt-2 text-sm text-gray-500">The mechanic can now see this future service slot in their system.</p>
-            <button onClick={onClose} className="mt-5 rounded-2xl bg-[#111827] px-6 py-3 text-sm font-medium text-white">
-              Done
-            </button>
+            <p className="mt-2 text-sm text-gray-500">The mechanic can now see this future service slot in their system, and you can continue the conversation in messages.</p>
+            <div className="mt-5 grid gap-2">
+              <button
+                onClick={() => {
+                  onOpenConversation?.({
+                    mechanic_id: mechanic.mechanic_id,
+                    request_id: null,
+                    request_ref: null,
+                    counterpart_name: mechanic.name,
+                    counterpart_address: mechanic.address || "Appointment conversation",
+                  });
+                  onClose();
+                }}
+                className="rounded-2xl border border-[#dbe7ff] bg-white px-6 py-3 text-sm font-medium text-slate-700"
+              >
+                Message mechanic
+              </button>
+              <button onClick={onClose} className="rounded-2xl bg-[#111827] px-6 py-3 text-sm font-medium text-white">
+                Done
+              </button>
+            </div>
           </div>
         ) : (
           <>

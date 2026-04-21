@@ -72,3 +72,17 @@ export const deactivateMechanic= (id) => API.patch(`/admin/mechanics/${id}/deact
 export const getAllOwners      = ()   => API.get("/admin/owners");
 export const deactivateOwner   = (id) => API.patch(`/admin/owners/${id}/deactivate`);
 export const searchAdminWorkItem = (query) => API.get("/admin/lookup", { params: { query } });
+
+// --- Warehouses ---
+export const getWarehouseMarketplace = (params) => API.get("/warehouses/marketplace", { params });
+export const searchWarehouseParts = (params) => API.get("/warehouses/marketplace/parts", { params });
+export const getMyWarehouseProfile = () => API.get("/warehouses/me");
+export const getWarehouseInventory = () => API.get("/warehouses/inventory");
+export const addWarehousePart = (data) => API.post("/warehouses/inventory", data);
+export const updateWarehousePart = (id, data) => API.patch(`/warehouses/inventory/${id}`, data);
+export const getWarehouseOrders = () => API.get("/warehouses/orders");
+export const createWarehouseOrder = (data) => API.post("/warehouses/orders", data);
+export const updateWarehouseOrder = (id, data) => API.patch(`/warehouses/orders/${id}`, data);
+export const getWarehouseInbox = () => API.get("/warehouses/messages/inbox");
+export const getWarehouseThread = (params) => API.get("/warehouses/messages/thread", { params });
+export const sendWarehouseMessage = (data) => API.post("/warehouses/messages/thread", data);

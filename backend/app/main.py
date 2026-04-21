@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.bootstrap import ensure_schema_updates
 from app.core.config import get_settings
-from app.routers import auth, mechanics, parts, requests, admin, vehicles, engagement
+from app.routers import auth, mechanics, parts, requests, admin, vehicles, engagement, warehouses
 
 settings = get_settings()
 
@@ -44,6 +44,7 @@ app.include_router(requests.router)
 app.include_router(engagement.router)
 app.include_router(vehicles.router)
 app.include_router(admin.router)
+app.include_router(warehouses.router)
 
 
 @app.on_event("startup")

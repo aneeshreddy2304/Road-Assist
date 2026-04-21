@@ -22,7 +22,7 @@ class User(Base):
     state: Mapped[str | None] = mapped_column(String(100))
     postal_code: Mapped[str | None] = mapped_column(String(20))
     role: Mapped[str] = mapped_column(
-        SAEnum("owner", "mechanic", "admin", name="user_role"), nullable=False, default="owner"
+        SAEnum("owner", "mechanic", "admin", "warehouse", name="user_role"), nullable=False, default="owner"
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

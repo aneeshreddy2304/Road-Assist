@@ -256,6 +256,7 @@ async def owner_history_summary(
             SELECT
                 sr.id::text AS request_id,
                 CONCAT('RA-', UPPER(SUBSTRING(sr.id::text, 1, 8))) AS request_ref,
+                sr.mechanic_id::text AS mechanic_id,
                 sr.problem_desc,
                 sr.status::text AS status,
                 CAST(sr.estimated_cost AS FLOAT) AS estimated_cost,

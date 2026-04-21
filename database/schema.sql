@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- ENUMS
 -- ============================================================
 
-CREATE TYPE user_role AS ENUM ('owner', 'mechanic', 'admin');
+CREATE TYPE user_role AS ENUM ('owner', 'mechanic', 'admin', 'warehouse');
 
 CREATE TYPE vehicle_type AS ENUM ('car', 'bike', 'truck', 'suv', 'other');
 
@@ -26,6 +26,8 @@ CREATE TYPE request_status AS ENUM (
 
 CREATE TYPE appointment_status AS ENUM ('requested', 'confirmed', 'completed', 'cancelled');
 CREATE TYPE chat_sender_role AS ENUM ('owner', 'mechanic');
+CREATE TYPE warehouse_order_status AS ENUM ('requested', 'quoted', 'confirmed', 'packed', 'delivered', 'cancelled');
+CREATE TYPE warehouse_chat_sender_role AS ENUM ('mechanic', 'warehouse');
 
 CREATE TYPE alert_type AS ENUM ('low_stock', 'new_request', 'system');
 
@@ -111,6 +113,77 @@ CREATE TABLE spare_parts (
   created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   UNIQUE (mechanic_id, part_number)
+);
+
+-- ------------------------------------------------------------
+-- warehouses
+-- Supplier profiles visible only to mechanics for sourcing parts.
+-- ------------------------------------------------------------
+CREATE TABLE warehouses (
+  id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID          NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  name              VARCHAR(120)  NOT NULL,
+  address           TEXT          NOT NULL,
+  lat               NUMERIC(9,6)  NOT NULL,
+  lng               NUMERIC(9,6)  NOT NULL,
+  contact_phone     VARCHAR(30),
+  description       TEXT,
+  fulfillment_hours VARCHAR(120),
+  is_active         BOOLEAN       NOT NULL DEFAULT TRUE,
+  created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+-- ------------------------------------------------------------
+-- warehouse_parts
+-- Simulated but realistic stock catalog for supplier warehouses.
+-- ------------------------------------------------------------
+CREATE TABLE warehouse_parts (
+  id                UUID                  PRIMARY KEY DEFAULT gen_random_uuid(),
+  warehouse_id      UUID                  NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
+  part_name         VARCHAR(120)          NOT NULL,
+  part_number       VARCHAR(80),
+  quantity          INTEGER               NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  min_threshold     INTEGER               NOT NULL DEFAULT 2 CHECK (min_threshold >= 0),
+  price             NUMERIC(10,2)         NOT NULL CHECK (price >= 0),
+  compatible_vehicles vehicle_type[]      NOT NULL DEFAULT '{}',
+  manufacturer      VARCHAR(120),
+  lead_time_label   VARCHAR(120),
+  created_at        TIMESTAMPTZ           NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ           NOT NULL DEFAULT NOW()
+);
+
+-- ------------------------------------------------------------
+-- warehouse_orders
+-- Mechanic-to-warehouse sourcing workflow.
+-- ------------------------------------------------------------
+CREATE TABLE warehouse_orders (
+  id                UUID                    PRIMARY KEY DEFAULT gen_random_uuid(),
+  warehouse_id      UUID                    NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
+  mechanic_id       UUID                    NOT NULL REFERENCES mechanics(id) ON DELETE CASCADE,
+  warehouse_part_id UUID                    REFERENCES warehouse_parts(id) ON DELETE SET NULL,
+  quantity          INTEGER                 NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  status            warehouse_order_status  NOT NULL DEFAULT 'requested',
+  unit_price        NUMERIC(10,2),
+  total_price       NUMERIC(10,2),
+  note              TEXT,
+  created_at        TIMESTAMPTZ             NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ             NOT NULL DEFAULT NOW()
+);
+
+-- ------------------------------------------------------------
+-- warehouse_messages
+-- Long-form conversation thread between mechanics and warehouses.
+-- ------------------------------------------------------------
+CREATE TABLE warehouse_messages (
+  id                UUID                        PRIMARY KEY DEFAULT gen_random_uuid(),
+  warehouse_id      UUID                        NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
+  mechanic_id       UUID                        NOT NULL REFERENCES mechanics(id) ON DELETE CASCADE,
+  warehouse_order_id UUID                       REFERENCES warehouse_orders(id) ON DELETE SET NULL,
+  sender_user_id    UUID                        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_role       warehouse_chat_sender_role  NOT NULL,
+  message           TEXT                        NOT NULL,
+  created_at        TIMESTAMPTZ                 NOT NULL DEFAULT NOW()
 );
 
 -- ------------------------------------------------------------
@@ -304,6 +377,12 @@ CREATE INDEX idx_chat_messages_thread
 
 CREATE INDEX idx_chat_messages_request
   ON chat_messages (request_id, created_at ASC);
+CREATE INDEX idx_warehouse_parts_lookup
+  ON warehouse_parts (warehouse_id, quantity, part_name);
+CREATE INDEX idx_warehouse_orders_lookup
+  ON warehouse_orders (warehouse_id, mechanic_id, created_at DESC);
+CREATE INDEX idx_warehouse_messages_thread
+  ON warehouse_messages (warehouse_id, mechanic_id, created_at ASC);
 
 -- ============================================================
 -- TRIGGERS

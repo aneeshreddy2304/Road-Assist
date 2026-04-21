@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock3, MapPin, Navigation, RefreshCw, Search, ShieldCheck, Wrench } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, MessageSquare, Navigation, RefreshCw, Search, ShieldCheck, Wrench } from "lucide-react";
 
 import {
+  getMessageInbox,
+  getMessageThread,
   getMyMechanicProfile,
   getOpenRequests,
   listAppointments,
   listRequests,
+  sendMessage,
   updateAppointmentStatus,
   updateRequestStatus,
 } from "../api/endpoints";
@@ -23,6 +26,14 @@ export default function Jobs() {
   const [costDialog, setCostDialog] = useState(null);
   const [appointmentDialog, setAppointmentDialog] = useState(null);
   const [lookupQuery, setLookupQuery] = useState("");
+  const [messageInbox, setMessageInbox] = useState([]);
+  const [messageInboxLoading, setMessageInboxLoading] = useState(true);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [threadMessages, setThreadMessages] = useState([]);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [threadError, setThreadError] = useState("");
+  const [messageDraft, setMessageDraft] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
 
   const extractErrorMessage = (error, fallback) => {
     const detail = error?.response?.data?.detail;
@@ -60,22 +71,82 @@ export default function Jobs() {
     }
   };
 
+  const loadInbox = async () => {
+    setMessageInboxLoading(true);
+    try {
+      const response = await getMessageInbox();
+      setMessageInbox(response.data || []);
+      setSelectedConversation((current) => {
+        if (!current) return current;
+        return (
+          response.data?.find(
+            (item) =>
+              item.owner_id === current.owner_id &&
+              (item.request_id || null) === (current.request_id || null)
+          ) || current
+        );
+      });
+    } catch (error) {
+      console.error(error);
+      setMessageInbox([]);
+    } finally {
+      setMessageInboxLoading(false);
+    }
+  };
+
+  const loadThread = async (conversation) => {
+    if (!conversation?.owner_id) {
+      setThreadMessages([]);
+      return;
+    }
+    setThreadLoading(true);
+    setThreadError("");
+    try {
+      const response = await getMessageThread({
+        owner_id: conversation.owner_id,
+        request_id: conversation.request_id || undefined,
+      });
+      setThreadMessages(response.data || []);
+    } catch (error) {
+      setThreadMessages([]);
+      setThreadError(error.response?.data?.detail || "Could not load this conversation");
+    } finally {
+      setThreadLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchAll();
+    loadInbox();
   }, []);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       fetchAll(true);
+      loadInbox();
     }, 20000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!selectedConversation) {
+      setThreadMessages([]);
+      return;
+    }
+    loadThread(selectedConversation);
+    const interval = window.setInterval(() => {
+      loadThread(selectedConversation);
+      loadInbox();
+    }, 4000);
+    return () => window.clearInterval(interval);
+  }, [selectedConversation]);
 
   const accepted = myJobs.filter((job) => job.status === "accepted");
   const inProgress = myJobs.filter((job) => job.status === "in_progress");
   const completed = myJobs.filter((job) => job.status === "completed");
   const totalEarnings = completed.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
   const pendingAppointments = appointments.filter((item) => ["requested", "confirmed"].includes(item.status));
+  const activeConversationCount = messageInbox.length;
   const searchResult = useMemo(() => {
     const normalized = lookupQuery.trim().toUpperCase();
     if (!normalized) return null;
@@ -126,6 +197,32 @@ export default function Jobs() {
     }
   };
 
+  const openConversation = (conversation) => {
+    setSelectedConversation(conversation);
+    setTab("messages");
+  };
+
+  const handleMessageSend = async (event) => {
+    event.preventDefault();
+    if (!selectedConversation?.owner_id || !messageDraft.trim()) return;
+    setMessageSending(true);
+    setThreadError("");
+    try {
+      const response = await sendMessage({
+        owner_id: selectedConversation.owner_id,
+        request_id: selectedConversation.request_id || undefined,
+        message: messageDraft.trim(),
+      });
+      setThreadMessages((current) => [...current, response.data]);
+      setMessageDraft("");
+      await loadInbox();
+    } catch (error) {
+      setThreadError(error.response?.data?.detail || "Could not send message");
+    } finally {
+      setMessageSending(false);
+    }
+  };
+
   const columns = useMemo(
     () => [
       { id: "dispatch", title: "New Requests", jobs: openJobs, empty: "No incoming jobs nearby" },
@@ -150,6 +247,7 @@ export default function Jobs() {
             <MiniMetric label="New Requests" value={openJobs.length} icon={<Wrench size={16} className="text-[#2563eb]" />} />
             <MiniMetric label="Appointments" value={pendingAppointments.length} icon={<CalendarDays size={16} className="text-[#16a34a]" />} />
             <MiniMetric label="Earnings" value={formatCurrencyUSD(totalEarnings)} icon={<Navigation size={16} className="text-[#7c3aed]" />} />
+            <MiniMetric label="Messages" value={activeConversationCount} icon={<MessageSquare size={16} className="text-[#ea580c]" />} />
           </div>
         </div>
 
@@ -238,6 +336,7 @@ export default function Jobs() {
             { id: "accepted", label: `Accepted (${accepted.length})` },
             { id: "progress", label: `In Progress (${inProgress.length})` },
             { id: "appointments", label: `Appointments (${pendingAppointments.length})` },
+            { id: "messages", label: `Messages (${activeConversationCount})` },
             { id: "completed", label: `Completed (${completed.length})` },
           ].map((item) => (
             <button
@@ -280,6 +379,23 @@ export default function Jobs() {
                           <p className="mt-2 text-sm text-slate-600">{appointment.vehicle_label || "Vehicle not selected"}</p>
                           <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">{appointment.status}</p>
                           <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openConversation({
+                                  owner_id: appointment.owner_id,
+                                  mechanic_id: appointment.mechanic_id,
+                                  request_id: null,
+                                  request_ref: null,
+                                  counterpart_name: appointment.owner_name,
+                                  counterpart_address: appointment.vehicle_label || "Appointment conversation",
+                                });
+                              }}
+                              className="col-span-2 rounded-[16px] border border-[#dbe7ff] bg-white px-3 py-2.5 text-sm font-semibold text-slate-600"
+                            >
+                              Message owner
+                            </button>
                             <button
                               type="button"
                               onClick={(event) => {
@@ -366,6 +482,90 @@ export default function Jobs() {
                   </div>
                 </Card>
           </div>
+        ) : tab === "messages" ? (
+          <div className="grid gap-4 xl:grid-cols-[0.95fr,1.25fr]">
+            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Inbox</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Owner conversations</h2>
+                </div>
+                <span className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                  {messageInbox.length}
+                </span>
+              </div>
+              <div className="max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+                {messageInboxLoading ? <Spinner /> : null}
+                {!messageInboxLoading && messageInbox.length === 0 ? (
+                  <EmptyState icon="💬" title="No messages yet" subtitle="Owner conversations will appear here once someone starts chatting." />
+                ) : null}
+                {messageInbox.map((thread) => (
+                  <button
+                    key={`${thread.owner_id}-${thread.request_id || "general"}`}
+                    type="button"
+                    onClick={() => setSelectedConversation(thread)}
+                    className={`w-full rounded-[22px] border p-4 text-left transition ${
+                      selectedConversation?.owner_id === thread.owner_id &&
+                      (selectedConversation?.request_id || null) === (thread.request_id || null)
+                        ? "border-[#0f172a] bg-[#0f172a] text-white shadow-lg"
+                        : "border-[#dbe7ff] bg-[#f8fbff] text-[#081224] hover:border-[#c7dafc]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">{thread.counterpart_name}</p>
+                        <p className={`mt-1 text-xs uppercase tracking-[0.14em] ${
+                          selectedConversation?.owner_id === thread.owner_id &&
+                          (selectedConversation?.request_id || null) === (thread.request_id || null)
+                            ? "text-white/65"
+                            : "text-[#2563eb]"
+                        }`}>
+                          {thread.request_ref || "General conversation"}
+                        </p>
+                        <p className={`mt-2 line-clamp-2 text-sm ${
+                          selectedConversation?.owner_id === thread.owner_id &&
+                          (selectedConversation?.request_id || null) === (thread.request_id || null)
+                            ? "text-white/80"
+                            : "text-slate-500"
+                        }`}>
+                          {thread.message}
+                        </p>
+                      </div>
+                      <p className={`text-[11px] ${
+                        selectedConversation?.owner_id === thread.owner_id &&
+                        (selectedConversation?.request_id || null) === (thread.request_id || null)
+                          ? "text-white/65"
+                          : "text-slate-400"
+                      }`}>
+                        {new Date(thread.created_at).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <ConversationSurface
+              title={selectedConversation?.counterpart_name || "Select an owner"}
+              subtitle={selectedConversation?.request_ref || "Choose a thread from the inbox to continue the conversation."}
+              loading={threadLoading}
+              error={threadError}
+              messages={threadMessages}
+              draft={messageDraft}
+              onDraftChange={setMessageDraft}
+              onSubmit={handleMessageSend}
+              sending={messageSending}
+              currentRole="mechanic"
+              disabled={!selectedConversation}
+              emptyTitle="No messages yet"
+              emptySubtitle="Start the conversation with an ETA, estimate, or repair update."
+            />
+          </div>
         ) : (() => {
           const activeColumn = columns.find((column) => column.id === tab || (tab === "dispatch" && column.id === "dispatch"));
           if (!activeColumn) return null;
@@ -394,6 +594,16 @@ export default function Jobs() {
             key={job.id}
             job={job}
                       kind={activeColumn.id}
+                      onMessage={() =>
+                        openConversation({
+                          owner_id: job.owner_id,
+                          mechanic_id: job.mechanic_id,
+                          request_id: job.id,
+                          request_ref: job.request_ref,
+                          counterpart_name: job.owner_name,
+                          counterpart_address: job.owner_address,
+                        })
+                      }
                       onAccept={() =>
                         setCostDialog({
                           mode: "estimate",
@@ -467,7 +677,7 @@ function MiniMetric({ label, value, icon }) {
   );
 }
 
-function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
+function JobSurface({ job, kind, onMessage, onAccept, onStart, onComplete }) {
   const actions = {
     dispatch: { label: "Accept request", onClick: onAccept, style: "bg-[#2563eb] hover:bg-[#1d4ed8]" },
     accepted: { label: "Start work", onClick: onStart, style: "bg-[#0f172a] hover:bg-black" },
@@ -512,18 +722,103 @@ function JobSurface({ job, kind, onAccept, onStart, onComplete }) {
       </div>
 
       {action ? (
-        <button
-          onClick={action.onClick}
-          className={`mt-4 w-full rounded-[18px] px-4 py-3 text-sm font-semibold text-white transition ${action.style}`}
-        >
-          {action.label}
-        </button>
+        <div className="mt-4 grid gap-2">
+          {(kind === "accepted" || kind === "progress" || kind === "completed") ? (
+            <button
+              onClick={onMessage}
+              className="w-full rounded-[18px] border border-[#dbe7ff] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Message owner
+            </button>
+          ) : null}
+          <button
+            onClick={action.onClick}
+            className={`w-full rounded-[18px] px-4 py-3 text-sm font-semibold text-white transition ${action.style}`}
+          >
+            {action.label}
+          </button>
+        </div>
       ) : (
         <div className="mt-4 rounded-[18px] border border-[#dbe7ff] bg-white px-4 py-3 text-center text-sm font-medium text-slate-500">
           Completed on {new Date(job.updated_at ?? job.created_at).toLocaleDateString("en-US")}
         </div>
       )}
     </div>
+  );
+}
+
+function ConversationSurface({
+  title,
+  subtitle,
+  loading,
+  error,
+  messages,
+  draft,
+  onDraftChange,
+  onSubmit,
+  sending,
+  currentRole,
+  disabled,
+  emptyTitle,
+  emptySubtitle,
+}) {
+  return (
+    <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-0 shadow-lg">
+      <div className="border-b border-[#dbe7ff] px-5 py-4">
+        <p className="text-lg font-semibold text-[#081224]">{title}</p>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      </div>
+
+      <div className="max-h-[31rem] min-h-[31rem] space-y-3 overflow-y-auto bg-[#f8fbff] px-5 py-5">
+        {loading ? <Spinner /> : null}
+        {!loading && !disabled && messages.length === 0 ? (
+          <EmptyState icon="💬" title={emptyTitle} subtitle={emptySubtitle} />
+        ) : null}
+        {!loading &&
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`max-w-[82%] rounded-[22px] px-4 py-3 ${
+                message.sender_role === currentRole
+                  ? "ml-auto bg-[#0f172a] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
+                  : "bg-white text-[#081224] ring-1 ring-[#dbe7ff]"
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.message}</p>
+              <p className={`mt-2 text-[11px] ${message.sender_role === currentRole ? "text-white/65" : "text-slate-400"}`}>
+                {new Date(message.created_at).toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          ))}
+      </div>
+
+      <form onSubmit={onSubmit} className="border-t border-[#dbe7ff] px-5 py-4">
+        {error ? <p className="mb-3 rounded-[18px] bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p> : null}
+        <div className="flex gap-3">
+          <textarea
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            rows={2}
+            disabled={disabled}
+            placeholder={disabled ? "Select a conversation to start messaging." : "Type a message..."}
+            className="min-h-[3.75rem] flex-1 rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-3 text-sm text-[#081224] outline-none focus:ring-2 focus:ring-[#0f172a] disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={disabled || sending || !draft.trim()}
+            className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {sending ? "Sending..." : "Send"}
+          </button>
+        </div>
+      </form>
+    </Card>
   );
 }
 

@@ -309,6 +309,10 @@ export default function Navbar() {
               {user.role === "admin" ? (
                 <HeaderNavLink to="/admin" icon={<LayoutDashboard size={16} />} label="Admin" active={pathname === "/admin"} />
               ) : null}
+
+              {user.role === "warehouse" ? (
+                <HeaderNavLink to="/warehouse" icon={<ClipboardList size={16} />} label="Warehouse" active={pathname === "/warehouse"} />
+              ) : null}
             </div>
 
             {user.role === "owner" ? (
@@ -643,6 +647,23 @@ export default function Navbar() {
                     )}
                   </PanelShell>
                 ) : null}
+              </div>
+            ) : user.role === "warehouse" ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/warehouse"
+                  className="inline-flex items-center gap-2 rounded-[18px] border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold tracking-[0.01em] text-white/80 transition hover:border-[#58a6ff]/40 hover:bg-white/10 hover:text-white"
+                >
+                  <ClipboardList size={16} />
+                  Workspace
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="rounded-[18px] border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+                  title="Sign out"
+                >
+                  <LogOut size={17} />
+                </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">

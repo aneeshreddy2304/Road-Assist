@@ -12,6 +12,7 @@ import Dashboard   from "./pages/Dashboard";
 import Inventory   from "./pages/Inventory";
 import Jobs        from "./pages/Jobs";
 import Admin       from "./pages/Admin";
+import Warehouse   from "./pages/Warehouse";
 
 function Protected({ children, roles }) {
   const { user } = useAuth();
@@ -25,6 +26,7 @@ function AuthRoute({ children }) {
   if (user) {
     if (user.role === "mechanic") return <Navigate to="/dashboard" replace />;
     if (user.role === "admin")    return <Navigate to="/admin" replace />;
+    if (user.role === "warehouse") return <Navigate to="/warehouse" replace />;
     return <Navigate to="/search" replace />;
   }
   return children;
@@ -35,6 +37,7 @@ function RootRedirect() {
   if (!user)                    return <Navigate to="/login" replace />;
   if (user.role === "mechanic") return <Navigate to="/dashboard" replace />;
   if (user.role === "admin")    return <Navigate to="/admin" replace />;
+  if (user.role === "warehouse") return <Navigate to="/warehouse" replace />;
   return <Navigate to="/search" replace />;
 }
 
@@ -54,6 +57,7 @@ export default function App() {
           <Route path="/inventory"   element={<Protected roles={["mechanic"]}><Inventory /></Protected>} />
           <Route path="/jobs"        element={<Protected roles={["mechanic"]}><Jobs /></Protected>} />
           <Route path="/admin"       element={<Protected roles={["admin"]}><Admin /></Protected>} />
+          <Route path="/warehouse"   element={<Protected roles={["warehouse"]}><Warehouse /></Protected>} />
           <Route path="/"            element={<RootRedirect />} />
           <Route path="*"            element={<Navigate to="/" replace />} />
         </Routes>

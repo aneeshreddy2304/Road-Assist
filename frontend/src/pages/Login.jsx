@@ -20,6 +20,7 @@ export default function Login() {
       const user = await login(form.email, form.password);
       if (user.role === "mechanic") navigate("/dashboard");
       else if (user.role === "admin") navigate("/admin");
+      else if (user.role === "warehouse") navigate("/warehouse");
       else navigate("/search");
     } catch (err) {
       setError(err.response?.data?.detail || "Login failed");
@@ -134,11 +135,12 @@ export default function Login() {
 
             <div className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50/80 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Quick demo access</p>
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
                 {[
                   { label: "Owner", email: "owner1@example.com" },
                   { label: "Mechanic", email: "mechanic1@roadassist.in" },
                   { label: "Admin", email: "admin1@roadassist.in" },
+                  { label: "Warehouse", email: "warehouse1@roadassist.in" },
                 ].map(({ label, email }) => (
                   <button
                     key={label}
