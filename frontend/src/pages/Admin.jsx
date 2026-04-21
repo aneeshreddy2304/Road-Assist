@@ -4,6 +4,7 @@ import {
   Clock3,
   DollarSign,
   Gauge,
+  Search,
   ShieldAlert,
   TriangleAlert,
   Wrench,
@@ -11,11 +12,14 @@ import {
 } from "lucide-react";
 
 import {
+  approveMechanicRegistration,
   deactivateMechanic,
   deactivateOwner,
+  declineMechanicRegistration,
   getAllMechanics,
   getAllOwners,
   getAnalytics,
+  searchAdminWorkItem,
 } from "../api/endpoints";
 import { Card, Spinner, StatusBadge } from "../components/UI";
 import { formatCurrencyUSD } from "../lib/formatters";
@@ -37,7 +41,12 @@ export default function Admin() {
   const [owners, setOwners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deactivatingId, setDeactivatingId] = useState(null);
+  const [decisionId, setDecisionId] = useState(null);
   const [managingGroup, setManagingGroup] = useState(null);
+  const [lookupQuery, setLookupQuery] = useState("");
+  const [lookupResult, setLookupResult] = useState(null);
+  const [lookupError, setLookupError] = useState("");
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -79,6 +88,7 @@ export default function Admin() {
   const roleBreakdown = analytics?.users_by_role || {};
   const appointmentSummary = analytics?.appointments_summary || {};
   const mechanicsOnline = Number(analytics?.mechanics_online || 0);
+  const pendingMechanics = mechanics.filter((mechanic) => mechanic.approval_status === "pending");
 
   const funnelData = useMemo(
     () => [
@@ -148,6 +158,25 @@ export default function Admin() {
     }
   }
 
+  async function refreshMechanics() {
+    const { data } = await getAllMechanics();
+    setMechanics(data);
+  }
+
+  async function handleMechanicDecision(mechanicId, decision) {
+    setDecisionId(mechanicId);
+    try {
+      if (decision === "approve") {
+        await approveMechanicRegistration(mechanicId);
+      } else {
+        await declineMechanicRegistration(mechanicId);
+      }
+      await refreshMechanics();
+    } finally {
+      setDecisionId(null);
+    }
+  }
+
   async function handleDeactivateOwner(ownerId) {
     setDeactivatingId(ownerId);
     try {
@@ -156,6 +185,22 @@ export default function Admin() {
       setOwners(data);
     } finally {
       setDeactivatingId(null);
+    }
+  }
+
+  async function handleLookup(event) {
+    event.preventDefault();
+    if (!lookupQuery.trim()) return;
+    setSearching(true);
+    setLookupError("");
+    try {
+      const { data } = await searchAdminWorkItem(lookupQuery.trim());
+      setLookupResult(data);
+    } catch (error) {
+      setLookupResult(null);
+      setLookupError(error.response?.data?.detail || "No item matched that ID");
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -192,6 +237,54 @@ export default function Admin() {
           <MetricCard icon={<Activity size={18} className="text-[#ea580c]" />} label="Avg completion" value={`${completionHours.toFixed(1)} hr`} tone="amber" />
           <MetricCard icon={<ShieldAlert size={18} className="text-[#dc2626]" />} label="Mechanics online" value={mechanicsOnline} tone="rose" />
         </div>
+
+        <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <SectionHeader title="Direct ID lookup" />
+              <p className="mt-2 text-sm text-slate-500">Search any service request or appointment by full UUID or short ID like `RA-3DFC7E20` or `AP-7A342CCA`.</p>
+            </div>
+            <form onSubmit={handleLookup} className="flex w-full max-w-xl gap-3">
+              <div className="relative flex-1">
+                <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={lookupQuery}
+                  onChange={(event) => setLookupQuery(event.target.value)}
+                  placeholder="Enter request or appointment ID"
+                  className="h-12 w-full rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] pl-11 pr-4 text-sm text-[#081224] outline-none focus:ring-2 focus:ring-[#2563eb]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={searching}
+                className="rounded-[20px] bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {searching ? "Searching..." : "Search"}
+              </button>
+            </form>
+          </div>
+
+          {lookupResult ? (
+            <div className="mt-4 rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563eb]">{lookupResult.ref}</p>
+                  <p className="mt-1 text-lg font-semibold text-[#081224]">{lookupResult.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">{lookupResult.owner_name} • {lookupResult.mechanic_name}</p>
+                </div>
+                <div className="text-right">
+                  <StatusBadge status={lookupResult.status === "confirmed" ? "accepted" : lookupResult.status} />
+                  <p className="mt-2 text-sm font-semibold text-[#081224]">{formatCurrencyUSD(lookupResult.amount || 0)}</p>
+                  <p className="mt-1 text-xs text-slate-500">{formatDateTime(lookupResult.event_at)}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {lookupError ? (
+            <p className="mt-4 rounded-[18px] bg-red-50 px-4 py-3 text-sm text-red-600">{lookupError}</p>
+          ) : null}
+        </Card>
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr,1.2fr,0.95fr]">
           <div className="grid gap-4">
@@ -251,6 +344,13 @@ export default function Admin() {
                     <p className="text-2xl font-semibold text-[#081224]">{mechanicsOnline}</p>
                   </div>
                   <p className="mt-2 text-xs text-slate-500">Currently visible in the network</p>
+                </div>
+                <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-[#081224]">Pending applications</p>
+                    <p className="text-2xl font-semibold text-[#081224]">{pendingMechanics.length}</p>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Mechanic registrations waiting for admin review</p>
                 </div>
                 <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -404,6 +504,7 @@ export default function Admin() {
                           </p>
                           <p className="mt-1 text-xs text-slate-500">{mechanic.email}</p>
                           <div className="mt-2 flex flex-wrap gap-2">
+                            <ApprovalBadge status={mechanic.approval_status} />
                             <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${mechanic.is_available ? "bg-[#dcfce7] text-[#166534]" : "bg-[#f1f5f9] text-[#475569]"}`}>
                               {mechanic.is_available ? "Online" : "Offline"}
                             </span>
@@ -599,7 +700,7 @@ export default function Admin() {
                         <p className="mt-1 text-sm text-slate-500">{person.email}</p>
                         {"phone" in person ? <p className="mt-1 text-sm text-slate-500">{person.phone || "No phone listed"}</p> : null}
                       </div>
-                      <StatusBadge status={person.is_active ? "active" : "cancelled"} />
+                      {managingGroup === "mechanics" ? <ApprovalBadge status={person.approval_status} /> : <StatusBadge status={person.is_active ? "active" : "cancelled"} />}
                     </div>
 
                     <div className="mt-4 space-y-2 text-sm text-slate-600">
@@ -607,6 +708,9 @@ export default function Admin() {
                         <>
                           <p><span className="font-semibold text-[#081224]">Specialization:</span> {person.specialization || "Not set"}</p>
                           <p><span className="font-semibold text-[#081224]">Address:</span> {person.address || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Hours:</span> {person.work_hours || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Vehicle types:</span> {(person.vehicle_types || []).join(", ") || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Location:</span> {person.lat && person.lng ? `${Number(person.lat).toFixed(4)}, ${Number(person.lng).toFixed(4)}` : "Not set"}</p>
                           <p><span className="font-semibold text-[#081224]">Joined:</span> {formatDateTime(person.created_at)}</p>
                           <p><span className="font-semibold text-[#081224]">Rating:</span> {Number(person.rating || 0).toFixed(1)}</p>
                         </>
@@ -619,7 +723,25 @@ export default function Admin() {
                       )}
                     </div>
 
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-4 flex flex-wrap justify-end gap-2">
+                      {managingGroup === "mechanics" && person.approval_status === "pending" ? (
+                        <>
+                          <button
+                            onClick={() => handleMechanicDecision(person.id, "decline")}
+                            disabled={decisionId === person.id}
+                            className="rounded-full border border-[#fecaca] px-4 py-2 text-sm font-semibold text-[#b91c1c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {decisionId === person.id ? "Updating..." : "Decline"}
+                          </button>
+                          <button
+                            onClick={() => handleMechanicDecision(person.id, "approve")}
+                            disabled={decisionId === person.id}
+                            className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1e293b] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {decisionId === person.id ? "Updating..." : "Approve"}
+                          </button>
+                        </>
+                      ) : null}
                       <button
                         onClick={() => managingGroup === "mechanics" ? handleDeactivate(person.id) : handleDeactivateOwner(person.id)}
                         disabled={deactivatingId === person.id}
@@ -685,6 +807,19 @@ function EmptyMiniState({ message }) {
     <div className="rounded-[22px] border border-dashed border-[#dbe7ff] bg-white px-4 py-8 text-center text-sm text-slate-400">
       {message}
     </div>
+  );
+}
+
+function ApprovalBadge({ status }) {
+  const tones = {
+    approved: "bg-[#dcfce7] text-[#166534]",
+    pending: "bg-[#fff7ed] text-[#c2410c]",
+    declined: "bg-[#fee2e2] text-[#b91c1c]",
+  };
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${tones[status] || "bg-slate-100 text-slate-600"}`}>
+      {status || "unknown"}
+    </span>
   );
 }
 

@@ -43,12 +43,15 @@ export function AuthProvider({ children }) {
   const register = async (payload) => {
     const res = await apiRegister(payload);
     const { access_token, role, user_id, name } = res.data;
-    const userData = { id: user_id, name, role };
-    localStorage.setItem("token", access_token);
-    localStorage.setItem("user", JSON.stringify(userData));
-    setToken(access_token);
-    setUser(userData);
-    return userData;
+    if (access_token) {
+      const userData = { id: user_id, name, role };
+      localStorage.setItem("token", access_token);
+      localStorage.setItem("user", JSON.stringify(userData));
+      setToken(access_token);
+      setUser(userData);
+      return { ...userData, ...res.data };
+    }
+    return res.data;
   };
 
   const refreshUser = async () => {

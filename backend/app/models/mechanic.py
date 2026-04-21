@@ -23,6 +23,7 @@ class Mechanic(Base):
     vehicle_types: Mapped[list] = mapped_column(
         ARRAY(SAEnum("car", "bike", "truck", "suv", "other", name="vehicle_type")), default=[]
     )
+    approval_status: Mapped[str] = mapped_column(String(20), default="approved", nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     rating: Mapped[float] = mapped_column(Numeric(3, 2), default=0.00, nullable=False)
     total_reviews: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

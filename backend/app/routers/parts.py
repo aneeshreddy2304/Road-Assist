@@ -95,6 +95,7 @@ async def _fetch_nearby_part_rows(db: AsyncSession, lat: float, lng: float, radi
         WHERE
             sp.quantity > 0
             AND m.is_available = TRUE
+            AND m.approval_status = 'approved'
             AND u.is_active = TRUE
             AND ST_DWithin(
                 m.location,

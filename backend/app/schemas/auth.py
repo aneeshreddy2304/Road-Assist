@@ -7,7 +7,18 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     phone: str | None = None
+    gender: str | None = None
+    street_address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None
     role: Literal["owner", "mechanic"] = "owner"
+    address: str | None = None
+    specialization: str | None = None
+    work_hours: str | None = None
+    vehicle_types: list[str] | None = None
+    lat: float | None = None
+    lng: float | None = None
 
     @field_validator("password")
     @classmethod
@@ -23,11 +34,13 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
+    access_token: str | None = None
     token_type: str = "bearer"
     role: str
     user_id: str
     name: str
+    registration_status: str = "approved"
+    detail: str | None = None
 
 
 class UserOut(BaseModel):

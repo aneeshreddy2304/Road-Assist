@@ -1,0 +1,6 @@
+ALTER TABLE mechanics
+ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'approved';
+
+UPDATE mechanics
+SET approval_status = 'approved'
+WHERE approval_status IS NULL;

@@ -1,13 +1,20 @@
-from fastapi import APIRouter, Depends, Query
+import asyncio
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
+from app.core.email import send_email
 from app.db.session import get_db
 from app.models.user import User
 from app.models.mechanic import Mechanic
 from app.core.security import require_role
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+def _normalize_lookup_query(value: str) -> str:
+    return (value or "").strip().upper()
 
 
 def _window_clause(column: str, range_key: str) -> str:
@@ -276,15 +283,112 @@ async def list_all_mechanics(
     current_user: User = Depends(require_role("admin")),
 ):
     result = await db.execute(text("""
-        SELECT m.id, u.name, u.email, u.phone,
-               m.specialization, m.is_available,
+        SELECT m.id, u.id AS user_id, u.name, u.email, u.phone,
+               u.gender, u.street_address, u.city, u.state, u.postal_code, u.is_active,
+               m.specialization, m.work_hours, m.vehicle_types, m.approval_status, m.is_available,
                CAST(m.rating AS FLOAT) AS rating,
-               m.total_reviews, m.address
+               m.total_reviews, m.address, m.created_at,
+               ST_Y(m.location::geometry) AS lat,
+               ST_X(m.location::geometry) AS lng
         FROM mechanics m
         JOIN users u ON u.id = m.user_id
-        ORDER BY m.rating DESC
+        ORDER BY CASE WHEN m.approval_status = 'pending' THEN 0 ELSE 1 END, m.created_at DESC
     """))
     return [dict(r) for r in result.mappings().all()]
+
+
+@router.patch("/mechanics/{mechanic_id}/approve", status_code=200)
+async def approve_mechanic_registration(
+    mechanic_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(
+        text(
+            """
+            SELECT m.id, m.user_id, u.name, u.email
+            FROM mechanics m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.id = :mid
+            """
+        ),
+        {"mid": mechanic_id},
+    )
+    mechanic = result.mappings().first()
+    if not mechanic:
+        raise HTTPException(status_code=404, detail="Mechanic not found")
+
+    await db.execute(
+        text(
+            """
+            UPDATE mechanics
+            SET approval_status = 'approved', is_available = TRUE
+            WHERE id = :mid
+            """
+        ),
+        {"mid": mechanic_id},
+    )
+    await db.commit()
+
+    email_sent = await asyncio.to_thread(
+        send_email,
+        mechanic["email"],
+        "RoadAssist mechanic registration approved",
+        (
+            f"Hello {mechanic['name']},\n\n"
+            "Your mechanic registration for RoadAssist has been approved. "
+            "You can now sign in with the email address and password you registered with.\n\n"
+            "Thanks,\nRoadAssist Admin"
+        ),
+    )
+    return {"detail": "Mechanic approved", "email_sent": email_sent}
+
+
+@router.patch("/mechanics/{mechanic_id}/decline", status_code=200)
+async def decline_mechanic_registration(
+    mechanic_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(
+        text(
+            """
+            SELECT m.id, m.user_id, u.name, u.email
+            FROM mechanics m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.id = :mid
+            """
+        ),
+        {"mid": mechanic_id},
+    )
+    mechanic = result.mappings().first()
+    if not mechanic:
+        raise HTTPException(status_code=404, detail="Mechanic not found")
+
+    await db.execute(
+        text(
+            """
+            UPDATE mechanics
+            SET approval_status = 'declined', is_available = FALSE
+            WHERE id = :mid
+            """
+        ),
+        {"mid": mechanic_id},
+    )
+    await db.commit()
+
+    email_sent = await asyncio.to_thread(
+        send_email,
+        mechanic["email"],
+        "RoadAssist mechanic registration update",
+        (
+            f"Hello {mechanic['name']},\n\n"
+            "Your mechanic registration request for RoadAssist was declined after review. "
+            "You cannot sign in as a mechanic at this time. Please contact the admin team if you believe this is an error.\n\n"
+            "Thanks,\nRoadAssist Admin"
+        ),
+    )
+    return {"detail": "Mechanic declined", "email_sent": email_sent}
 
 
 @router.get("/owners")
@@ -332,6 +436,75 @@ async def deactivate_mechanic(
     )
     await db.commit()
     return {"detail": "Mechanic deactivated"}
+
+
+@router.get("/lookup")
+async def lookup_work_item(
+    query: str = Query(..., min_length=3),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    normalized = _normalize_lookup_query(query)
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Search query is required")
+
+    request_result = await db.execute(
+        text(
+            """
+            SELECT
+                'service_request' AS item_type,
+                sr.id::text AS id,
+                CONCAT('RA-', UPPER(SUBSTRING(sr.id::TEXT, 1, 8))) AS ref,
+                sr.status::text AS status,
+                sr.problem_desc AS title,
+                owner.name AS owner_name,
+                COALESCE(mech_user.name, 'Unassigned') AS mechanic_name,
+                sr.created_at AS event_at,
+                CAST(COALESCE(sr.total_cost, sr.estimated_cost, 0) AS FLOAT) AS amount
+            FROM service_requests sr
+            JOIN users owner ON owner.id = sr.owner_id
+            LEFT JOIN mechanics m ON m.id = sr.mechanic_id
+            LEFT JOIN users mech_user ON mech_user.id = m.user_id
+            WHERE sr.id::text = :raw
+               OR CONCAT('RA-', UPPER(SUBSTRING(sr.id::TEXT, 1, 8))) = :normalized
+            LIMIT 1
+            """
+        ),
+        {"raw": query.strip(), "normalized": normalized},
+    )
+    request_item = request_result.mappings().first()
+    if request_item:
+        return dict(request_item)
+
+    appointment_result = await db.execute(
+        text(
+            """
+            SELECT
+                'appointment' AS item_type,
+                a.id::text AS id,
+                CONCAT('AP-', UPPER(SUBSTRING(a.id::TEXT, 1, 8))) AS ref,
+                a.status::text AS status,
+                a.service_type AS title,
+                owner.name AS owner_name,
+                mech_user.name AS mechanic_name,
+                a.scheduled_for AS event_at,
+                CAST(COALESCE(a.estimated_cost, 0) AS FLOAT) AS amount
+            FROM appointments a
+            JOIN users owner ON owner.id = a.owner_id
+            JOIN mechanics m ON m.id = a.mechanic_id
+            JOIN users mech_user ON mech_user.id = m.user_id
+            WHERE a.id::text = :raw
+               OR CONCAT('AP-', UPPER(SUBSTRING(a.id::TEXT, 1, 8))) = :normalized
+            LIMIT 1
+            """
+        ),
+        {"raw": query.strip(), "normalized": normalized},
+    )
+    appointment_item = appointment_result.mappings().first()
+    if appointment_item:
+        return dict(appointment_item)
+
+    raise HTTPException(status_code=404, detail="No request or appointment matched that ID")
 
 
 @router.patch("/owners/{owner_id}/deactivate", status_code=200)

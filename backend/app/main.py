@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.bootstrap import ensure_schema_updates
 from app.core.config import get_settings
 from app.routers import auth, mechanics, parts, requests, admin, vehicles, engagement
 
@@ -43,6 +44,11 @@ app.include_router(requests.router)
 app.include_router(engagement.router)
 app.include_router(vehicles.router)
 app.include_router(admin.router)
+
+
+@app.on_event("startup")
+async def bootstrap_schema():
+    await ensure_schema_updates()
 
 
 @app.get("/", tags=["Health"])

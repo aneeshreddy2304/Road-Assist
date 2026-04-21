@@ -67,6 +67,7 @@ CREATE TABLE mechanics (
   specialization  TEXT,                              -- e.g. "engine, brakes, electrical"
   work_hours      TEXT,
   vehicle_types   vehicle_type[]  NOT NULL DEFAULT '{}',
+  approval_status VARCHAR(20)   NOT NULL DEFAULT 'approved',
   is_available    BOOLEAN       NOT NULL DEFAULT TRUE,
   rating          NUMERIC(3, 2) NOT NULL DEFAULT 0.00
                   CHECK (rating >= 0 AND rating <= 5),

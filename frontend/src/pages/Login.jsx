@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ChevronRight, MapPin, ShieldCheck, TimerReset, Wrench } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
+  const notice = location.state?.notice || "";
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -111,6 +113,10 @@ export default function Login() {
                   placeholder="••••••••"
                 />
               </div>
+
+              {notice ? (
+                <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p>
+              ) : null}
 
               {error ? (
                 <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>

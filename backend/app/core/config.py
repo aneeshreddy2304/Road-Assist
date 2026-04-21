@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     APP_TITLE: str = "RoadAssist API"
     APP_VERSION: str = "1.0.0"
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_EMAIL: str | None = None
+    SMTP_USE_TLS: bool = True
 
     @property
     def origins_list(self) -> list[str]:

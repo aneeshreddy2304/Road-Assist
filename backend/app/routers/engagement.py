@@ -120,6 +120,8 @@ async def create_appointment(
             FROM mechanics m
             JOIN users u ON u.id = m.user_id
             WHERE m.id = :mid
+              AND u.is_active = TRUE
+              AND m.approval_status = 'approved'
             """
         ),
         {"mid": payload.mechanic_id},

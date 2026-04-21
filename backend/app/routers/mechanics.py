@@ -68,6 +68,7 @@ async def get_nearby_mechanics(
         JOIN users u ON u.id = m.user_id
         WHERE
             u.is_active = TRUE
+            AND m.approval_status = 'approved'
             AND m.is_available = TRUE
             AND ST_DWithin(
                 m.location,
@@ -99,6 +100,7 @@ async def get_my_mechanic_profile(
             m.specialization,
             m.work_hours,
             m.vehicle_types,
+            m.approval_status,
             m.is_available,
             CAST(m.rating AS FLOAT) AS rating,
             m.total_reviews,
@@ -158,7 +160,7 @@ async def get_mechanic(
                 {distance_select}
             FROM mechanics m
             JOIN users u ON u.id = m.user_id
-            WHERE m.id = :mid AND u.is_active = TRUE
+            WHERE m.id = :mid AND u.is_active = TRUE AND m.approval_status = 'approved'
         """),
         params,
     )

@@ -12,6 +12,7 @@ class MechanicMe(BaseModel):
     specialization: str | None = None
     work_hours: str | None = None
     vehicle_types: list[str] = []
+    approval_status: str = "approved"
     is_available: bool
     rating: float
     total_reviews: int
@@ -70,6 +71,7 @@ class MechanicProfile(BaseModel):
     specialization: str | None
     work_hours: str | None = None
     vehicle_types: list[str]
+    approval_status: str = "approved"
     is_available: bool
     rating: float
     total_reviews: int

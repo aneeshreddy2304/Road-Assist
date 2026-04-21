@@ -116,11 +116,14 @@ async def create_request(
     mechanic_id = None
     if payload.mechanic_id:
         mechanic_check = await db.execute(
-            select(Mechanic).where(Mechanic.id == payload.mechanic_id)
+            select(Mechanic).where(
+                Mechanic.id == payload.mechanic_id,
+                Mechanic.approval_status == "approved",
+            )
         )
         mechanic = mechanic_check.scalar_one_or_none()
         if not mechanic:
-            raise HTTPException(status_code=404, detail="Selected mechanic not found")
+            raise HTTPException(status_code=404, detail="Selected mechanic is not available for requests")
         mechanic_id = mechanic.id
 
     req = ServiceRequest(

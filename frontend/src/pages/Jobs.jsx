@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock3, MapPin, Navigation, ShieldCheck, Wrench } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, Navigation, RefreshCw, Search, ShieldCheck, Wrench } from "lucide-react";
 
 import {
   getMyMechanicProfile,
@@ -22,6 +22,7 @@ export default function Jobs() {
   const [tab, setTab] = useState("dispatch");
   const [costDialog, setCostDialog] = useState(null);
   const [appointmentDialog, setAppointmentDialog] = useState(null);
+  const [lookupQuery, setLookupQuery] = useState("");
 
   const extractErrorMessage = (error, fallback) => {
     const detail = error?.response?.data?.detail;
@@ -38,8 +39,8 @@ export default function Jobs() {
     return error?.message || fallback;
   };
 
-  const fetchAll = async () => {
-    setLoading(true);
+  const fetchAll = async (background = false) => {
+    if (!background) setLoading(true);
     try {
       const profileRes = await getMyMechanicProfile();
       const center = {
@@ -55,7 +56,7 @@ export default function Jobs() {
       setMyJobs(myRes.data);
       setAppointments(apptRes.data);
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
 
@@ -63,11 +64,48 @@ export default function Jobs() {
     fetchAll();
   }, []);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      fetchAll(true);
+    }, 20000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const accepted = myJobs.filter((job) => job.status === "accepted");
   const inProgress = myJobs.filter((job) => job.status === "in_progress");
   const completed = myJobs.filter((job) => job.status === "completed");
   const totalEarnings = completed.reduce((sum, job) => sum + Number(job.total_cost || 0), 0);
   const pendingAppointments = appointments.filter((item) => ["requested", "confirmed"].includes(item.status));
+  const searchResult = useMemo(() => {
+    const normalized = lookupQuery.trim().toUpperCase();
+    if (!normalized) return null;
+
+    const normalize = (value) => String(value || "").trim().toUpperCase();
+    const requestMatches = [...openJobs, ...myJobs].find((job) => {
+      const ref = normalize(job.request_ref || `RA-${String(job.id || "").slice(0, 8)}`);
+      return normalize(job.id) === normalized || ref === normalized;
+    });
+    if (requestMatches) {
+      const kind =
+        requestMatches.status === "requested" && !requestMatches.mechanic_id
+          ? "dispatch"
+          : requestMatches.status === "accepted"
+            ? "accepted"
+            : requestMatches.status === "in_progress"
+              ? "progress"
+              : "completed";
+      return { itemType: "request", kind, item: requestMatches, ref: requestMatches.request_ref || `RA-${requestMatches.id.slice(0, 8).toUpperCase()}` };
+    }
+
+    const appointmentMatch = appointments.find((appointment) => {
+      const ref = normalize(`AP-${String(appointment.id || "").slice(0, 8)}`);
+      return normalize(appointment.id) === normalized || ref === normalized;
+    });
+    if (appointmentMatch) {
+      return { itemType: "appointment", kind: "appointments", item: appointmentMatch, ref: `AP-${appointmentMatch.id.slice(0, 8).toUpperCase()}` };
+    }
+    return { itemType: "missing" };
+  }, [appointments, lookupQuery, myJobs, openJobs]);
 
   const submitStatusUpdate = async (jobId, payload) => {
     try {
@@ -115,6 +153,85 @@ export default function Jobs() {
           </div>
         </div>
 
+        <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Quick lookup</p>
+              <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Search a request or appointment ID</h2>
+              <p className="mt-2 text-sm text-slate-500">Paste a full UUID or short ref like `RA-3DFC7E20` or `AP-7A342CCA` to jump straight to the related job.</p>
+            </div>
+            <div className="flex w-full max-w-xl gap-3">
+              <div className="relative flex-1">
+                <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={lookupQuery}
+                  onChange={(event) => setLookupQuery(event.target.value)}
+                  placeholder="Enter request or appointment ID"
+                  className="h-12 w-full rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] pl-11 pr-4 text-sm text-[#081224] outline-none focus:ring-2 focus:ring-[#2563eb]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchAll(true)}
+                className="inline-flex items-center gap-2 rounded-[20px] border border-[#dbe7ff] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
+              >
+                <RefreshCw size={15} />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {searchResult?.itemType === "request" ? (
+            <div className="mt-4 rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563eb]">{searchResult.ref}</p>
+                  <p className="mt-1 text-lg font-semibold text-[#081224]">{searchResult.item.problem_desc}</p>
+                  <p className="mt-1 text-sm text-slate-500">{searchResult.item.owner_name} • {searchResult.item.vehicle_label}</p>
+                </div>
+                <div className="text-right">
+                  <StatusBadge status={searchResult.item.status} />
+                  <p className="mt-2 text-sm font-semibold text-[#081224]">{formatCurrencyUSD(searchResult.item.total_cost || searchResult.item.estimated_cost || 0)}</p>
+                  <button
+                    type="button"
+                    onClick={() => setTab(searchResult.kind)}
+                    className="mt-3 rounded-full bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white"
+                  >
+                    Open section
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {searchResult?.itemType === "appointment" ? (
+            <div className="mt-4 rounded-[22px] border border-[#e3ebff] bg-[#f8fbff] px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563eb]">{searchResult.ref}</p>
+                  <p className="mt-1 text-lg font-semibold text-[#081224]">{searchResult.item.owner_name} · {searchResult.item.service_type}</p>
+                  <p className="mt-1 text-sm text-slate-500">{searchResult.item.vehicle_label || "Vehicle not selected"}</p>
+                </div>
+                <div className="text-right">
+                  <StatusBadge status={searchResult.item.status === "confirmed" ? "accepted" : searchResult.item.status} />
+                  <p className="mt-2 text-xs text-slate-500">{new Date(searchResult.item.scheduled_for).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+                  <button
+                    type="button"
+                    onClick={() => setTab("appointments")}
+                    className="mt-3 rounded-full bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white"
+                  >
+                    Open appointments
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {searchResult?.itemType === "missing" ? (
+            <p className="mt-4 rounded-[18px] bg-red-50 px-4 py-3 text-sm text-red-600">No request or appointment matched that ID in your workspace.</p>
+          ) : null}
+        </Card>
+
         <div className="inline-flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
           {[
             { id: "dispatch", label: `Dispatch (${openJobs.length})` },
@@ -137,7 +254,6 @@ export default function Jobs() {
 
         {tab === "appointments" ? (
           <div className="grid gap-4 xl:grid-cols-[1.05fr,1.15fr]">
-              <>
                 <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
                   <div className="mb-4 flex items-center justify-between">
                     <div>
@@ -249,7 +365,6 @@ export default function Jobs() {
                     )}
                   </div>
                 </Card>
-              </>
           </div>
         ) : (() => {
           const activeColumn = columns.find((column) => column.id === tab || (tab === "dispatch" && column.id === "dispatch"));

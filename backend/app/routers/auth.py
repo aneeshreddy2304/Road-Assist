@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select
+from geoalchemy2.elements import WKTElement
 
 from app.db.session import get_db
 from app.models.user import User
@@ -23,23 +24,47 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
         email=payload.email,
         password_hash=hash_password(payload.password),
         phone=payload.phone,
+        gender=payload.gender,
+        street_address=payload.street_address,
+        city=payload.city,
+        state=payload.state,
+        postal_code=payload.postal_code,
         role=payload.role,
     )
     db.add(user)
     await db.flush()  # get user.id before committing
 
-    # If registering as mechanic, create a blank mechanic profile
-    # (they can fill in location/specialization later via PATCH /mechanics/me)
+    approval_status = "approved"
     if payload.role == "mechanic":
+        if payload.lat is None or payload.lng is None:
+            raise HTTPException(status_code=422, detail="Mechanic center location is required")
+        if not payload.address or not payload.specialization:
+            raise HTTPException(status_code=422, detail="Mechanic workshop address and specialization are required")
+
         mechanic = Mechanic(
             user_id=user.id,
-            # Default to Richmond city centre until mechanic sets a real location.
-            location=text("ST_MakePoint(-77.4360, 37.5407)::GEOGRAPHY"),
+            location=WKTElement(f"POINT({payload.lng} {payload.lat})", srid=4326),
+            address=payload.address,
+            specialization=payload.specialization,
+            work_hours=payload.work_hours,
+            vehicle_types=payload.vehicle_types or [],
+            approval_status="pending",
+            is_available=False,
         )
         db.add(mechanic)
+        approval_status = "pending"
 
     await db.commit()
     await db.refresh(user)
+
+    if approval_status == "pending":
+        return TokenResponse(
+            role=str(user.role),
+            user_id=str(user.id),
+            name=user.name,
+            registration_status="pending",
+            detail="Registration submitted. An admin will review your mechanic application and email you the result.",
+        )
 
     token = create_access_token({"sub": str(user.id), "role": str(user.role)})
     return TokenResponse(
@@ -47,6 +72,7 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
         role=str(user.role),
         user_id=str(user.id),
         name=user.name,
+        registration_status="approved",
     )
 
 
@@ -62,12 +88,23 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         if not user.is_active:
             raise HTTPException(status_code=403, detail="Account is deactivated")
 
+        if user.role == "mechanic":
+            mechanic_result = await db.execute(select(Mechanic).where(Mechanic.user_id == user.id))
+            mechanic = mechanic_result.scalar_one_or_none()
+            if not mechanic:
+                raise HTTPException(status_code=403, detail="Mechanic profile not found")
+            if mechanic.approval_status == "pending":
+                raise HTTPException(status_code=403, detail="Your mechanic registration is still pending admin approval")
+            if mechanic.approval_status == "declined":
+                raise HTTPException(status_code=403, detail="Your mechanic registration was declined. Please contact the admin team")
+
         token = create_access_token({"sub": str(user.id), "role": str(user.role)})
         return TokenResponse(
             access_token=token,
             role=str(user.role),
             user_id=str(user.id),
             name=user.name,
+            registration_status="approved",
         )
     except HTTPException:
         raise
