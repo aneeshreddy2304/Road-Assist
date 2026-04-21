@@ -7,11 +7,13 @@ import {
   Send,
   ShoppingCart,
   Store,
+  Trash2,
   X,
 } from "lucide-react";
 
 import {
   addWarehousePart,
+  deleteWarehouseThread,
   getMyWarehouseProfile,
   getWarehouseInbox,
   getWarehouseInventory,
@@ -47,6 +49,7 @@ export default function Warehouse() {
   const [threadLoading, setThreadLoading] = useState(false);
   const [messageSending, setMessageSending] = useState(false);
   const [threadError, setThreadError] = useState("");
+  const [conversationDeleting, setConversationDeleting] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -113,14 +116,16 @@ export default function Warehouse() {
     }
   };
 
-  const loadThread = async (mechanicId = selectedConversation?.mechanic_id) => {
+  const loadThread = async (mechanicId = selectedConversation?.mechanic_id, { background = false } = {}) => {
     if (!mechanicId) {
       setThreadMessages([]);
       setThreadError("");
       return;
     }
-    setThreadLoading(true);
-    setThreadError("");
+    if (!background) {
+      setThreadLoading(true);
+      setThreadError("");
+    }
     try {
       const res = await getWarehouseThread({ mechanic_id: mechanicId });
       setThreadMessages(res.data);
@@ -128,7 +133,9 @@ export default function Warehouse() {
       setThreadMessages([]);
       setThreadError(err.response?.data?.detail || "Could not load conversation");
     } finally {
-      setThreadLoading(false);
+      if (!background) {
+        setThreadLoading(false);
+      }
     }
   };
 
@@ -139,7 +146,7 @@ export default function Warehouse() {
   useEffect(() => {
     if (!selectedConversation?.mechanic_id) return;
     loadThread(selectedConversation.mechanic_id);
-    const timer = window.setInterval(() => loadThread(selectedConversation.mechanic_id), 4000);
+    const timer = window.setInterval(() => loadThread(selectedConversation.mechanic_id, { background: true }), 4000);
     return () => window.clearInterval(timer);
   }, [selectedConversation?.mechanic_id]);
 
@@ -195,6 +202,28 @@ export default function Warehouse() {
       setThreadError(err.response?.data?.detail || "Could not send message");
     } finally {
       setMessageSending(false);
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedConversation?.mechanic_id || conversationDeleting) return;
+    const confirmed = window.confirm(`Delete this mechanic chat with ${selectedConversation.mechanic_name || "this mechanic"}?`);
+    if (!confirmed) return;
+
+    setConversationDeleting(true);
+    setThreadError("");
+    try {
+      await deleteWarehouseThread({ mechanic_id: selectedConversation.mechanic_id });
+      const currentMechanicId = selectedConversation.mechanic_id;
+      setInbox((current) => current.filter((item) => item.mechanic_id !== currentMechanicId));
+      setSelectedConversation((current) => (current?.mechanic_id === currentMechanicId ? null : current));
+      setThreadMessages([]);
+      setMessageDraft("");
+      await loadInbox();
+    } catch (err) {
+      setThreadError(err.response?.data?.detail || "Could not delete this conversation");
+    } finally {
+      setConversationDeleting(false);
     }
   };
 
@@ -420,6 +449,8 @@ export default function Warehouse() {
               disabled={!selectedConversation}
               error={threadError}
               currentRole="warehouse"
+              deleting={conversationDeleting}
+              onDelete={handleDeleteConversation}
               emptyTitle="No messages yet"
               emptySubtitle="Reply here once a mechanic reaches out so the full sourcing conversation stays organized."
             />
@@ -582,23 +613,38 @@ function ConversationSurface({
   disabled,
   error,
   currentRole,
+  deleting,
+  onDelete,
   emptyTitle,
   emptySubtitle,
 }) {
   return (
-    <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
-      <div className="border-b border-[#eef2ff] pb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Conversation</p>
-        <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{title}</h2>
-        <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+    <Card className="flex h-[42rem] min-h-[42rem] flex-col overflow-hidden rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3 border-b border-[#eef2ff] pb-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Conversation</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{title}</h2>
+          <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+        </div>
+        {!disabled ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+          >
+            <Trash2 size={14} />
+            {deleting ? "Deleting..." : "Delete chat"}
+          </button>
+        ) : null}
       </div>
 
-      <div className="mt-4 min-h-[24rem] rounded-[24px] border border-[#e8eefc] bg-[#f8fbff] p-4">
+      <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-[24px] border border-[#e8eefc] bg-[#f8fbff] p-4">
         {loading ? <Spinner /> : null}
         {!loading && disabled ? <EmptyState icon="💬" title="Choose a mechanic thread" subtitle="Select a conversation from the inbox to continue the supply discussion." /> : null}
         {!loading && !disabled && messages.length === 0 ? <EmptyState icon="💬" title={emptyTitle} subtitle={emptySubtitle} /> : null}
         {!loading && !disabled && messages.length > 0 ? (
-          <div className="flex max-h-[24rem] flex-col gap-3 overflow-y-auto pr-1">
+          <div className="flex h-full flex-col gap-3 overflow-y-auto pr-1">
             {messages.map((message) => (
               <div
                 key={message.id}

@@ -10,6 +10,7 @@ import {
   Search as SearchIcon,
   SlidersHorizontal,
   Star,
+  Trash2,
   Wrench,
   X,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   addVehicle,
   createAppointment,
   createRequest,
+  deleteMessageThread,
   deleteVehicle,
   getMechanicProfile,
   getMechanicParts,
@@ -177,6 +179,7 @@ export default function Search() {
   const [conversationError, setConversationError] = useState("");
   const [messageDraft, setMessageDraft] = useState("");
   const [messageSending, setMessageSending] = useState(false);
+  const [conversationDeleting, setConversationDeleting] = useState(false);
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
   const [vehicleEditingId, setVehicleEditingId] = useState(null);
   const [vehicleForm, setVehicleForm] = useState(vehicleDefaults);
@@ -286,14 +289,16 @@ export default function Search() {
     }
   };
 
-  const loadConversation = async (conversation) => {
+  const loadConversation = async (conversation, { background = false } = {}) => {
     if (!conversation?.mechanic_id) {
       setConversationMessages([]);
       setConversationError("");
       return;
     }
-    setConversationLoading(true);
-    setConversationError("");
+    if (!background) {
+      setConversationLoading(true);
+      setConversationError("");
+    }
     try {
       const response = await getMessageThread({
         mechanic_id: conversation.mechanic_id,
@@ -304,7 +309,9 @@ export default function Search() {
       setConversationMessages([]);
       setConversationError(error.response?.data?.detail || "Could not load this conversation");
     } finally {
-      setConversationLoading(false);
+      if (!background) {
+        setConversationLoading(false);
+      }
     }
   };
 
@@ -328,7 +335,7 @@ export default function Search() {
     }
     loadConversation(selectedConversation);
     const interval = window.setInterval(() => {
-      loadConversation(selectedConversation);
+      loadConversation(selectedConversation, { background: true });
       loadOwnerInbox();
     }, 4000);
     return () => window.clearInterval(interval);
@@ -564,6 +571,48 @@ export default function Search() {
       setConversationError(error.response?.data?.detail || "Could not send message");
     } finally {
       setMessageSending(false);
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedConversation?.mechanic_id || conversationDeleting) return;
+    const confirmed = window.confirm(`Delete this conversation with ${selectedConversation.counterpart_name || "this mechanic"}?`);
+    if (!confirmed) return;
+
+    setConversationDeleting(true);
+    setConversationError("");
+    try {
+      await deleteMessageThread({
+        mechanic_id: selectedConversation.mechanic_id,
+        request_id: selectedConversation.request_id || undefined,
+      });
+      const currentMechanicId = selectedConversation.mechanic_id;
+      const currentRequestId = selectedConversation.request_id || null;
+      setOwnerInbox((current) =>
+        current.filter(
+          (item) =>
+            !(
+              item.mechanic_id === currentMechanicId &&
+              (item.request_id || null) === currentRequestId
+            )
+        )
+      );
+      setSelectedConversation((current) => {
+        if (
+          current?.mechanic_id === currentMechanicId &&
+          (current?.request_id || null) === currentRequestId
+        ) {
+          return null;
+        }
+        return current;
+      });
+      setConversationMessages([]);
+      setMessageDraft("");
+      await loadOwnerInbox();
+    } catch (error) {
+      setConversationError(error.response?.data?.detail || "Could not delete this conversation");
+    } finally {
+      setConversationDeleting(false);
     }
   };
 
@@ -1209,6 +1258,8 @@ export default function Search() {
               sending={messageSending}
               currentRole="owner"
               disabled={!selectedConversation}
+              deleting={conversationDeleting}
+              onDelete={handleDeleteConversation}
               emptyTitle="No messages yet"
               emptySubtitle="Start with pricing, ETA, or repair details."
             />
@@ -1508,43 +1559,66 @@ function ConversationSurface({
   sending,
   currentRole,
   disabled,
+  deleting,
+  onDelete,
   emptyTitle,
   emptySubtitle,
 }) {
   return (
-    <div className="flex min-h-[32rem] flex-col rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff]">
-      <div className="border-b border-[#dbe7ff] px-5 py-4">
-        <p className="text-lg font-semibold text-[#081224]">{title}</p>
-        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+    <div className="flex h-[42rem] min-h-[42rem] flex-col overflow-hidden rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff]">
+      <div className="flex items-start justify-between gap-3 border-b border-[#dbe7ff] px-5 py-4">
+        <div>
+          <p className="text-lg font-semibold text-[#081224]">{title}</p>
+          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        </div>
+        {!disabled ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+          >
+            <Trash2 size={14} />
+            {deleting ? "Deleting..." : "Delete chat"}
+          </button>
+        ) : null}
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-5 py-5">
+      <div className="min-h-0 flex-1 overflow-hidden px-5 py-5">
         {loading ? <Spinner /> : null}
+        {!loading && disabled ? (
+          <div className="flex h-full items-center justify-center">
+            <EmptyState icon="💬" title="Select a conversation" subtitle="Choose a mechanic thread from the inbox to view and send messages." />
+          </div>
+        ) : null}
         {!loading && !disabled && messages.length === 0 ? (
           <EmptyState icon="💬" title={emptyTitle} subtitle={emptySubtitle} />
         ) : null}
-        {!loading &&
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`max-w-[82%] rounded-[22px] px-4 py-3 ${
-                message.sender_role === currentRole
-                  ? "ml-auto bg-[#0f172a] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
-                  : "bg-white text-[#081224] ring-1 ring-[#dbe7ff]"
-              }`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.message}</p>
-              <p className={`mt-2 text-[11px] ${message.sender_role === currentRole ? "text-white/65" : "text-slate-400"}`}>
-                {new Date(message.created_at).toLocaleString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
-          ))}
+        {!loading && !disabled && messages.length > 0 ? (
+          <div className="flex h-full flex-col gap-3 overflow-y-auto pr-1">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`max-w-[82%] rounded-[22px] px-4 py-3 ${
+                  message.sender_role === currentRole
+                    ? "ml-auto bg-[#0f172a] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
+                    : "bg-white text-[#081224] ring-1 ring-[#dbe7ff]"
+                }`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] opacity-70">{message.sender_name}</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.message}</p>
+                <p className={`mt-2 text-[11px] ${message.sender_role === currentRole ? "text-white/65" : "text-slate-400"}`}>
+                  {new Date(message.created_at).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <form onSubmit={onSubmit} className="border-t border-[#dbe7ff] bg-white px-5 py-4">
