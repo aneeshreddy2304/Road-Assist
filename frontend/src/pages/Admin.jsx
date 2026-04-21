@@ -52,6 +52,7 @@ export default function Admin() {
   const [lookupResult, setLookupResult] = useState(null);
   const [lookupError, setLookupError] = useState("");
   const [searching, setSearching] = useState(false);
+  const [loadWarning, setLoadWarning] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -59,17 +60,26 @@ export default function Admin() {
     async function load() {
       setLoading(true);
       try {
-        const [{ data: analyticsData }, { data: mechanicData }, { data: ownerData }, { data: warehouseData }] = await Promise.all([
+        const results = await Promise.allSettled([
           getAnalytics({ range: rangeKey }),
           getAllMechanics(),
           getAllOwners(),
           getAllWarehouses(),
         ]);
+        const [analyticsResult, mechanicsResult, ownersResult, warehousesResult] = results;
+
         if (alive) {
-          setAnalytics(analyticsData);
-          setMechanics(mechanicData);
-          setOwners(ownerData);
-          setWarehouses(warehouseData);
+          setAnalytics(analyticsResult.status === "fulfilled" ? analyticsResult.value.data : null);
+          setMechanics(mechanicsResult.status === "fulfilled" ? mechanicsResult.value.data : []);
+          setOwners(ownersResult.status === "fulfilled" ? ownersResult.value.data : []);
+          setWarehouses(warehousesResult.status === "fulfilled" ? warehousesResult.value.data : []);
+
+          const failures = results.filter((result) => result.status === "rejected");
+          setLoadWarning(
+            failures.length
+              ? "Some admin data is temporarily unavailable. Refresh after backend deployment finishes."
+              : ""
+          );
         }
       } finally {
         if (alive) setLoading(false);
@@ -265,6 +275,12 @@ export default function Admin() {
             ))}
           </div>
         </div>
+
+        {loadWarning ? (
+          <div className="rounded-[20px] border border-[#fde7d9] bg-[#fffaf5] px-4 py-3 text-sm text-[#9a3412]">
+            {loadWarning}
+          </div>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <MetricCard icon={<Wrench size={18} className="text-[#1d4ed8]" />} label="Total requests" value={summary.total_requests ?? 0} tone="blue" />

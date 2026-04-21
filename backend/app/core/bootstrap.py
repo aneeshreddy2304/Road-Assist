@@ -12,7 +12,14 @@ VALUES
   ('a6b1b6c4-26bf-4cb0-bef7-35df56d1c104', 'Broad Street Brake Depot', 'warehouse4@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4004', 'warehouse', TRUE, NOW(), NOW()),
   ('d7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', 'warehouse5@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4005', 'warehouse', TRUE, NOW(), NOW()),
   ('73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', 'warehouse6@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4006', 'warehouse', TRUE, NOW(), NOW())
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE
+SET
+  name = EXCLUDED.name,
+  password_hash = EXCLUDED.password_hash,
+  phone = EXCLUDED.phone,
+  role = EXCLUDED.role,
+  is_active = TRUE,
+  updated_at = NOW();
 """
 
 WAREHOUSE_PROFILES_SEED_SQL = """
@@ -24,7 +31,18 @@ VALUES
   ('af93aa5c-eb9d-4ff4-8aef-3c96c9ad0104', 'a6b1b6c4-26bf-4cb0-bef7-35df56d1c104', 'Broad Street Brake Depot', '3301 W Broad St, Richmond, VA', 37.558100, -77.482800, '+1-804-555-4004', 'Pads, rotors, calipers, and brake fluids kept deep for same-day mechanic pickup.', 'Daily 07:30 AM - 09:30 PM', 'approved', TRUE, NOW(), NOW()),
   ('8f9f75cb-aaf9-4a68-97d3-331a1b230105', 'd7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', '6400 Midlothian Tpke, Richmond, VA', 37.503900, -77.517100, '+1-804-555-4005', 'Fleet and commercial stock for vans, SUVs, and light trucks.', 'Mon-Sat 06:00 AM - 10:00 PM', 'approved', TRUE, NOW(), NOW()),
   ('bbcbdd48-cd16-4a72-83f5-ff5fd2530106', '73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', '4700 Forest Hill Ave, Richmond, VA', 37.517100, -77.503500, '+1-804-555-4006', 'Fast-moving emergency stock with batteries, bulbs, ignition, and starter components.', 'Daily 24/7 emergency desk', 'approved', TRUE, NOW(), NOW())
-ON CONFLICT (user_id) DO NOTHING;
+ON CONFLICT (user_id) DO UPDATE
+SET
+  name = EXCLUDED.name,
+  address = EXCLUDED.address,
+  lat = EXCLUDED.lat,
+  lng = EXCLUDED.lng,
+  contact_phone = EXCLUDED.contact_phone,
+  description = EXCLUDED.description,
+  fulfillment_hours = EXCLUDED.fulfillment_hours,
+  approval_status = 'approved',
+  is_active = TRUE,
+  updated_at = NOW();
 """
 
 WAREHOUSE_PARTS_SEED_SQL = """
