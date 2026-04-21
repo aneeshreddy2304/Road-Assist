@@ -8,6 +8,7 @@ from app.core.email import send_email
 from app.db.session import get_db
 from app.models.user import User
 from app.models.mechanic import Mechanic
+from app.models.warehouse import Warehouse
 from app.core.security import require_role
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -297,6 +298,46 @@ async def list_all_mechanics(
     return [dict(r) for r in result.mappings().all()]
 
 
+@router.get("/warehouses")
+async def list_all_warehouses(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(text("""
+        SELECT
+            w.id,
+            u.id AS user_id,
+            u.name,
+            u.email,
+            u.phone,
+            u.gender,
+            u.street_address,
+            u.city,
+            u.state,
+            u.postal_code,
+            u.is_active,
+            w.name AS warehouse_name,
+            w.address,
+            CAST(w.lat AS FLOAT) AS lat,
+            CAST(w.lng AS FLOAT) AS lng,
+            w.contact_phone,
+            w.description,
+            w.fulfillment_hours,
+            w.approval_status,
+            w.is_active AS warehouse_active,
+            w.created_at,
+            COUNT(wp.id) AS inventory_items
+        FROM warehouses w
+        JOIN users u ON u.id = w.user_id
+        LEFT JOIN warehouse_parts wp ON wp.warehouse_id = w.id
+        GROUP BY
+            w.id, u.id, u.name, u.email, u.phone, u.gender, u.street_address, u.city, u.state, u.postal_code, u.is_active,
+            w.name, w.address, w.lat, w.lng, w.contact_phone, w.description, w.fulfillment_hours, w.approval_status, w.is_active, w.created_at
+        ORDER BY CASE WHEN w.approval_status = 'pending' THEN 0 ELSE 1 END, w.created_at DESC
+    """))
+    return [dict(r) for r in result.mappings().all()]
+
+
 @router.patch("/mechanics/{mechanic_id}/approve", status_code=200)
 async def approve_mechanic_registration(
     mechanic_id: str,
@@ -342,6 +383,53 @@ async def approve_mechanic_registration(
         ),
     )
     return {"detail": "Mechanic approved", "email_sent": email_sent}
+
+
+@router.patch("/warehouses/{warehouse_id}/approve", status_code=200)
+async def approve_warehouse_registration(
+    warehouse_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(
+        text(
+            """
+            SELECT w.id, w.user_id, w.name AS warehouse_name, u.name, u.email
+            FROM warehouses w
+            JOIN users u ON u.id = w.user_id
+            WHERE w.id = :wid
+            """
+        ),
+        {"wid": warehouse_id},
+    )
+    warehouse = result.mappings().first()
+    if not warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+
+    await db.execute(
+        text(
+            """
+            UPDATE warehouses
+            SET approval_status = 'approved', is_active = TRUE
+            WHERE id = :wid
+            """
+        ),
+        {"wid": warehouse_id},
+    )
+    await db.commit()
+
+    email_sent = await asyncio.to_thread(
+        send_email,
+        warehouse["email"],
+        "RoadAssist warehouse registration approved",
+        (
+            f"Hello {warehouse['name']},\n\n"
+            f"Your warehouse registration for {warehouse['warehouse_name']} has been approved. "
+            "You can now sign in with the email address and password you registered with.\n\n"
+            "Thanks,\nRoadAssist Admin"
+        ),
+    )
+    return {"detail": "Warehouse approved", "email_sent": email_sent}
 
 
 @router.patch("/mechanics/{mechanic_id}/decline", status_code=200)
@@ -391,6 +479,53 @@ async def decline_mechanic_registration(
     return {"detail": "Mechanic declined", "email_sent": email_sent}
 
 
+@router.patch("/warehouses/{warehouse_id}/decline", status_code=200)
+async def decline_warehouse_registration(
+    warehouse_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(
+        text(
+            """
+            SELECT w.id, w.user_id, w.name AS warehouse_name, u.name, u.email
+            FROM warehouses w
+            JOIN users u ON u.id = w.user_id
+            WHERE w.id = :wid
+            """
+        ),
+        {"wid": warehouse_id},
+    )
+    warehouse = result.mappings().first()
+    if not warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+
+    await db.execute(
+        text(
+            """
+            UPDATE warehouses
+            SET approval_status = 'declined', is_active = FALSE
+            WHERE id = :wid
+            """
+        ),
+        {"wid": warehouse_id},
+    )
+    await db.commit()
+
+    email_sent = await asyncio.to_thread(
+        send_email,
+        warehouse["email"],
+        "RoadAssist warehouse registration update",
+        (
+            f"Hello {warehouse['name']},\n\n"
+            f"Your warehouse registration request for {warehouse['warehouse_name']} was declined after review. "
+            "You cannot sign in as a warehouse at this time. Please contact the admin team if you believe this is an error.\n\n"
+            "Thanks,\nRoadAssist Admin"
+        ),
+    )
+    return {"detail": "Warehouse declined", "email_sent": email_sent}
+
+
 @router.get("/owners")
 async def list_all_owners(
     db: AsyncSession = Depends(get_db),
@@ -436,6 +571,29 @@ async def deactivate_mechanic(
     )
     await db.commit()
     return {"detail": "Mechanic deactivated"}
+
+
+@router.patch("/warehouses/{warehouse_id}/deactivate", status_code=200)
+async def deactivate_warehouse(
+    warehouse_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    result = await db.execute(select(Warehouse).where(Warehouse.id == warehouse_id))
+    warehouse = result.scalar_one_or_none()
+    if not warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+
+    await db.execute(
+        text("UPDATE users SET is_active = FALSE WHERE id = :uid"),
+        {"uid": warehouse.user_id},
+    )
+    await db.execute(
+        text("UPDATE warehouses SET is_active = FALSE WHERE id = :wid"),
+        {"wid": warehouse_id},
+    )
+    await db.commit()
+    return {"detail": "Warehouse deactivated"}
 
 
 @router.get("/lookup")

@@ -22,6 +22,7 @@ class Warehouse(Base):
     contact_phone: Mapped[str | None] = mapped_column(String(30))
     description: Mapped[str | None] = mapped_column(Text)
     fulfillment_hours: Mapped[str | None] = mapped_column(String(120))
+    approval_status: Mapped[str] = mapped_column(String(20), nullable=False, default="approved")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("NOW()"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("NOW()"))

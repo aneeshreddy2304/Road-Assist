@@ -13,11 +13,15 @@ import {
 
 import {
   approveMechanicRegistration,
+  approveWarehouseRegistration,
   deactivateMechanic,
   deactivateOwner,
+  deactivateWarehouse,
   declineMechanicRegistration,
+  declineWarehouseRegistration,
   getAllMechanics,
   getAllOwners,
+  getAllWarehouses,
   getAnalytics,
   searchAdminWorkItem,
 } from "../api/endpoints";
@@ -39,6 +43,7 @@ export default function Admin() {
   const [analytics, setAnalytics] = useState(null);
   const [mechanics, setMechanics] = useState([]);
   const [owners, setOwners] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deactivatingId, setDeactivatingId] = useState(null);
   const [decisionId, setDecisionId] = useState(null);
@@ -54,15 +59,17 @@ export default function Admin() {
     async function load() {
       setLoading(true);
       try {
-        const [{ data: analyticsData }, { data: mechanicData }, { data: ownerData }] = await Promise.all([
+        const [{ data: analyticsData }, { data: mechanicData }, { data: ownerData }, { data: warehouseData }] = await Promise.all([
           getAnalytics({ range: rangeKey }),
           getAllMechanics(),
           getAllOwners(),
+          getAllWarehouses(),
         ]);
         if (alive) {
           setAnalytics(analyticsData);
           setMechanics(mechanicData);
           setOwners(ownerData);
+          setWarehouses(warehouseData);
         }
       } finally {
         if (alive) setLoading(false);
@@ -89,6 +96,7 @@ export default function Admin() {
   const appointmentSummary = analytics?.appointments_summary || {};
   const mechanicsOnline = Number(analytics?.mechanics_online || 0);
   const pendingMechanics = mechanics.filter((mechanic) => mechanic.approval_status === "pending");
+  const pendingWarehouses = warehouses.filter((warehouse) => warehouse.approval_status === "pending");
 
   const funnelData = useMemo(
     () => [
@@ -163,6 +171,11 @@ export default function Admin() {
     setMechanics(data);
   }
 
+  async function refreshWarehouses() {
+    const { data } = await getAllWarehouses();
+    setWarehouses(data);
+  }
+
   async function handleMechanicDecision(mechanicId, decision) {
     setDecisionId(mechanicId);
     try {
@@ -177,12 +190,36 @@ export default function Admin() {
     }
   }
 
+  async function handleWarehouseDecision(warehouseId, decision) {
+    setDecisionId(warehouseId);
+    try {
+      if (decision === "approve") {
+        await approveWarehouseRegistration(warehouseId);
+      } else {
+        await declineWarehouseRegistration(warehouseId);
+      }
+      await refreshWarehouses();
+    } finally {
+      setDecisionId(null);
+    }
+  }
+
   async function handleDeactivateOwner(ownerId) {
     setDeactivatingId(ownerId);
     try {
       await deactivateOwner(ownerId);
       const { data } = await getAllOwners();
       setOwners(data);
+    } finally {
+      setDeactivatingId(null);
+    }
+  }
+
+  async function handleDeactivateWarehouse(warehouseId) {
+    setDeactivatingId(warehouseId);
+    try {
+      await deactivateWarehouse(warehouseId);
+      await refreshWarehouses();
     } finally {
       setDeactivatingId(null);
     }
@@ -315,6 +352,12 @@ export default function Admin() {
                     Manage mechanics
                   </button>
                   <button
+                    onClick={() => setManagingGroup("warehouses")}
+                    className="rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
+                  >
+                    Manage warehouses
+                  </button>
+                  <button
                     onClick={() => setManagingGroup("owners")}
                     className="rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
                   >
@@ -328,7 +371,11 @@ export default function Admin() {
                   .map(([role, count]) => (
                     <button
                       key={role}
-                      onClick={() => setManagingGroup(role === "mechanic" ? "mechanics" : "owners")}
+                      onClick={() =>
+                        setManagingGroup(
+                          role === "mechanic" ? "mechanics" : role === "warehouse" ? "warehouses" : "owners"
+                        )
+                      }
                       className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3 text-left transition hover:border-[#bfdbfe] hover:bg-white"
                     >
                       <div className="flex items-center justify-between">
@@ -348,9 +395,9 @@ export default function Admin() {
                 <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-[#081224]">Pending applications</p>
-                    <p className="text-2xl font-semibold text-[#081224]">{pendingMechanics.length}</p>
+                    <p className="text-2xl font-semibold text-[#081224]">{pendingMechanics.length + pendingWarehouses.length}</p>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Mechanic registrations waiting for admin review</p>
+                  <p className="mt-2 text-xs text-slate-500">Mechanic and warehouse registrations waiting for admin review</p>
                 </div>
                 <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -359,7 +406,7 @@ export default function Admin() {
                       {Object.values(roleBreakdown).reduce((sum, value) => sum + Number(value || 0), 0)}
                     </p>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Owners and mechanics currently in the system</p>
+                  <p className="mt-2 text-xs text-slate-500">Owners, mechanics, and warehouses currently in the system</p>
                 </div>
               </div>
             </Card>
@@ -679,7 +726,7 @@ export default function Admin() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Manage</p>
                 <h2 className="mt-1 text-2xl font-semibold text-[#081224]">
-                  {managingGroup === "mechanics" ? "Mechanics" : "Owners"}
+                  {managingGroup === "mechanics" ? "Mechanics" : managingGroup === "warehouses" ? "Warehouses" : "Owners"}
                 </h2>
               </div>
               <button
@@ -692,15 +739,19 @@ export default function Admin() {
 
             <div className="max-h-[72vh] overflow-y-auto px-6 py-5">
               <div className="grid gap-4 md:grid-cols-2">
-                {(managingGroup === "mechanics" ? mechanics : owners).map((person) => (
+                {(managingGroup === "mechanics" ? mechanics : managingGroup === "warehouses" ? warehouses : owners).map((person) => (
                   <div key={person.id} className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-lg font-semibold text-[#081224]">{person.name}</p>
+                        <p className="text-lg font-semibold text-[#081224]">
+                          {managingGroup === "warehouses" ? person.warehouse_name : person.name}
+                        </p>
                         <p className="mt-1 text-sm text-slate-500">{person.email}</p>
                         {"phone" in person ? <p className="mt-1 text-sm text-slate-500">{person.phone || "No phone listed"}</p> : null}
                       </div>
-                      {managingGroup === "mechanics" ? <ApprovalBadge status={person.approval_status} /> : <StatusBadge status={person.is_active ? "active" : "cancelled"} />}
+                      {managingGroup === "mechanics" || managingGroup === "warehouses"
+                        ? <ApprovalBadge status={person.approval_status} />
+                        : <StatusBadge status={person.is_active ? "active" : "cancelled"} />}
                     </div>
 
                     <div className="mt-4 space-y-2 text-sm text-slate-600">
@@ -714,6 +765,16 @@ export default function Admin() {
                           <p><span className="font-semibold text-[#081224]">Joined:</span> {formatDateTime(person.created_at)}</p>
                           <p><span className="font-semibold text-[#081224]">Rating:</span> {Number(person.rating || 0).toFixed(1)}</p>
                         </>
+                      ) : managingGroup === "warehouses" ? (
+                        <>
+                          <p><span className="font-semibold text-[#081224]">Contact person:</span> {person.name}</p>
+                          <p><span className="font-semibold text-[#081224]">Warehouse address:</span> {person.address || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Hours:</span> {person.fulfillment_hours || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Description:</span> {person.description || "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Location:</span> {person.lat && person.lng ? `${Number(person.lat).toFixed(4)}, ${Number(person.lng).toFixed(4)}` : "Not set"}</p>
+                          <p><span className="font-semibold text-[#081224]">Inventory items:</span> {person.inventory_items || 0}</p>
+                          <p><span className="font-semibold text-[#081224]">Joined:</span> {formatDateTime(person.created_at)}</p>
+                        </>
                       ) : (
                         <>
                           <p><span className="font-semibold text-[#081224]">Address:</span> {[person.street_address, person.city, person.state, person.postal_code].filter(Boolean).join(", ") || "Not set"}</p>
@@ -724,17 +785,17 @@ export default function Admin() {
                     </div>
 
                     <div className="mt-4 flex flex-wrap justify-end gap-2">
-                      {managingGroup === "mechanics" && person.approval_status === "pending" ? (
+                      {(managingGroup === "mechanics" || managingGroup === "warehouses") && person.approval_status === "pending" ? (
                         <>
                           <button
-                            onClick={() => handleMechanicDecision(person.id, "decline")}
+                            onClick={() => managingGroup === "mechanics" ? handleMechanicDecision(person.id, "decline") : handleWarehouseDecision(person.id, "decline")}
                             disabled={decisionId === person.id}
                             className="rounded-full border border-[#fecaca] px-4 py-2 text-sm font-semibold text-[#b91c1c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {decisionId === person.id ? "Updating..." : "Decline"}
                           </button>
                           <button
-                            onClick={() => handleMechanicDecision(person.id, "approve")}
+                            onClick={() => managingGroup === "mechanics" ? handleMechanicDecision(person.id, "approve") : handleWarehouseDecision(person.id, "approve")}
                             disabled={decisionId === person.id}
                             className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1e293b] disabled:cursor-not-allowed disabled:opacity-50"
                           >
@@ -743,7 +804,13 @@ export default function Admin() {
                         </>
                       ) : null}
                       <button
-                        onClick={() => managingGroup === "mechanics" ? handleDeactivate(person.id) : handleDeactivateOwner(person.id)}
+                        onClick={() =>
+                          managingGroup === "mechanics"
+                            ? handleDeactivate(person.id)
+                            : managingGroup === "warehouses"
+                              ? handleDeactivateWarehouse(person.id)
+                              : handleDeactivateOwner(person.id)
+                        }
                         disabled={deactivatingId === person.id}
                         className="rounded-full border border-[#fecaca] px-4 py-2 text-sm font-semibold text-[#b91c1c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-50"
                       >

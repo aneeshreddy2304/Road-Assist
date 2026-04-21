@@ -21,6 +21,9 @@ const INITIAL_FORM = {
   specialization: "",
   work_hours: "",
   vehicle_types: [],
+  warehouse_name: "",
+  warehouse_description: "",
+  fulfillment_hours: "",
   lat: "",
   lng: "",
 };
@@ -33,6 +36,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
 
   const isMechanic = form.role === "mechanic";
+  const isWarehouse = form.role === "warehouse";
 
   const mechanicFieldsReady = useMemo(
     () =>
@@ -47,6 +51,21 @@ export default function Register() {
           String(form.lng).trim()
       ),
     [form, isMechanic]
+  );
+
+  const warehouseFieldsReady = useMemo(
+    () =>
+      !isWarehouse ||
+      Boolean(
+        form.warehouse_name.trim() &&
+          form.address.trim() &&
+          form.fulfillment_hours.trim() &&
+          form.city.trim() &&
+          form.state.trim() &&
+          String(form.lat).trim() &&
+          String(form.lng).trim()
+      ),
+    [form, isWarehouse]
   );
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
@@ -67,6 +86,10 @@ export default function Register() {
       setError("Please complete the mechanic workshop details before submitting.");
       return;
     }
+    if (!warehouseFieldsReady) {
+      setError("Please complete the warehouse profile details before submitting.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -78,6 +101,7 @@ export default function Register() {
 
       if (response.access_token) {
         if (response.role === "mechanic") navigate("/dashboard");
+        else if (response.role === "warehouse") navigate("/warehouse");
         else navigate("/search");
         return;
       }
@@ -86,7 +110,7 @@ export default function Register() {
         state: {
           notice:
             response.detail ||
-            "Your mechanic registration has been submitted and is waiting for admin approval.",
+            `Your ${response.role} registration has been submitted and is waiting for admin approval.`,
         },
       });
     } catch (err) {
@@ -109,19 +133,23 @@ export default function Register() {
 
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-lg">
-              {["owner", "mechanic"].map((r) => (
+            <div className="grid grid-cols-3 gap-2 p-1 bg-gray-100 rounded-lg">
+              {[
+                { key: "owner", label: "Vehicle Owner" },
+                { key: "mechanic", label: "Mechanic" },
+                { key: "warehouse", label: "Warehouse" },
+              ].map(({ key, label }) => (
                 <button
-                  key={r}
+                  key={key}
                   type="button"
-                  onClick={() => updateField("role", r)}
-                  className={`py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${
-                    form.role === r
+                  onClick={() => updateField("role", key)}
+                  className={`py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    form.role === key
                       ? "bg-white text-brand-600 shadow-sm"
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  {r === "owner" ? "Vehicle Owner" : "Mechanic"}
+                  {label}
                 </button>
               ))}
             </div>
@@ -151,14 +179,14 @@ export default function Register() {
                     required
                   />
                 </Field>
-                <Field label="Phone" required={isMechanic}>
+                <Field label="Phone" required={isMechanic || isWarehouse}>
                   <input
                     type="tel"
                     value={form.phone}
                     onChange={(e) => updateField("phone", e.target.value)}
                     className={inputClass}
                     placeholder="+1 555 000 0000"
-                    required={isMechanic}
+                    required={isMechanic || isWarehouse}
                   />
                 </Field>
                 <Field label="Gender">
@@ -189,24 +217,24 @@ export default function Register() {
                     placeholder="123 Main St"
                   />
                 </Field>
-                <Field label="City" required={isMechanic}>
+                <Field label="City" required={isMechanic || isWarehouse}>
                   <input
                     type="text"
                     value={form.city}
                     onChange={(e) => updateField("city", e.target.value)}
                     className={inputClass}
                     placeholder="Richmond"
-                    required={isMechanic}
+                    required={isMechanic || isWarehouse}
                   />
                 </Field>
-                <Field label="State" required={isMechanic}>
+                <Field label="State" required={isMechanic || isWarehouse}>
                   <input
                     type="text"
                     value={form.state}
                     onChange={(e) => updateField("state", e.target.value)}
                     className={inputClass}
                     placeholder="VA"
-                    required={isMechanic}
+                    required={isMechanic || isWarehouse}
                   />
                 </Field>
                 <Field label="Postal code">
@@ -303,6 +331,79 @@ export default function Register() {
               </section>
             ) : null}
 
+            {isWarehouse ? (
+              <section className="space-y-4 rounded-2xl border border-[#dbe7ff] bg-[#f8fbff] p-5">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">Warehouse details</p>
+                  <p className="mt-1 text-sm text-slate-500">These details are sent to all admins for review before warehouse login is enabled.</p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Warehouse name" required>
+                    <input
+                      type="text"
+                      value={form.warehouse_name}
+                      onChange={(e) => updateField("warehouse_name", e.target.value)}
+                      className={inputClass}
+                      placeholder="Capital Fleet Warehouse"
+                      required
+                    />
+                  </Field>
+                  <Field label="Warehouse address" required>
+                    <input
+                      type="text"
+                      value={form.address}
+                      onChange={(e) => updateField("address", e.target.value)}
+                      className={inputClass}
+                      placeholder="6400 Midlothian Tpke, Richmond, VA"
+                      required
+                    />
+                  </Field>
+                  <Field label="Fulfillment hours" required>
+                    <input
+                      type="text"
+                      value={form.fulfillment_hours}
+                      onChange={(e) => updateField("fulfillment_hours", e.target.value)}
+                      className={inputClass}
+                      placeholder="Mon-Sat 06:00 AM - 10:00 PM"
+                      required
+                    />
+                  </Field>
+                  <Field label="Warehouse description">
+                    <input
+                      type="text"
+                      value={form.warehouse_description}
+                      onChange={(e) => updateField("warehouse_description", e.target.value)}
+                      className={inputClass}
+                      placeholder="Emergency stock for batteries, brakes, lighting, and filters"
+                    />
+                  </Field>
+                  <Field label="Warehouse latitude" required>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={form.lat}
+                      onChange={(e) => updateField("lat", e.target.value)}
+                      className={inputClass}
+                      placeholder="37.5407"
+                      required
+                    />
+                  </Field>
+                  <Field label="Warehouse longitude" required>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={form.lng}
+                      onChange={(e) => updateField("lng", e.target.value)}
+                      className={inputClass}
+                      placeholder="-77.4360"
+                      required
+                    />
+                  </Field>
+                </div>
+              </section>
+            ) : null}
+
             {error && (
               <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
             )}
@@ -312,7 +413,13 @@ export default function Register() {
               disabled={loading}
               className="w-full bg-brand-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors"
             >
-              {loading ? "Creating account..." : isMechanic ? "Submit mechanic registration" : "Create account"}
+              {loading
+                ? "Creating account..."
+                : isMechanic
+                  ? "Submit mechanic registration"
+                  : isWarehouse
+                    ? "Submit warehouse registration"
+                    : "Create account"}
             </button>
           </form>
         </div>

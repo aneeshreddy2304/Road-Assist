@@ -12,11 +12,14 @@ class RegisterRequest(BaseModel):
     city: str | None = None
     state: str | None = None
     postal_code: str | None = None
-    role: Literal["owner", "mechanic"] = "owner"
+    role: Literal["owner", "mechanic", "warehouse"] = "owner"
     address: str | None = None
     specialization: str | None = None
     work_hours: str | None = None
     vehicle_types: list[str] | None = None
+    warehouse_name: str | None = None
+    warehouse_description: str | None = None
+    fulfillment_hours: str | None = None
     lat: float | None = None
     lng: float | None = None
 

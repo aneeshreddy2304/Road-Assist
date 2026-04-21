@@ -68,6 +68,7 @@ async def get_marketplace(
         FROM warehouses w
         LEFT JOIN warehouse_parts wp ON wp.warehouse_id = w.id
         WHERE w.is_active = TRUE
+          AND w.approval_status = 'approved'
           AND (
             :query IS NULL
             OR w.name ILIKE :like_query
@@ -116,6 +117,7 @@ async def search_marketplace_parts(
         FROM warehouse_parts wp
         JOIN warehouses w ON w.id = wp.warehouse_id
         WHERE w.is_active = TRUE
+          AND w.approval_status = 'approved'
           AND wp.quantity > 0
           AND (:warehouse_id IS NULL OR wp.warehouse_id = CAST(:warehouse_id AS UUID))
           AND (
