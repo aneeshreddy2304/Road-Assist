@@ -468,17 +468,6 @@ export default function Admin() {
                   <p className="mt-2 text-xs text-slate-500">Owners, mechanics, and warehouses currently in the system</p>
                 </div>
               </div>
-              <div className="mt-4 rounded-[18px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[#081224]">Admin review focus</p>
-                    <p className="mt-1 text-xs text-slate-500">Pending registrations and active network coverage at a glance.</p>
-                  </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
-                    {pendingMechanics.length + pendingWarehouses.length} pending
-                  </span>
-                </div>
-              </div>
             </Card>
           </div>
 
@@ -503,8 +492,8 @@ export default function Admin() {
                   ))
                 )}
               </div>
-              <div className="grid items-stretch gap-4 lg:grid-cols-[0.95fr,1.05fr]">
-                <div className="flex h-full flex-col rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
+              <div className="grid gap-4 lg:grid-cols-[0.9fr,1.1fr] lg:items-start">
+                <div className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
                   <p className="text-sm font-semibold text-[#081224]">Revenue snapshot</p>
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <MiniMetric label="Peak slot" value={peakRevenuePoint?.label || "--"} tone="blue" compact />
@@ -516,17 +505,6 @@ export default function Admin() {
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Latest close</p>
                     <p className="mt-2 text-lg font-semibold text-[#081224]">{latestRevenuePoint?.label || "No closed jobs yet"}</p>
                     <p className="mt-1 text-sm text-slate-500">{latestRevenuePoint ? formatCurrencyUSD(latestRevenuePoint.revenue || 0) : "Waiting for completed revenue"}</p>
-                  </div>
-                  <div className="mt-4 flex-1 rounded-[18px] border border-dashed border-[#dbe7ff] bg-white/60 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Revenue posture</p>
-                    <p className="mt-2 text-sm font-semibold text-[#081224]">
-                      {peakRevenuePoint ? `${peakRevenuePoint.label} is leading the selected range.` : "Revenue will summarize here once completed jobs start landing."}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {revenueDaysWithActivity.length > 1
-                        ? `${revenueDaysWithActivity.length} active revenue periods are contributing to this view.`
-                        : "This space expands with the card so the dashboard stays visually balanced."}
-                    </p>
                   </div>
                 </div>
                 <div className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
@@ -1011,7 +989,7 @@ function MetricCard({ icon, label, value, tone }) {
   );
 }
 
-function MiniMetric({ label, value, tone }) {
+function MiniMetric({ label, value, tone, compact = false }) {
   const tones = {
     blue: "bg-[#eff6ff] text-[#1d4ed8]",
     green: "bg-[#ecfdf3] text-[#166534]",
@@ -1021,7 +999,13 @@ function MiniMetric({ label, value, tone }) {
   return (
     <div className={`min-w-0 rounded-[20px] px-4 py-3 ${tones[tone]}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-80">{label}</p>
-      <p className="mt-2 overflow-hidden text-ellipsis text-[clamp(1.35rem,2.3vw,2rem)] font-semibold leading-tight break-words">{value}</p>
+      <p
+        className={`mt-2 overflow-hidden text-ellipsis whitespace-nowrap font-semibold tabular-nums leading-none ${
+          compact ? "text-[clamp(1.05rem,1.5vw,1.75rem)]" : "text-[clamp(1.35rem,2vw,2rem)]"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
