@@ -16,14 +16,14 @@ ON CONFLICT (email) DO NOTHING;
 """
 
 WAREHOUSE_PROFILES_SEED_SQL = """
-INSERT INTO warehouses (id, user_id, name, address, lat, lng, contact_phone, description, fulfillment_hours, is_active, created_at, updated_at)
+INSERT INTO warehouses (id, user_id, name, address, lat, lng, contact_phone, description, fulfillment_hours, approval_status, is_active, created_at, updated_at)
 VALUES
-  ('d4d4af8e-18ef-4e1c-a6f5-f1f8cd620101', '8ddf8c31-67fa-4cae-b45a-4c66985cbf01', 'Blue Ridge Auto Supply', '2601 W Broad St, Richmond, VA', 37.553200, -77.474900, '+1-804-555-4001', 'Downtown-ready general parts supplier with high-turn stock for emergency roadside jobs.', 'Mon-Sat 07:00 AM - 09:00 PM', TRUE, NOW(), NOW()),
-  ('e790a310-444e-4cb0-8820-912ece580102', '12f974b4-ff1e-4f4e-8cf7-315d3eb92e02', 'James River Parts Hub', '1201 Hull St, Richmond, VA', 37.526100, -77.445500, '+1-804-555-4002', 'Balanced mixed inventory with filters, cooling, lighting, and driveline essentials.', 'Daily 08:00 AM - 08:00 PM', TRUE, NOW(), NOW()),
-  ('af0d2cb6-0b13-48bd-921e-835064c70103', 'fd00d65a-d3e9-4b07-a28a-f95d9dcb2d03', 'River City EV Components', '4801 W Broad St, Richmond, VA', 37.582500, -77.498400, '+1-804-555-4003', 'EV-focused warehouse with batteries, charging accessories, sensors, and modules.', 'Mon-Fri 08:00 AM - 07:00 PM', TRUE, NOW(), NOW()),
-  ('af93aa5c-eb9d-4ff4-8aef-3c96c9ad0104', 'a6b1b6c4-26bf-4cb0-bef7-35df56d1c104', 'Broad Street Brake Depot', '3301 W Broad St, Richmond, VA', 37.558100, -77.482800, '+1-804-555-4004', 'Pads, rotors, calipers, and brake fluids kept deep for same-day mechanic pickup.', 'Daily 07:30 AM - 09:30 PM', TRUE, NOW(), NOW()),
-  ('8f9f75cb-aaf9-4a68-97d3-331a1b230105', 'd7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', '6400 Midlothian Tpke, Richmond, VA', 37.503900, -77.517100, '+1-804-555-4005', 'Fleet and commercial stock for vans, SUVs, and light trucks.', 'Mon-Sat 06:00 AM - 10:00 PM', TRUE, NOW(), NOW()),
-  ('bbcbdd48-cd16-4a72-83f5-ff5fd2530106', '73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', '4700 Forest Hill Ave, Richmond, VA', 37.517100, -77.503500, '+1-804-555-4006', 'Fast-moving emergency stock with batteries, bulbs, ignition, and starter components.', 'Daily 24/7 emergency desk', TRUE, NOW(), NOW())
+  ('d4d4af8e-18ef-4e1c-a6f5-f1f8cd620101', '8ddf8c31-67fa-4cae-b45a-4c66985cbf01', 'Blue Ridge Auto Supply', '2601 W Broad St, Richmond, VA', 37.553200, -77.474900, '+1-804-555-4001', 'Downtown-ready general parts supplier with high-turn stock for emergency roadside jobs.', 'Mon-Sat 07:00 AM - 09:00 PM', 'approved', TRUE, NOW(), NOW()),
+  ('e790a310-444e-4cb0-8820-912ece580102', '12f974b4-ff1e-4f4e-8cf7-315d3eb92e02', 'James River Parts Hub', '1201 Hull St, Richmond, VA', 37.526100, -77.445500, '+1-804-555-4002', 'Balanced mixed inventory with filters, cooling, lighting, and driveline essentials.', 'Daily 08:00 AM - 08:00 PM', 'approved', TRUE, NOW(), NOW()),
+  ('af0d2cb6-0b13-48bd-921e-835064c70103', 'fd00d65a-d3e9-4b07-a28a-f95d9dcb2d03', 'River City EV Components', '4801 W Broad St, Richmond, VA', 37.582500, -77.498400, '+1-804-555-4003', 'EV-focused warehouse with batteries, charging accessories, sensors, and modules.', 'Mon-Fri 08:00 AM - 07:00 PM', 'approved', TRUE, NOW(), NOW()),
+  ('af93aa5c-eb9d-4ff4-8aef-3c96c9ad0104', 'a6b1b6c4-26bf-4cb0-bef7-35df56d1c104', 'Broad Street Brake Depot', '3301 W Broad St, Richmond, VA', 37.558100, -77.482800, '+1-804-555-4004', 'Pads, rotors, calipers, and brake fluids kept deep for same-day mechanic pickup.', 'Daily 07:30 AM - 09:30 PM', 'approved', TRUE, NOW(), NOW()),
+  ('8f9f75cb-aaf9-4a68-97d3-331a1b230105', 'd7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', '6400 Midlothian Tpke, Richmond, VA', 37.503900, -77.517100, '+1-804-555-4005', 'Fleet and commercial stock for vans, SUVs, and light trucks.', 'Mon-Sat 06:00 AM - 10:00 PM', 'approved', TRUE, NOW(), NOW()),
+  ('bbcbdd48-cd16-4a72-83f5-ff5fd2530106', '73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', '4700 Forest Hill Ave, Richmond, VA', 37.517100, -77.503500, '+1-804-555-4006', 'Fast-moving emergency stock with batteries, bulbs, ignition, and starter components.', 'Daily 24/7 emergency desk', 'approved', TRUE, NOW(), NOW())
 ON CONFLICT (user_id) DO NOTHING;
 """
 
@@ -129,10 +129,28 @@ async def ensure_schema_updates() -> None:
                   contact_phone VARCHAR(30),
                   description TEXT,
                   fulfillment_hours VARCHAR(120),
+                  approval_status VARCHAR(20) NOT NULL DEFAULT 'approved',
                   is_active BOOLEAN NOT NULL DEFAULT TRUE,
                   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE warehouses
+                ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                UPDATE warehouses
+                SET approval_status = 'approved'
+                WHERE approval_status IS NULL
                 """
             )
         )
