@@ -269,13 +269,13 @@ export default function Search() {
       setOwnerInbox(response.data || []);
       setSelectedConversation((current) => {
         if (!response.data?.length) return null;
-        if (!current) return current;
+        if (!current) return response.data[0];
         return (
           response.data.find(
             (item) =>
               item.mechanic_id === current.mechanic_id &&
               (item.request_id || null) === (current.request_id || null)
-          ) || current
+          ) || response.data[0]
         );
       });
     } catch (error) {
@@ -289,6 +289,7 @@ export default function Search() {
   const loadConversation = async (conversation) => {
     if (!conversation?.mechanic_id) {
       setConversationMessages([]);
+      setConversationError("");
       return;
     }
     setConversationLoading(true);

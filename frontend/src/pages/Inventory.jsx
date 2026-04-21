@@ -128,22 +128,35 @@ export default function Inventory() {
     try {
       const res = await getWarehouseInbox();
       setInbox(res.data);
-      if (!selectedConversation && res.data.length) {
-        setSelectedConversation(res.data[0]);
-      }
+      setSelectedConversation((current) => {
+        if (!res.data?.length) return null;
+        if (!current) return res.data[0];
+        return (
+          res.data.find(
+            (item) =>
+              item.warehouse_id === current.warehouse_id &&
+              item.mechanic_id === current.mechanic_id
+          ) || res.data[0]
+        );
+      });
     } finally {
       setInboxLoading(false);
     }
   };
 
   const loadThread = async (warehouseId = selectedConversation?.warehouse_id) => {
-    if (!warehouseId) return;
+    if (!warehouseId) {
+      setThreadMessages([]);
+      setThreadError("");
+      return;
+    }
     setThreadLoading(true);
     setThreadError("");
     try {
       const res = await getWarehouseThread({ warehouse_id: warehouseId });
       setThreadMessages(res.data);
     } catch (err) {
+      setThreadMessages([]);
       setThreadError(err.response?.data?.detail || "Could not load messages");
     } finally {
       setThreadLoading(false);

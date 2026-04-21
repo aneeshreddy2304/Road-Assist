@@ -273,6 +273,7 @@ async def get_messages_thread(
     current_user: User = Depends(get_current_user),
 ):
     request_refs_enabled = await _chat_request_refs_enabled(db)
+    normalized_request_id = request_id or ""
 
     if current_user.role == "owner":
         if not mechanic_id:
@@ -307,11 +308,14 @@ async def get_messages_thread(
                 JOIN users u ON u.id = c.sender_user_id
                 WHERE c.owner_id = :owner_id
                   AND c.mechanic_id = :mechanic_id
-                  AND (:request_id IS NULL OR c.request_id = :request_id)
+                  AND (
+                    NULLIF(:request_id, '') IS NULL
+                    OR c.request_id = CAST(:request_id AS UUID)
+                  )
                 ORDER BY c.created_at ASC
                 """
             ),
-            {"owner_id": owner_id, "mechanic_id": mechanic_id, "request_id": request_id},
+            {"owner_id": owner_id, "mechanic_id": mechanic_id, "request_id": normalized_request_id},
         )
     else:
         result = await db.execute(

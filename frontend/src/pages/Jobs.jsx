@@ -77,13 +77,14 @@ export default function Jobs() {
       const response = await getMessageInbox();
       setMessageInbox(response.data || []);
       setSelectedConversation((current) => {
-        if (!current) return current;
+        if (!response.data?.length) return null;
+        if (!current) return response.data[0];
         return (
           response.data?.find(
             (item) =>
               item.owner_id === current.owner_id &&
               (item.request_id || null) === (current.request_id || null)
-          ) || current
+          ) || response.data[0]
         );
       });
     } catch (error) {
@@ -97,6 +98,7 @@ export default function Jobs() {
   const loadThread = async (conversation) => {
     if (!conversation?.owner_id) {
       setThreadMessages([]);
+      setThreadError("");
       return;
     }
     setThreadLoading(true);
