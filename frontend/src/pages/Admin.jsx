@@ -336,7 +336,6 @@ export default function Admin() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <SectionHeader title="Direct ID lookup" />
-              <p className="mt-2 text-sm text-slate-500">Search any service request or appointment by full UUID or short ID like `RA-3DFC7E20` or `AP-7A342CCA`.</p>
             </div>
             <form onSubmit={handleLookup} className="flex w-full max-w-xl gap-3">
               <div className="relative flex-1">
@@ -366,10 +365,20 @@ export default function Admin() {
                   <p className="mt-1 text-lg font-semibold text-[#081224]">{lookupResult.title}</p>
                   <p className="mt-1 text-sm text-slate-500">{lookupResult.owner_name} • {lookupResult.mechanic_name}</p>
                 </div>
-                <div className="text-right">
-                  <StatusBadge status={lookupResult.status === "confirmed" ? "accepted" : lookupResult.status} />
-                  <p className="mt-2 text-sm font-semibold text-[#081224]">{formatCurrencyUSD(lookupResult.amount || 0)}</p>
-                  <p className="mt-1 text-xs text-slate-500">{formatDateTime(lookupResult.event_at)}</p>
+                <div className="ml-auto flex items-start gap-3">
+                  <div className="text-right">
+                    <StatusBadge status={lookupResult.status === "confirmed" ? "accepted" : lookupResult.status} />
+                    <p className="mt-2 text-sm font-semibold text-[#081224]">{formatCurrencyUSD(lookupResult.amount || 0)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{formatDateTime(lookupResult.event_at)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLookupResult(null)}
+                    className="rounded-full border border-[#dbe7ff] bg-white p-2 text-slate-400 transition hover:text-[#081224]"
+                    aria-label="Dismiss lookup result"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -386,15 +395,27 @@ export default function Admin() {
               <SectionHeader title="Status progression" />
               <div className="mt-5 space-y-3">
                 {funnelData.map((stage, index) => (
-                  <div key={stage.label} className="flex items-center gap-3">
+                  <div key={stage.label} className="grid grid-cols-[8.25rem,1fr,3.75rem,1rem] items-center gap-3">
                     <div className={`min-w-[8.25rem] rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] ${stage.tone}`}>
                       {stage.label}
                     </div>
                     <div className="h-[2px] flex-1 bg-[#dbe7ff]" />
-                    <div className="min-w-[3.5rem] text-right text-2xl font-semibold text-[#081224]">{stage.value}</div>
-                    {index < funnelData.length - 1 ? <div className="w-3 text-slate-300">→</div> : null}
+                    <div className="w-[3.75rem] text-right text-2xl font-semibold tabular-nums text-[#081224]">{stage.value}</div>
+                    {index < funnelData.length - 1 ? <div className="text-center text-slate-300">→</div> : <div />}
                   </div>
                 ))}
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-[18px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Open pipeline</p>
+                  <p className="mt-2 text-2xl font-semibold text-[#081224]">
+                    {funnelData.slice(0, 3).reduce((sum, stage) => sum + Number(stage.value || 0), 0)}
+                  </p>
+                </div>
+                <div className="rounded-[18px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Resolved total</p>
+                  <p className="mt-2 text-2xl font-semibold text-[#081224]">{funnelData[3]?.value || 0}</p>
+                </div>
               </div>
             </Card>
 
@@ -447,6 +468,17 @@ export default function Admin() {
                   <p className="mt-2 text-xs text-slate-500">Owners, mechanics, and warehouses currently in the system</p>
                 </div>
               </div>
+              <div className="mt-4 rounded-[18px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[#081224]">Admin review focus</p>
+                    <p className="mt-1 text-xs text-slate-500">Pending registrations and active network coverage at a glance.</p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-[#dbe7ff]">
+                    {pendingMechanics.length + pendingWarehouses.length} pending
+                  </span>
+                </div>
+              </div>
             </Card>
           </div>
 
@@ -471,19 +503,30 @@ export default function Admin() {
                   ))
                 )}
               </div>
-              <div className="grid gap-4 lg:grid-cols-[0.95fr,1.05fr]">
-                <div className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
+              <div className="grid items-stretch gap-4 lg:grid-cols-[0.95fr,1.05fr]">
+                <div className="flex h-full flex-col rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
                   <p className="text-sm font-semibold text-[#081224]">Revenue snapshot</p>
                   <div className="mt-4 grid grid-cols-2 gap-3">
-                    <MiniMetric label="Peak slot" value={peakRevenuePoint?.label || "--"} tone="blue" />
-                    <MiniMetric label="Peak revenue" value={formatCurrencyUSD(peakRevenuePoint?.revenue || 0)} tone="amber" />
-                    <MiniMetric label="Active days" value={revenueDaysWithActivity.length} tone="green" />
-                    <MiniMetric label="Avg booked" value={formatCurrencyUSD(averageRevenue)} tone="rose" />
+                    <MiniMetric label="Peak slot" value={peakRevenuePoint?.label || "--"} tone="blue" compact />
+                    <MiniMetric label="Peak revenue" value={formatCurrencyUSD(peakRevenuePoint?.revenue || 0)} tone="amber" compact />
+                    <MiniMetric label="Active days" value={revenueDaysWithActivity.length} tone="green" compact />
+                    <MiniMetric label="Avg booked" value={formatCurrencyUSD(averageRevenue)} tone="rose" compact />
                   </div>
                   <div className="mt-4 rounded-[18px] bg-white px-4 py-3 ring-1 ring-[#e3ebff]">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Latest close</p>
                     <p className="mt-2 text-lg font-semibold text-[#081224]">{latestRevenuePoint?.label || "No closed jobs yet"}</p>
                     <p className="mt-1 text-sm text-slate-500">{latestRevenuePoint ? formatCurrencyUSD(latestRevenuePoint.revenue || 0) : "Waiting for completed revenue"}</p>
+                  </div>
+                  <div className="mt-4 flex-1 rounded-[18px] border border-dashed border-[#dbe7ff] bg-white/60 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Revenue posture</p>
+                    <p className="mt-2 text-sm font-semibold text-[#081224]">
+                      {peakRevenuePoint ? `${peakRevenuePoint.label} is leading the selected range.` : "Revenue will summarize here once completed jobs start landing."}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {revenueDaysWithActivity.length > 1
+                        ? `${revenueDaysWithActivity.length} active revenue periods are contributing to this view.`
+                        : "This space expands with the card so the dashboard stays visually balanced."}
+                    </p>
                   </div>
                 </div>
                 <div className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
@@ -512,7 +555,7 @@ export default function Admin() {
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <SectionHeader title="Calendar summary" />
+              <SectionHeader title="Appointments summary" />
               <div className="flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
                 {[
                   ["current_window", "Current"],
@@ -976,9 +1019,9 @@ function MiniMetric({ label, value, tone }) {
     rose: "bg-[#fff1f2] text-[#be123c]",
   };
   return (
-    <div className={`rounded-[20px] px-4 py-3 ${tones[tone]}`}>
+    <div className={`min-w-0 rounded-[20px] px-4 py-3 ${tones[tone]}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-80">{label}</p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-2 overflow-hidden text-ellipsis text-[clamp(1.35rem,2.3vw,2rem)] font-semibold leading-tight break-words">{value}</p>
     </div>
   );
 }
