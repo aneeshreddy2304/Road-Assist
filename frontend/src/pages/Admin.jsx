@@ -40,6 +40,7 @@ export default function Admin() {
   const [rangeKey, setRangeKey] = useState("week");
   const [volumeWindow, setVolumeWindow] = useState("week");
   const [leaderboardFilter, setLeaderboardFilter] = useState("all");
+  const [calendarView, setCalendarView] = useState("this_month");
   const [analytics, setAnalytics] = useState(null);
   const [mechanics, setMechanics] = useState([]);
   const [owners, setOwners] = useState([]);
@@ -104,6 +105,8 @@ export default function Admin() {
   const topParts = analytics?.top_parts || [];
   const roleBreakdown = analytics?.users_by_role || {};
   const appointmentSummary = analytics?.appointments_summary || {};
+  const appointmentSummaryViews = analytics?.appointments_summary_views || {};
+  const appointmentCalendarViews = analytics?.appointments_calendar_views || {};
   const mechanicsOnline = Number(analytics?.mechanics_online || 0);
   const pendingMechanics = mechanics.filter((mechanic) => mechanic.approval_status === "pending");
   const pendingWarehouses = warehouses.filter((warehouse) => warehouse.approval_status === "pending");
@@ -164,6 +167,44 @@ export default function Admin() {
     displayedVolume.length === 0
       ? null
       : displayedVolume.reduce((best, item) => (Number(item.total || 0) > Number(best.total || 0) ? item : best), displayedVolume[0]);
+  const revenueDaysWithActivity = earningsTrend.filter((item) => Number(item.revenue || 0) > 0);
+  const peakRevenuePoint =
+    revenueDaysWithActivity.length === 0
+      ? null
+      : revenueDaysWithActivity.reduce((best, item) =>
+          Number(item.revenue || 0) > Number(best.revenue || 0) ? item : best,
+        revenueDaysWithActivity[0]);
+  const latestRevenuePoint = revenueDaysWithActivity[revenueDaysWithActivity.length - 1] || earningsTrend[earningsTrend.length - 1] || null;
+  const averageRevenue =
+    revenueDaysWithActivity.length === 0
+      ? 0
+      : revenueDaysWithActivity.reduce((sum, item) => sum + Number(item.revenue || 0), 0) / revenueDaysWithActivity.length;
+  const topRevenueMoments = [...revenueDaysWithActivity]
+    .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+    .slice(0, 3);
+  const currentWindowSummary = {
+    ...appointmentSummary,
+    label: rangeKey === "all" ? "Full history" : `Current ${rangeKey}`,
+  };
+  const calendarSummaryByView = {
+    current_window: currentWindowSummary,
+    ...appointmentSummaryViews,
+  };
+  const calendarAppointmentsByView = {
+    current_window: appointments,
+    ...appointmentCalendarViews,
+  };
+  const activeCalendarView = calendarSummaryByView[calendarView] ? calendarView : "current_window";
+  const selectedCalendarSummary = calendarSummaryByView[activeCalendarView] || currentWindowSummary;
+  const selectedAppointments = calendarAppointmentsByView[activeCalendarView] || [];
+  const selectedAppointmentTotal = Number(selectedCalendarSummary.total || 0);
+  const nextAppointment = selectedAppointments.find((item) => new Date(item.scheduled_for).getTime() >= Date.now()) || selectedAppointments[0] || null;
+  const busiestService = selectedAppointments.reduce((best, item) => {
+    const current = best[item.service_type] || 0;
+    return { ...best, [item.service_type]: current + 1 };
+  }, {});
+  const busiestServiceEntry = Object.entries(busiestService).sort((a, b) => b[1] - a[1])[0] || null;
+  const completionRate = selectedAppointmentTotal === 0 ? 0 : Math.round((Number(selectedCalendarSummary.completed || 0) / selectedAppointmentTotal) * 100);
 
   async function handleDeactivate(mechanicId) {
     setDeactivatingId(mechanicId);
@@ -360,26 +401,7 @@ export default function Admin() {
             <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <SectionHeader title="Platform population" />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setManagingGroup("mechanics")}
-                    className="rounded-full bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:bg-[#1e293b]"
-                  >
-                    Manage mechanics
-                  </button>
-                  <button
-                    onClick={() => setManagingGroup("warehouses")}
-                    className="rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
-                  >
-                    Manage warehouses
-                  </button>
-                  <button
-                    onClick={() => setManagingGroup("owners")}
-                    className="rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
-                  >
-                    Manage owners
-                  </button>
-                </div>
+                <p className="text-sm text-slate-500">Tap any population card below to open its management panel.</p>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {Object.entries(roleBreakdown)
@@ -430,7 +452,7 @@ export default function Admin() {
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <SectionHeader title={`Earnings by ${rangeKey === "day" ? "hour" : rangeKey === "year" || rangeKey === "all" ? "month" : "day"}`} />
-            <div className="mt-5 grid min-h-[250px] grid-cols-1 items-end gap-3">
+            <div className="mt-5 grid grid-cols-1 gap-5">
               <div className="flex h-[220px] items-end gap-3 overflow-x-auto">
                 {earningsTrend.length === 0 ? (
                   <EmptyMiniState message="No revenue data in this range" />
@@ -449,22 +471,80 @@ export default function Admin() {
                   ))
                 )}
               </div>
+              <div className="grid gap-4 lg:grid-cols-[0.95fr,1.05fr]">
+                <div className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
+                  <p className="text-sm font-semibold text-[#081224]">Revenue snapshot</p>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MiniMetric label="Peak slot" value={peakRevenuePoint?.label || "--"} tone="blue" />
+                    <MiniMetric label="Peak revenue" value={formatCurrencyUSD(peakRevenuePoint?.revenue || 0)} tone="amber" />
+                    <MiniMetric label="Active days" value={revenueDaysWithActivity.length} tone="green" />
+                    <MiniMetric label="Avg booked" value={formatCurrencyUSD(averageRevenue)} tone="rose" />
+                  </div>
+                  <div className="mt-4 rounded-[18px] bg-white px-4 py-3 ring-1 ring-[#e3ebff]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Latest close</p>
+                    <p className="mt-2 text-lg font-semibold text-[#081224]">{latestRevenuePoint?.label || "No closed jobs yet"}</p>
+                    <p className="mt-1 text-sm text-slate-500">{latestRevenuePoint ? formatCurrencyUSD(latestRevenuePoint.revenue || 0) : "Waiting for completed revenue"}</p>
+                  </div>
+                </div>
+                <div className="rounded-[22px] border border-[#edf2ff] bg-[#f8fbff] p-4">
+                  <p className="text-sm font-semibold text-[#081224]">Best performing slots</p>
+                  <div className="mt-4 space-y-3">
+                    {topRevenueMoments.length === 0 ? (
+                      <EmptyMiniState message="Top earning moments will appear here" />
+                    ) : (
+                      topRevenueMoments.map((item, index) => (
+                        <div key={`${item.label}-${index}`} className="flex items-center justify-between rounded-[18px] bg-white px-4 py-3 ring-1 ring-[#e3ebff]">
+                          <div>
+                            <p className="text-sm font-semibold text-[#081224]">{item.label}</p>
+                            <p className="mt-1 text-xs text-slate-500">Rank #{index + 1} in the selected range</p>
+                          </div>
+                          <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#1d4ed8]">
+                            {formatCurrencyUSD(item.revenue || 0)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </Card>
 
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
-            <SectionHeader title="Calendar summary" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SectionHeader title="Calendar summary" />
+              <div className="flex rounded-full bg-[#f8fbff] p-1 ring-1 ring-[#dbe7ff]">
+                {[
+                  ["current_window", "Current"],
+                  ["this_month", "This month"],
+                  ["last_month", "Last month"],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setCalendarView(key)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      activeCalendarView === key ? "bg-[#0f172a] text-white" : "text-slate-500 hover:bg-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              Viewing {selectedCalendarSummary.label || "the selected appointment window"}.
+            </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <MiniMetric label="Requested" value={appointmentSummary.requested ?? 0} tone="amber" />
-              <MiniMetric label="Confirmed" value={appointmentSummary.confirmed ?? 0} tone="blue" />
-              <MiniMetric label="Completed" value={appointmentSummary.completed ?? 0} tone="green" />
-              <MiniMetric label="Cancelled" value={appointmentSummary.cancelled ?? 0} tone="rose" />
+              <MiniMetric label="Requested" value={selectedCalendarSummary.requested ?? 0} tone="amber" />
+              <MiniMetric label="Confirmed" value={selectedCalendarSummary.confirmed ?? 0} tone="blue" />
+              <MiniMetric label="Completed" value={selectedCalendarSummary.completed ?? 0} tone="green" />
+              <MiniMetric label="Cancelled" value={selectedCalendarSummary.cancelled ?? 0} tone="rose" />
             </div>
             <div className="mt-4 max-h-[260px] space-y-3 overflow-y-auto pr-1">
-              {appointments.length === 0 ? (
+              {selectedAppointments.length === 0 ? (
                 <EmptyMiniState message="No appointments scheduled" />
               ) : (
-                appointments.map((item) => (
+                selectedAppointments.map((item) => (
                   <div key={item.id} className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -480,6 +560,32 @@ export default function Admin() {
                   </div>
                 ))
               )}
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Total booked</p>
+                <p className="mt-2 text-2xl font-semibold text-[#081224]">{selectedAppointmentTotal}</p>
+                <p className="mt-1 text-xs text-slate-500">Appointments in {selectedCalendarSummary.label || "this view"}</p>
+              </div>
+              <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Completion rate</p>
+                <p className="mt-2 text-2xl font-semibold text-[#081224]">{completionRate}%</p>
+                <p className="mt-1 text-xs text-slate-500">Share of booked appointments already completed</p>
+              </div>
+              <div className="rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Busiest service</p>
+                <p className="mt-2 text-lg font-semibold text-[#081224]">{busiestServiceEntry?.[0] || "No service mix yet"}</p>
+                <p className="mt-1 text-xs text-slate-500">{busiestServiceEntry ? `${busiestServiceEntry[1]} bookings in this view` : "Waiting for appointments"}</p>
+              </div>
+            </div>
+            <div className="mt-3 rounded-[20px] border border-[#edf2ff] bg-[#f8fbff] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Next visible appointment</p>
+              <p className="mt-2 text-sm font-semibold text-[#081224]">
+                {nextAppointment ? `${nextAppointment.appointment_ref} • ${nextAppointment.service_type}` : "No upcoming appointment in this filter"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {nextAppointment ? `${formatDateTime(nextAppointment.scheduled_for)} • ${nextAppointment.owner_name} with ${nextAppointment.mechanic_name}` : "Switch filters to inspect a different period."}
+              </p>
             </div>
           </Card>
         </div>

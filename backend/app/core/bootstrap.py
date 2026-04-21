@@ -2,16 +2,17 @@ from sqlalchemy import text
 
 from app.db.session import engine
 
+WAREHOUSE_DEMO_PASSWORD_HASH = "$2b$12$n3XpKloeMVDKDCQv6lIt/.YuevmuXiT6l.ugq1UKzb.NgtKPAoBbe"
 
-WAREHOUSE_USERS_SEED_SQL = """
+WAREHOUSE_USERS_SEED_SQL = f"""
 INSERT INTO users (id, name, email, password_hash, phone, role, is_active, created_at, updated_at)
 VALUES
-  ('8ddf8c31-67fa-4cae-b45a-4c66985cbf01', 'Blue Ridge Auto Supply', 'warehouse1@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4001', 'warehouse', TRUE, NOW(), NOW()),
-  ('12f974b4-ff1e-4f4e-8cf7-315d3eb92e02', 'James River Parts Hub', 'warehouse2@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4002', 'warehouse', TRUE, NOW(), NOW()),
-  ('fd00d65a-d3e9-4b07-a28a-f95d9dcb2d03', 'River City EV Components', 'warehouse3@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4003', 'warehouse', TRUE, NOW(), NOW()),
-  ('a6b1b6c4-26bf-4cb0-bef7-35df56d1c104', 'Broad Street Brake Depot', 'warehouse4@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4004', 'warehouse', TRUE, NOW(), NOW()),
-  ('d7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', 'warehouse5@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4005', 'warehouse', TRUE, NOW(), NOW()),
-  ('73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', 'warehouse6@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4006', 'warehouse', TRUE, NOW(), NOW())
+  ('8ddf8c31-67fa-4cae-b45a-4c66985cbf01', 'Blue Ridge Auto Supply', 'warehouse1@roadassist.in', '{WAREHOUSE_DEMO_PASSWORD_HASH}', '+1-804-555-4001', 'warehouse', TRUE, NOW(), NOW()),
+  ('12f974b4-ff1e-4f4e-8cf7-315d3eb92e02', 'James River Parts Hub', 'warehouse2@roadassist.in', '{WAREHOUSE_DEMO_PASSWORD_HASH}', '+1-804-555-4002', 'warehouse', TRUE, NOW(), NOW()),
+  ('fd00d65a-d3e9-4b07-a28a-f95d9dcb2d03', 'River City EV Components', 'warehouse3@roadassist.in', '{WAREHOUSE_DEMO_PASSWORD_HASH}', '+1-804-555-4003', 'warehouse', TRUE, NOW(), NOW()),
+  ('a6b1b6c4-26bf-4cb0-bef7-35df56d1c104', 'Broad Street Brake Depot', 'warehouse4@roadassist.in', '{WAREHOUSE_DEMO_PASSWORD_HASH}', '+1-804-555-4004', 'warehouse', TRUE, NOW(), NOW()),
+  ('d7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', 'warehouse5@roadassist.in', '{WAREHOUSE_DEMO_PASSWORD_HASH}', '+1-804-555-4005', 'warehouse', TRUE, NOW(), NOW()),
+  ('73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', 'warehouse6@roadassist.in', '{WAREHOUSE_DEMO_PASSWORD_HASH}', '+1-804-555-4006', 'warehouse', TRUE, NOW(), NOW())
 ON CONFLICT (email) DO UPDATE
 SET
   name = EXCLUDED.name,

@@ -223,6 +223,71 @@ async def get_analytics(
         LIMIT 10
     """))
 
+    appointments_summary_views = await db.execute(text("""
+        SELECT
+            'this_month' AS view_key,
+            TO_CHAR(date_trunc('month', NOW()), 'Mon YYYY') AS label,
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE status = 'requested') AS requested,
+            COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmed,
+            COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+            COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled
+        FROM appointments
+        WHERE scheduled_for >= date_trunc('month', NOW())
+          AND scheduled_for < date_trunc('month', NOW()) + INTERVAL '1 month'
+
+        UNION ALL
+
+        SELECT
+            'last_month' AS view_key,
+            TO_CHAR(date_trunc('month', NOW()) - INTERVAL '1 month', 'Mon YYYY') AS label,
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE status = 'requested') AS requested,
+            COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmed,
+            COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+            COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled
+        FROM appointments
+        WHERE scheduled_for >= date_trunc('month', NOW()) - INTERVAL '1 month'
+          AND scheduled_for < date_trunc('month', NOW())
+    """))
+
+    appointments_calendar_views_result = await db.execute(text("""
+        SELECT
+            'this_month' AS view_key,
+            a.id,
+            CONCAT('AP-', UPPER(SUBSTRING(a.id::TEXT, 1, 8))) AS appointment_ref,
+            a.status,
+            a.service_type,
+            a.scheduled_for,
+            owner.name AS owner_name,
+            mechanic_user.name AS mechanic_name
+        FROM appointments a
+        JOIN users owner ON owner.id = a.owner_id
+        JOIN mechanics m ON m.id = a.mechanic_id
+        JOIN users mechanic_user ON mechanic_user.id = m.user_id
+        WHERE a.scheduled_for >= date_trunc('month', NOW())
+          AND a.scheduled_for < date_trunc('month', NOW()) + INTERVAL '1 month'
+
+        UNION ALL
+
+        SELECT
+            'last_month' AS view_key,
+            a.id,
+            CONCAT('AP-', UPPER(SUBSTRING(a.id::TEXT, 1, 8))) AS appointment_ref,
+            a.status,
+            a.service_type,
+            a.scheduled_for,
+            owner.name AS owner_name,
+            mechanic_user.name AS mechanic_name
+        FROM appointments a
+        JOIN users owner ON owner.id = a.owner_id
+        JOIN mechanics m ON m.id = a.mechanic_id
+        JOIN users mechanic_user ON mechanic_user.id = m.user_id
+        WHERE a.scheduled_for >= date_trunc('month', NOW()) - INTERVAL '1 month'
+          AND a.scheduled_for < date_trunc('month', NOW())
+        ORDER BY scheduled_for ASC
+    """))
+
     unresolved_alerts = await db.execute(text("""
         SELECT
             a.id,
@@ -260,6 +325,16 @@ async def get_analytics(
         LIMIT 12
     """))
 
+    appointment_summary_views_map = {
+        row["view_key"]: dict(row)
+        for row in appointments_summary_views.mappings().all()
+    }
+    appointment_calendar_views_map = {"this_month": [], "last_month": []}
+    for row in appointments_calendar_views_result.mappings().all():
+        item = dict(row)
+        view_key = item.pop("view_key")
+        appointment_calendar_views_map.setdefault(view_key, []).append(item)
+
     return {
         "summary": stats,
         "filters": {"range": range_key},
@@ -270,6 +345,8 @@ async def get_analytics(
         "low_stock": [dict(r) for r in low_stock.mappings().all()],
         "appointments_summary": dict(appointments_summary.mappings().first()),
         "appointments_calendar": [dict(r) for r in appointments_calendar.mappings().all()],
+        "appointments_summary_views": appointment_summary_views_map,
+        "appointments_calendar_views": appointment_calendar_views_map,
         "unresolved_alerts": [dict(r) for r in unresolved_alerts.mappings().all()],
         "latest_requests": [dict(r) for r in latest_requests.mappings().all()],
         "mechanics_online": int((mechanics_online.mappings().first() or {}).get("count") or 0),
