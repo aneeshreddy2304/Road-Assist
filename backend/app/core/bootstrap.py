@@ -3,7 +3,7 @@ from sqlalchemy import text
 from app.db.session import engine
 
 
-WAREHOUSE_SEED_SQL = """
+WAREHOUSE_USERS_SEED_SQL = """
 INSERT INTO users (id, name, email, password_hash, phone, role, is_active, created_at, updated_at)
 VALUES
   ('8ddf8c31-67fa-4cae-b45a-4c66985cbf01', 'Blue Ridge Auto Supply', 'warehouse1@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4001', 'warehouse', TRUE, NOW(), NOW()),
@@ -13,7 +13,9 @@ VALUES
   ('d7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', 'warehouse5@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4005', 'warehouse', TRUE, NOW(), NOW()),
   ('73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', 'warehouse6@roadassist.in', '$2a$12$K8HkR3YwEh0M1z7nV2F4iuLlGW5AXm9pqT6sD3rJcBfNvOyE8W2Ki', '+1-804-555-4006', 'warehouse', TRUE, NOW(), NOW())
 ON CONFLICT (email) DO NOTHING;
+"""
 
+WAREHOUSE_PROFILES_SEED_SQL = """
 INSERT INTO warehouses (id, user_id, name, address, lat, lng, contact_phone, description, fulfillment_hours, is_active, created_at, updated_at)
 VALUES
   ('d4d4af8e-18ef-4e1c-a6f5-f1f8cd620101', '8ddf8c31-67fa-4cae-b45a-4c66985cbf01', 'Blue Ridge Auto Supply', '2601 W Broad St, Richmond, VA', 37.553200, -77.474900, '+1-804-555-4001', 'Downtown-ready general parts supplier with high-turn stock for emergency roadside jobs.', 'Mon-Sat 07:00 AM - 09:00 PM', TRUE, NOW(), NOW()),
@@ -23,7 +25,9 @@ VALUES
   ('8f9f75cb-aaf9-4a68-97d3-331a1b230105', 'd7c2f5bf-e5d0-4aaf-8f08-8d3bfa93af05', 'Capital Fleet Warehouse', '6400 Midlothian Tpke, Richmond, VA', 37.503900, -77.517100, '+1-804-555-4005', 'Fleet and commercial stock for vans, SUVs, and light trucks.', 'Mon-Sat 06:00 AM - 10:00 PM', TRUE, NOW(), NOW()),
   ('bbcbdd48-cd16-4a72-83f5-ff5fd2530106', '73ddb614-9037-453b-817f-bc1f182acd06', 'Southside Rapid Spares', '4700 Forest Hill Ave, Richmond, VA', 37.517100, -77.503500, '+1-804-555-4006', 'Fast-moving emergency stock with batteries, bulbs, ignition, and starter components.', 'Daily 24/7 emergency desk', TRUE, NOW(), NOW())
 ON CONFLICT (user_id) DO NOTHING;
+"""
 
+WAREHOUSE_PARTS_SEED_SQL = """
 INSERT INTO warehouse_parts (id, warehouse_id, part_name, part_number, quantity, min_threshold, price, compatible_vehicles, manufacturer, lead_time_label, created_at, updated_at)
 VALUES
   ('a8001001-1111-4b8d-81d1-000000000001', 'd4d4af8e-18ef-4e1c-a6f5-f1f8cd620101', '12V AGM Battery', 'BAT-AGM-47', 24, 6, 189.00, '{car,suv}', 'Interstate', 'Pickup in 20 min', NOW(), NOW()),
@@ -188,4 +192,6 @@ async def ensure_schema_updates() -> None:
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_warehouse_parts_lookup ON warehouse_parts (warehouse_id, quantity, part_name)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_warehouse_orders_lookup ON warehouse_orders (warehouse_id, mechanic_id, created_at DESC)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_warehouse_messages_thread ON warehouse_messages (warehouse_id, mechanic_id, created_at ASC)"))
-        await conn.execute(text(WAREHOUSE_SEED_SQL))
+        await conn.execute(text(WAREHOUSE_USERS_SEED_SQL))
+        await conn.execute(text(WAREHOUSE_PROFILES_SEED_SQL))
+        await conn.execute(text(WAREHOUSE_PARTS_SEED_SQL))
