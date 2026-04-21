@@ -128,6 +128,34 @@ async def ensure_schema_updates() -> None:
                   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'warehouse_order_status') THEN
                     CREATE TYPE warehouse_order_status AS ENUM ('requested', 'quoted', 'confirmed', 'packed', 'delivered', 'cancelled');
                   END IF;
+                  IF NOT EXISTS (
+                    SELECT 1 FROM pg_type t
+                    JOIN pg_enum e ON t.oid = e.enumtypid
+                    WHERE t.typname = 'warehouse_order_status' AND e.enumlabel = 'accepted'
+                  ) THEN
+                    ALTER TYPE warehouse_order_status ADD VALUE 'accepted';
+                  END IF;
+                  IF NOT EXISTS (
+                    SELECT 1 FROM pg_type t
+                    JOIN pg_enum e ON t.oid = e.enumtypid
+                    WHERE t.typname = 'warehouse_order_status' AND e.enumlabel = 'awaiting_shipping'
+                  ) THEN
+                    ALTER TYPE warehouse_order_status ADD VALUE 'awaiting_shipping';
+                  END IF;
+                  IF NOT EXISTS (
+                    SELECT 1 FROM pg_type t
+                    JOIN pg_enum e ON t.oid = e.enumtypid
+                    WHERE t.typname = 'warehouse_order_status' AND e.enumlabel = 'shipped'
+                  ) THEN
+                    ALTER TYPE warehouse_order_status ADD VALUE 'shipped';
+                  END IF;
+                  IF NOT EXISTS (
+                    SELECT 1 FROM pg_type t
+                    JOIN pg_enum e ON t.oid = e.enumtypid
+                    WHERE t.typname = 'warehouse_order_status' AND e.enumlabel = 'out_for_delivery'
+                  ) THEN
+                    ALTER TYPE warehouse_order_status ADD VALUE 'out_for_delivery';
+                  END IF;
                   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'warehouse_chat_sender_role') THEN
                     CREATE TYPE warehouse_chat_sender_role AS ENUM ('mechanic', 'warehouse');
                   END IF;
@@ -198,6 +226,7 @@ async def ensure_schema_updates() -> None:
                 """
                 CREATE TABLE IF NOT EXISTS warehouse_orders (
                   id UUID PRIMARY KEY,
+                  order_ref VARCHAR(32),
                   warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
                   mechanic_id UUID NOT NULL REFERENCES mechanics(id) ON DELETE CASCADE,
                   warehouse_part_id UUID REFERENCES warehouse_parts(id) ON DELETE SET NULL,
@@ -206,12 +235,18 @@ async def ensure_schema_updates() -> None:
                   unit_price NUMERIC(10, 2),
                   total_price NUMERIC(10, 2),
                   note TEXT,
+                  inventory_deducted BOOLEAN NOT NULL DEFAULT FALSE,
+                  inventory_received BOOLEAN NOT NULL DEFAULT FALSE,
                   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
             )
         )
+        await conn.execute(text("ALTER TABLE warehouse_orders ADD COLUMN IF NOT EXISTS order_ref VARCHAR(32)"))
+        await conn.execute(text("ALTER TABLE warehouse_orders ADD COLUMN IF NOT EXISTS inventory_deducted BOOLEAN NOT NULL DEFAULT FALSE"))
+        await conn.execute(text("ALTER TABLE warehouse_orders ADD COLUMN IF NOT EXISTS inventory_received BOOLEAN NOT NULL DEFAULT FALSE"))
+        await conn.execute(text("UPDATE warehouse_orders SET order_ref = 'WO-' || UPPER(SUBSTRING(id::text, 1, 8)) WHERE order_ref IS NULL"))
         await conn.execute(
             text(
                 """
@@ -230,6 +265,7 @@ async def ensure_schema_updates() -> None:
         )
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_warehouse_parts_lookup ON warehouse_parts (warehouse_id, quantity, part_name)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_warehouse_orders_lookup ON warehouse_orders (warehouse_id, mechanic_id, created_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_warehouse_orders_ref ON warehouse_orders (order_ref, created_at DESC)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_warehouse_messages_thread ON warehouse_messages (warehouse_id, mechanic_id, created_at ASC)"))
         await conn.execute(text(WAREHOUSE_USERS_SEED_SQL))
         await conn.execute(text(WAREHOUSE_PROFILES_SEED_SQL))

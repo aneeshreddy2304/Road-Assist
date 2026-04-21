@@ -17,10 +17,11 @@ import {
   getMyWarehouseProfile,
   getWarehouseInbox,
   getWarehouseInventory,
+  getWarehouseOrderDetail,
   getWarehouseOrders,
   getWarehouseThread,
   sendWarehouseMessage,
-  updateWarehouseOrder,
+  updateWarehouseOrderGroup,
   updateWarehousePart,
 } from "../api/endpoints";
 import { Card, EmptyState, Spinner } from "../components/UI";
@@ -38,6 +39,8 @@ export default function Warehouse() {
   const [profile, setProfile] = useState(null);
   const [inventory, setInventory] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [selectedOrderRef, setSelectedOrderRef] = useState(null);
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState(null);
   const [inbox, setInbox] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [threadMessages, setThreadMessages] = useState([]);
@@ -45,6 +48,7 @@ export default function Warehouse() {
   const [loading, setLoading] = useState(true);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
   const [messageSending, setMessageSending] = useState(false);
@@ -66,6 +70,11 @@ export default function Warehouse() {
       setProfile(profileRes.data);
       setInventory(inventoryRes.data);
       setOrders(ordersRes.data);
+      setSelectedOrderRef((current) => {
+        if (!ordersRes.data?.length) return null;
+        if (!current) return ordersRes.data[0].order_ref;
+        return ordersRes.data.find((item) => item.order_ref === current)?.order_ref || ordersRes.data[0].order_ref;
+      });
       setInbox(inboxRes.data);
       if (!selectedConversation && inboxRes.data.length) {
         setSelectedConversation(inboxRes.data[0]);
@@ -90,8 +99,31 @@ export default function Warehouse() {
     try {
       const res = await getWarehouseOrders();
       setOrders(res.data);
+      setSelectedOrderRef((current) => {
+        if (!res.data?.length) return null;
+        if (!current) return res.data[0].order_ref;
+        return res.data.find((item) => item.order_ref === current)?.order_ref || res.data[0].order_ref;
+      });
     } finally {
       setOrdersLoading(false);
+    }
+  };
+
+  const loadOrderDetail = async (orderRef = selectedOrderRef, { background = false } = {}) => {
+    if (!orderRef) {
+      setSelectedOrderDetail(null);
+      return;
+    }
+    if (!background) {
+      setOrderDetailLoading(true);
+    }
+    try {
+      const res = await getWarehouseOrderDetail(orderRef);
+      setSelectedOrderDetail(res.data);
+    } finally {
+      if (!background) {
+        setOrderDetailLoading(false);
+      }
     }
   };
 
@@ -151,13 +183,24 @@ export default function Warehouse() {
   }, [selectedConversation?.mechanic_id]);
 
   useEffect(() => {
+    if (!selectedOrderRef) {
+      setSelectedOrderDetail(null);
+      return;
+    }
+    loadOrderDetail(selectedOrderRef);
+  }, [selectedOrderRef]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       loadOrders();
       loadInbox();
       loadInventory();
+      if (selectedOrderRef) {
+        loadOrderDetail(selectedOrderRef, { background: true });
+      }
     }, 15000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [selectedOrderRef]);
 
   const lowStock = useMemo(() => inventory.filter((part) => Number(part.quantity) <= Number(part.min_threshold)), [inventory]);
   const totalValue = useMemo(
@@ -181,9 +224,9 @@ export default function Warehouse() {
     loadInventory();
   };
 
-  const handleOrderUpdate = async (orderId, next) => {
-    await updateWarehouseOrder(orderId, next);
-    loadOrders();
+  const handleOrderUpdate = async (orderRef, next) => {
+    await updateWarehouseOrderGroup(orderRef, next);
+    await Promise.all([loadOrders(), loadOrderDetail(orderRef), loadInventory()]);
   };
 
   const handleSendMessage = async () => {
@@ -363,39 +406,72 @@ export default function Warehouse() {
         ) : null}
 
         {tab === "orders" ? (
-          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Incoming mechanic orders</p>
-                <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{orders.length} supplier orders</h2>
+          <div className="grid gap-4 xl:grid-cols-[0.82fr,1.18fr]">
+            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Incoming mechanic orders</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{orders.length} supplier orders</h2>
+                </div>
+                {ordersLoading ? <Spinner /> : null}
               </div>
-              {ordersLoading ? <Spinner /> : null}
-            </div>
 
-            {orders.length === 0 ? (
-              <EmptyState icon="🧾" title="No mechanic orders yet" subtitle="Orders placed by mechanics will appear here with status and pricing controls." />
-            ) : (
-              <div className="mt-5 grid gap-3">
-                {orders.map((order) => (
-                  <WarehouseOrderCard
-                    key={order.id}
-                    order={order}
-                    onUpdate={handleOrderUpdate}
-                    onOpenThread={() => {
-                      setSelectedConversation({
-                        warehouse_id: order.warehouse_id,
-                        warehouse_name: order.warehouse_name,
-                        mechanic_id: order.mechanic_id,
-                        mechanic_name: order.mechanic_name,
-                        warehouse_order_id: order.id,
-                      });
-                      setTab("messages");
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </Card>
+              {orders.length === 0 ? (
+                <EmptyState icon="🧾" title="No mechanic orders yet" subtitle="Orders placed by mechanics will appear here with status and pricing controls." />
+              ) : (
+                <div className="mt-5 max-h-[42rem] space-y-3 overflow-y-auto pr-1">
+                  {orders.map((order) => (
+                    <button
+                      key={order.order_ref}
+                      onClick={() => setSelectedOrderRef(order.order_ref)}
+                      className={`w-full rounded-[24px] border p-4 text-left transition ${
+                        selectedOrderRef === order.order_ref
+                          ? "border-[#2563eb] bg-[#f8fbff]"
+                          : "border-[#dbe7ff] bg-white hover:bg-[#fbfdff]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">{order.order_ref}</p>
+                          <p className="mt-2 text-lg font-semibold text-[#081224]">{order.mechanic_name}</p>
+                          <p className="mt-1 text-sm text-slate-500">{order.line_count} lines · {order.total_quantity} units</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{order.status.replaceAll("_", " ")}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold text-[#081224]">{formatCurrencyUSD(order.total_price || 0)}</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
+              {orderDetailLoading ? (
+                <Spinner />
+              ) : selectedOrderDetail ? (
+                <WarehouseOrderGroupDetail
+                  order={selectedOrderDetail}
+                  onUpdate={handleOrderUpdate}
+                  onOpenThread={() => {
+                    setSelectedConversation({
+                      warehouse_id: selectedOrderDetail.warehouse_id,
+                      warehouse_name: selectedOrderDetail.warehouse_name,
+                      mechanic_id: selectedOrderDetail.mechanic_id,
+                      mechanic_name: selectedOrderDetail.mechanic_name,
+                    });
+                    setTab("messages");
+                  }}
+                />
+              ) : (
+                <EmptyState icon="🧾" title="Choose an order" subtitle="Select an incoming mechanic order to review items, accept it, and advance shipping status." />
+              )}
+            </Card>
+          </div>
         ) : null}
 
         {tab === "messages" ? (
@@ -496,28 +572,32 @@ function InfoRow({ label, value }) {
   );
 }
 
-function WarehouseOrderCard({ order, onUpdate, onOpenThread }) {
+function WarehouseOrderGroupDetail({ order, onUpdate, onOpenThread }) {
   const [status, setStatus] = useState(order.status);
-  const [unitPrice, setUnitPrice] = useState(order.unit_price || 0);
   const [note, setNote] = useState(order.note || "");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setStatus(order.status);
+    setNote(order.note || "");
+  }, [order.note, order.status, order.order_ref]);
 
   const submit = async () => {
     setSaving(true);
     try {
-      await onUpdate(order.id, { status, unit_price: Number(unitPrice), note });
+      await onUpdate(order.order_ref, { status, note });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">{order.status.replace("_", " ")}</p>
-          <p className="mt-2 text-lg font-semibold text-[#081224]">{order.part_name || "Supplier order"}</p>
-          <p className="mt-1 text-sm text-slate-500">{order.mechanic_name} · Qty {order.quantity}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">{order.order_ref}</p>
+          <p className="mt-2 text-lg font-semibold text-[#081224]">{order.mechanic_name}</p>
+          <p className="mt-1 text-sm text-slate-500">{order.line_count} lines · {order.total_quantity} units</p>
           <p className="mt-1 text-sm text-slate-500">{new Date(order.created_at).toLocaleString("en-US")}</p>
         </div>
         <div className="text-right">
@@ -525,12 +605,46 @@ function WarehouseOrderCard({ order, onUpdate, onOpenThread }) {
           <button onClick={onOpenThread} className="mt-3 rounded-full border border-[#dbe7ff] px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-white">Open thread</button>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <Field label="Status" value={status} onChange={setStatus} />
-        <Field label="Unit price" type="number" value={unitPrice} onChange={setUnitPrice} />
-        <Field label="Note" value={note} onChange={setNote} />
+
+      <div className="rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Status
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              className="mt-2 w-full rounded-2xl border border-[#dbe7ff] bg-white px-3 py-2 text-sm text-[#081224] outline-none"
+            >
+              {["requested", "accepted", "packed", "awaiting_shipping", "shipped", "out_for_delivery", "delivered", "cancelled"].map((option) => (
+                <option key={option} value={option}>
+                  {option.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field label="Warehouse note" value={note} onChange={setNote} />
+        </div>
       </div>
-      <div className="mt-4 flex justify-end">
+
+      <div className="space-y-3">
+        {order.items.map((item) => (
+          <div key={item.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-[#081224]">{item.part_name || "Warehouse part"}</p>
+                <p className="mt-1 text-sm text-slate-500">{item.part_number || "No part number"} · {item.manufacturer || "Generic supply"}</p>
+                <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{item.lead_time_label || "Lead time pending"}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-[#081224]">Qty {item.quantity}</p>
+                <p className="mt-1 text-sm text-slate-500">{formatCurrencyUSD(item.total_price || 0)}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
         <button onClick={submit} disabled={saving} className="rounded-full bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
           {saving ? "Saving..." : "Update order"}
         </button>

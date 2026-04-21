@@ -17,6 +17,12 @@ class WarehouseSummaryOut(BaseModel):
     available_parts: int = 0
     low_stock_parts: int = 0
     total_stock_units: int = 0
+    email: str | None = None
+    average_shipping_time: str | None = None
+
+
+class WarehouseDetailOut(WarehouseSummaryOut):
+    inventory: list["WarehousePartOut"] = []
 
 
 class WarehousePartOut(BaseModel):
@@ -65,6 +71,17 @@ class WarehouseOrderCreate(BaseModel):
     note: str | None = None
 
 
+class WarehouseOrderItemCreate(BaseModel):
+    warehouse_part_id: str
+    quantity: int
+
+
+class WarehouseOrderGroupCreate(BaseModel):
+    warehouse_id: str
+    items: list[WarehouseOrderItemCreate]
+    note: str | None = None
+
+
 class WarehouseOrderUpdate(BaseModel):
     status: str | None = None
     unit_price: float | None = None
@@ -73,6 +90,7 @@ class WarehouseOrderUpdate(BaseModel):
 
 class WarehouseOrderOut(BaseModel):
     id: str
+    order_ref: str | None = None
     warehouse_id: str
     warehouse_name: str
     mechanic_id: str
@@ -87,6 +105,39 @@ class WarehouseOrderOut(BaseModel):
     note: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
+
+
+class WarehouseOrderGroupOut(BaseModel):
+    order_ref: str
+    warehouse_id: str
+    warehouse_name: str
+    mechanic_id: str
+    mechanic_name: str
+    status: str
+    line_count: int
+    total_quantity: int
+    total_price: float | None = None
+    note: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+class WarehouseOrderLineOut(BaseModel):
+    id: str
+    order_ref: str
+    warehouse_part_id: str | None = None
+    part_name: str | None = None
+    part_number: str | None = None
+    manufacturer: str | None = None
+    lead_time_label: str | None = None
+    quantity: int
+    unit_price: float | None = None
+    total_price: float | None = None
+    status: str
+
+
+class WarehouseOrderDetailOut(WarehouseOrderGroupOut):
+    items: list[WarehouseOrderLineOut]
 
 
 class WarehouseMessageCreate(BaseModel):
@@ -120,3 +171,6 @@ class WarehouseInboxItem(BaseModel):
     latest_at: datetime
     sender_role: str
     unread_hint: int = 0
+
+
+WarehouseDetailOut.model_rebuild()

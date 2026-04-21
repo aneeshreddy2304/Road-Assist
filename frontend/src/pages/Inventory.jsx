@@ -16,16 +16,17 @@ import {
 
 import {
   addPart,
-  createWarehouseOrder,
+  createWarehouseOrderGroup,
   deleteWarehouseThread,
   deletePart,
   getMechanicParts,
   getMyMechanicProfile,
+  getWarehouseDetail,
   getWarehouseInbox,
   getWarehouseMarketplace,
+  getWarehouseOrderDetail,
   getWarehouseOrders,
   getWarehouseThread,
-  searchWarehouseParts,
   sendWarehouseMessage,
   updatePart,
 } from "../api/endpoints";
@@ -51,13 +52,17 @@ export default function Inventory() {
   const [warehouses, setWarehouses] = useState([]);
   const [marketplaceLoading, setMarketplaceLoading] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
-  const [warehouseParts, setWarehouseParts] = useState([]);
-  const [warehousePartsLoading, setWarehousePartsLoading] = useState(false);
+  const [selectedWarehouseDetail, setSelectedWarehouseDetail] = useState(null);
+  const [warehouseDetailLoading, setWarehouseDetailLoading] = useState(false);
   const [marketplaceMessage, setMarketplaceMessage] = useState("");
+  const [cartItems, setCartItems] = useState({});
+  const [placingOrder, setPlacingOrder] = useState(false);
 
-  const [orderModalPart, setOrderModalPart] = useState(null);
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrderRef, setSelectedOrderRef] = useState(null);
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState(null);
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
 
   const [inbox, setInbox] = useState([]);
   const [inboxLoading, setInboxLoading] = useState(false);
@@ -86,9 +91,11 @@ export default function Inventory() {
     try {
       const res = await getWarehouseMarketplace(query.trim() ? { query } : {});
       setWarehouses(res.data);
-      if (res.data.length && !selectedWarehouse) {
-        setSelectedWarehouse(res.data[0]);
-      }
+      setSelectedWarehouse((current) => {
+        if (!res.data.length) return null;
+        if (!current) return res.data[0];
+        return res.data.find((item) => item.id === current.id) || res.data[0];
+      });
     } catch (err) {
       setMarketplaceMessage(err.response?.data?.detail || "Could not load warehouses");
     } finally {
@@ -96,22 +103,23 @@ export default function Inventory() {
     }
   };
 
-  const loadWarehouseParts = async (query = warehouseQuery, warehouseId = selectedWarehouse?.id) => {
-    if (!query.trim()) {
-      setWarehouseParts([]);
+  const loadWarehouseDetail = async (warehouseId = selectedWarehouse?.id, { background = false } = {}) => {
+    if (!warehouseId) {
+      setSelectedWarehouseDetail(null);
       return;
     }
-    setWarehousePartsLoading(true);
+    if (!background) {
+      setWarehouseDetailLoading(true);
+    }
     try {
-      const res = await searchWarehouseParts({
-        query,
-        ...(warehouseId ? { warehouse_id: warehouseId } : {}),
-      });
-      setWarehouseParts(res.data);
+      const res = await getWarehouseDetail(warehouseId);
+      setSelectedWarehouseDetail(res.data);
     } catch (err) {
-      setMarketplaceMessage(err.response?.data?.detail || "Could not search warehouse parts");
+      setMarketplaceMessage(err.response?.data?.detail || "Could not load warehouse details");
     } finally {
-      setWarehousePartsLoading(false);
+      if (!background) {
+        setWarehouseDetailLoading(false);
+      }
     }
   };
 
@@ -120,8 +128,31 @@ export default function Inventory() {
     try {
       const res = await getWarehouseOrders();
       setOrders(res.data);
+      setSelectedOrderRef((current) => {
+        if (!res.data?.length) return null;
+        if (!current) return res.data[0].order_ref;
+        return res.data.find((item) => item.order_ref === current)?.order_ref || res.data[0].order_ref;
+      });
     } finally {
       setOrdersLoading(false);
+    }
+  };
+
+  const loadOrderDetail = async (orderRef = selectedOrderRef, { background = false } = {}) => {
+    if (!orderRef) {
+      setSelectedOrderDetail(null);
+      return;
+    }
+    if (!background) {
+      setOrderDetailLoading(true);
+    }
+    try {
+      const res = await getWarehouseOrderDetail(orderRef);
+      setSelectedOrderDetail(res.data);
+    } finally {
+      if (!background) {
+        setOrderDetailLoading(false);
+      }
     }
   };
 
@@ -177,6 +208,22 @@ export default function Inventory() {
   }, []);
 
   useEffect(() => {
+    if (!selectedWarehouse?.id) {
+      setSelectedWarehouseDetail(null);
+      return;
+    }
+    loadWarehouseDetail(selectedWarehouse.id);
+  }, [selectedWarehouse?.id]);
+
+  useEffect(() => {
+    if (!selectedOrderRef) {
+      setSelectedOrderDetail(null);
+      return;
+    }
+    loadOrderDetail(selectedOrderRef);
+  }, [selectedOrderRef]);
+
+  useEffect(() => {
     if (!selectedConversation?.warehouse_id) return;
     loadThread(selectedConversation.warehouse_id);
     const timer = window.setInterval(() => {
@@ -189,9 +236,16 @@ export default function Inventory() {
     const timer = window.setInterval(() => {
       loadOrders();
       loadInbox();
+      loadInventory();
+      if (selectedWarehouse?.id) {
+        loadWarehouseDetail(selectedWarehouse.id, { background: true });
+      }
+      if (selectedOrderRef) {
+        loadOrderDetail(selectedOrderRef, { background: true });
+      }
     }, 15000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [selectedWarehouse?.id, selectedOrderRef]);
 
   const lowStock = useMemo(() => parts.filter((part) => Number(part.quantity) < 4), [parts]);
   const outOfStock = useMemo(() => parts.filter((part) => Number(part.quantity) === 0), [parts]);
@@ -200,6 +254,30 @@ export default function Inventory() {
     [parts]
   );
   const pendingOrders = useMemo(() => orders.filter((order) => !["delivered", "cancelled"].includes(order.status)), [orders]);
+  const filteredWarehouseInventory = useMemo(() => {
+    const inventory = selectedWarehouseDetail?.inventory || [];
+    const query = warehouseQuery.trim().toLowerCase();
+    if (!query) return inventory;
+    return inventory.filter((part) =>
+      [part.part_name, part.part_number, part.manufacturer]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query))
+    );
+  }, [selectedWarehouseDetail?.inventory, warehouseQuery]);
+  const cartSummary = useMemo(() => {
+    const inventory = selectedWarehouseDetail?.inventory || [];
+    return inventory.reduce(
+      (summary, part) => {
+        const quantity = Number(cartItems[part.id] || 0);
+        if (!quantity) return summary;
+        summary.lineCount += 1;
+        summary.totalQuantity += quantity;
+        summary.totalPrice += quantity * Number(part.price || 0);
+        return summary;
+      },
+      { lineCount: 0, totalQuantity: 0, totalPrice: 0 }
+    );
+  }, [cartItems, selectedWarehouseDetail?.inventory]);
 
   const handleDelete = async (id) => {
     if (!window.confirm("Remove this part from inventory?")) return;
@@ -220,12 +298,38 @@ export default function Inventory() {
     setShowAdd(false);
   };
 
-  const handlePlaceOrder = async ({ warehouse_id, warehouse_part_id, quantity, note }) => {
-    await createWarehouseOrder({ warehouse_id, warehouse_part_id, quantity, note });
-    setOrderModalPart(null);
-    loadOrders();
-    loadInbox();
-    setTab("orders");
+  const updateCartItem = (partId, nextQuantity) => {
+    setCartItems((current) => {
+      const quantity = Math.max(0, Number(nextQuantity) || 0);
+      if (!quantity) {
+        const { [partId]: _, ...rest } = current;
+        return rest;
+      }
+      return { ...current, [partId]: quantity };
+    });
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!selectedWarehouseDetail?.id || !cartSummary.lineCount) return;
+    setPlacingOrder(true);
+    setMarketplaceMessage("");
+    try {
+      await createWarehouseOrderGroup({
+        warehouse_id: selectedWarehouseDetail.id,
+        items: Object.entries(cartItems).map(([warehouse_part_id, quantity]) => ({
+          warehouse_part_id,
+          quantity: Number(quantity),
+        })),
+        note: `Grouped warehouse order for ${cartSummary.totalQuantity} item(s).`,
+      });
+      setCartItems({});
+      await Promise.all([loadOrders(), loadInbox(), loadWarehouseDetail(selectedWarehouseDetail.id)]);
+      setTab("orders");
+    } catch (err) {
+      setMarketplaceMessage(err.response?.data?.detail || "Could not place warehouse order");
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -406,7 +510,6 @@ export default function Inventory() {
                 <button
                   onClick={() => {
                     loadWarehouses(warehouseQuery);
-                    loadWarehouseParts(warehouseQuery, selectedWarehouse?.id);
                   }}
                   className="rounded-full bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white"
                 >
@@ -424,15 +527,12 @@ export default function Inventory() {
 
               {marketplaceMessage ? <p className="mt-4 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{marketplaceMessage}</p> : null}
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 max-h-[42rem] space-y-3 overflow-y-auto pr-1">
                 {warehouses.map((warehouse) => (
                   <button
                     key={warehouse.id}
                     onClick={() => {
                       setSelectedWarehouse(warehouse);
-                      if (warehouseQuery.trim()) {
-                        loadWarehouseParts(warehouseQuery, warehouse.id);
-                      }
                     }}
                     className={`w-full rounded-[24px] border p-4 text-left transition ${
                       selectedWarehouse?.id === warehouse.id
@@ -444,11 +544,14 @@ export default function Inventory() {
                       <div>
                         <p className="text-lg font-semibold text-[#081224]">{warehouse.name}</p>
                         <p className="mt-1 text-sm text-slate-500">{warehouse.address}</p>
-                        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-500">{warehouse.fulfillment_hours || "Fulfillment window pending"}</p>
+                        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-500">{warehouse.average_shipping_time || warehouse.fulfillment_hours || "Shipping window pending"}</p>
                       </div>
-                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        {warehouse.available_parts} parts
-                      </span>
+                      <div className="text-right">
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          {warehouse.available_parts} parts
+                        </span>
+                        <p className="mt-3 text-xs text-slate-400">{warehouse.email || "Warehouse contact available after selection"}</p>
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -456,40 +559,59 @@ export default function Inventory() {
             </Card>
 
             <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
-              {selectedWarehouse ? (
+              {selectedWarehouseDetail ? (
                 <>
                   <div className="flex flex-col gap-4 border-b border-[#eef2ff] pb-4 xl:flex-row xl:items-start xl:justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Selected supplier</p>
-                      <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{selectedWarehouse.name}</h2>
-                      <p className="mt-2 max-w-2xl text-sm text-slate-500">{selectedWarehouse.description}</p>
-                      <p className="mt-3 text-sm text-slate-500">{selectedWarehouse.address}</p>
+                      <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{selectedWarehouseDetail.name}</h2>
+                      <p className="mt-2 max-w-2xl text-sm text-slate-500">{selectedWarehouseDetail.description}</p>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <WarehouseDetailChip label="Email" value={selectedWarehouseDetail.email} />
+                        <WarehouseDetailChip label="Phone" value={selectedWarehouseDetail.contact_phone} />
+                        <WarehouseDetailChip label="Street address" value={selectedWarehouseDetail.address} />
+                        <WarehouseDetailChip label="Average shipping time" value={selectedWarehouseDetail.average_shipping_time} />
+                        <WarehouseDetailChip label="Fulfillment hours" value={selectedWarehouseDetail.fulfillment_hours} />
+                        <WarehouseDetailChip label="Inventory units" value={`${selectedWarehouseDetail.total_stock_units}`} />
+                      </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSelectedConversation({
-                          warehouse_id: selectedWarehouse.id,
-                          warehouse_name: selectedWarehouse.name,
-                          mechanic_id: "",
-                          mechanic_name: "",
-                        });
-                        setTab("messages");
-                      }}
-                      className="rounded-full border border-[#dbe7ff] px-4 py-2 text-sm font-semibold text-[#2563eb] hover:bg-[#f8fbff]"
-                    >
-                      Open supplier chat
-                    </button>
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={() => {
+                          setSelectedConversation({
+                            warehouse_id: selectedWarehouseDetail.id,
+                            warehouse_name: selectedWarehouseDetail.name,
+                            mechanic_id: "",
+                            mechanic_name: "",
+                          });
+                          setTab("messages");
+                        }}
+                        className="rounded-full border border-[#dbe7ff] px-4 py-2 text-sm font-semibold text-[#2563eb] hover:bg-[#f8fbff]"
+                      >
+                        Message warehouse
+                      </button>
+                      <div className="rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selection</p>
+                        <p className="mt-2 text-2xl font-semibold text-[#081224]">{cartSummary.lineCount} lines</p>
+                        <p className="mt-1 text-sm text-slate-500">{cartSummary.totalQuantity} total units · {formatCurrencyUSD(cartSummary.totalPrice)}</p>
+                        <button
+                          onClick={handlePlaceOrder}
+                          disabled={!cartSummary.lineCount || placingOrder}
+                          className="mt-4 w-full rounded-full bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          {placingOrder ? "Placing..." : "Place grouped order"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  {!warehouseQuery.trim() ? (
-                    <EmptyState icon="🔎" title="Search a spare part" subtitle="Type a part name or number above to see matching stock for this warehouse." />
-                  ) : warehousePartsLoading ? (
+                  {warehouseDetailLoading ? (
                     <Spinner />
-                  ) : warehouseParts.length === 0 ? (
-                    <EmptyState icon="📦" title="No matching parts found" subtitle="Try a broader term like battery, filter, brake, sensor, or bulb." />
+                  ) : filteredWarehouseInventory.length === 0 ? (
+                    <EmptyState icon="📦" title="No visible inventory items" subtitle="Try a broader part search or pick another warehouse from the network." />
                   ) : (
-                    <div className="mt-4 grid gap-3">
-                      {warehouseParts.map((part) => (
+                    <div className="mt-4 grid max-h-[42rem] gap-3 overflow-y-auto pr-1">
+                      {filteredWarehouseInventory.map((part) => (
                         <div key={part.id} className="rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div>
@@ -500,19 +622,33 @@ export default function Inventory() {
                               <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
                                 {part.warehouse_name} · {part.lead_time_label || "Pickup timing on request"}
                               </p>
+                              {part.compatible_vehicles?.length ? (
+                                <p className="mt-2 text-sm text-slate-500">Compatible: {part.compatible_vehicles.join(", ")}</p>
+                              ) : null}
                             </div>
                             <div className="text-right">
                               <p className="text-xl font-semibold text-[#081224]">{formatCurrencyUSD(part.price)}</p>
                               <p className="mt-1 text-sm text-slate-500">{part.quantity} units available</p>
                             </div>
                           </div>
-                          <div className="mt-4 flex flex-wrap items-center gap-2">
-                            <button
-                              onClick={() => setOrderModalPart(part)}
-                              className="rounded-full bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
-                            >
-                              Order part
-                            </button>
+                          <div className="mt-4 flex flex-wrap items-center gap-3">
+                            <div className="inline-flex items-center rounded-full border border-[#dbe7ff] bg-white px-2 py-1">
+                              <button
+                                onClick={() => updateCartItem(part.id, Number(cartItems[part.id] || 0) - 1)}
+                                className="rounded-full px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-[#f8fbff]"
+                              >
+                                -
+                              </button>
+                              <span className="min-w-[3rem] text-center text-sm font-semibold text-[#081224]">
+                                {cartItems[part.id] || 0}
+                              </span>
+                              <button
+                                onClick={() => updateCartItem(part.id, Math.min(Number(part.quantity), Number(cartItems[part.id] || 0) + 1))}
+                                className="rounded-full px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-[#f8fbff]"
+                              >
+                                +
+                              </button>
+                            </div>
                             <button
                               onClick={() => {
                                 setSelectedConversation({
@@ -541,58 +677,101 @@ export default function Inventory() {
         ) : null}
 
         {tab === "orders" ? (
-          <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Supplier orders</p>
-                <h2 className="mt-2 text-2xl font-semibold text-[#081224]">Warehouse purchase stream</h2>
+          <div className="grid gap-4 xl:grid-cols-[0.82fr,1.18fr]">
+            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Supplier orders</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#081224]">Warehouse purchase stream</h2>
+                </div>
+                {ordersLoading ? <Spinner /> : null}
               </div>
-              {ordersLoading ? <Spinner /> : null}
-            </div>
 
-            {orders.length === 0 ? (
-              <EmptyState icon="🧾" title="No warehouse orders yet" subtitle="When you place an order from the marketplace, it will land here with live status updates." />
-            ) : (
-              <div className="mt-5 grid gap-3">
-                {orders.map((order) => (
-                  <div key={order.id} className="rounded-[24px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">{order.status.replace("_", " ")}</p>
-                        <p className="mt-2 text-lg font-semibold text-[#081224]">{order.part_name || "Supplier order"}</p>
-                        <p className="mt-1 text-sm text-slate-500">{order.warehouse_name} · Qty {order.quantity}</p>
-                        {order.note ? <p className="mt-3 text-sm text-slate-600">{order.note}</p> : null}
+              {orders.length === 0 ? (
+                <EmptyState icon="🧾" title="No warehouse orders yet" subtitle="When you place an order from the marketplace, it will land here with live status updates." />
+              ) : (
+                <div className="mt-5 max-h-[42rem] space-y-3 overflow-y-auto pr-1">
+                  {orders.map((order) => (
+                    <button
+                      key={order.order_ref}
+                      onClick={() => setSelectedOrderRef(order.order_ref)}
+                      className={`w-full rounded-[24px] border p-4 text-left transition ${
+                        selectedOrderRef === order.order_ref
+                          ? "border-[#2563eb] bg-[#f8fbff]"
+                          : "border-[#dbe7ff] bg-white hover:bg-[#fbfdff]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">{order.order_ref}</p>
+                          <p className="mt-2 text-lg font-semibold text-[#081224]">{order.warehouse_name}</p>
+                          <p className="mt-1 text-sm text-slate-500">{order.line_count} lines · {order.total_quantity} units</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{order.status.replaceAll("_", " ")}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold text-[#081224]">{formatCurrencyUSD(order.total_price || 0)}</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-semibold text-[#081224]">{formatCurrencyUSD(order.total_price || 0)}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {new Date(order.created_at).toLocaleString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                        <button
-                          onClick={() => {
-                            setSelectedConversation({
-                              warehouse_id: order.warehouse_id,
-                              warehouse_name: order.warehouse_name,
-                              warehouse_order_id: order.id,
-                            });
-                            setTab("messages");
-                          }}
-                          className="mt-3 rounded-full border border-[#dbe7ff] px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-white"
-                        >
-                          Open thread
-                        </button>
-                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
+              {orderDetailLoading ? (
+                <Spinner />
+              ) : selectedOrderDetail ? (
+                <>
+                  <div className="flex flex-col gap-3 border-b border-[#eef2ff] pb-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">{selectedOrderDetail.order_ref}</p>
+                      <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{selectedOrderDetail.warehouse_name}</h2>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {selectedOrderDetail.status.replaceAll("_", " ")} · {selectedOrderDetail.total_quantity} units · {formatCurrencyUSD(selectedOrderDetail.total_price || 0)}
+                      </p>
+                      {selectedOrderDetail.note ? <p className="mt-3 text-sm text-slate-600">{selectedOrderDetail.note}</p> : null}
                     </div>
+                    <button
+                      onClick={() => {
+                        setSelectedConversation({
+                          warehouse_id: selectedOrderDetail.warehouse_id,
+                          warehouse_name: selectedOrderDetail.warehouse_name,
+                        });
+                        setTab("messages");
+                      }}
+                      className="rounded-full border border-[#dbe7ff] px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-white"
+                    >
+                      Open thread
+                    </button>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+
+                  <div className="mt-4 space-y-3">
+                    {selectedOrderDetail.items.map((item) => (
+                      <div key={item.id} className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-[#081224]">{item.part_name || "Warehouse part"}</p>
+                            <p className="mt-1 text-sm text-slate-500">{item.part_number || "No part number"} · {item.manufacturer || "Generic supply"}</p>
+                            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{item.lead_time_label || "Lead time pending"}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-[#081224]">Qty {item.quantity}</p>
+                            <p className="mt-1 text-sm text-slate-500">{formatCurrencyUSD(item.total_price || 0)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <EmptyState icon="🧾" title="Choose an order" subtitle="Select an order from the left to inspect live status and the exact parts in that shipment." />
+              )}
+            </Card>
+          </div>
         ) : null}
 
         {tab === "messages" ? (
@@ -656,7 +835,6 @@ export default function Inventory() {
       </div>
 
       {showAdd ? <AddPartModal onAdd={handleAdd} onClose={() => setShowAdd(false)} /> : null}
-      {orderModalPart ? <OrderPartModal part={orderModalPart} onClose={() => setOrderModalPart(null)} onSubmit={handlePlaceOrder} /> : null}
     </div>
   );
 }
@@ -748,62 +926,11 @@ function AddPartModal({ onAdd, onClose }) {
   );
 }
 
-function OrderPartModal({ part, onClose, onSubmit }) {
-  const [quantity, setQuantity] = useState(1);
-  const [note, setNote] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      await onSubmit({
-        warehouse_id: part.warehouse_id,
-        warehouse_part_id: part.id,
-        quantity,
-        note: note.trim() || null,
-      });
-    } catch (err) {
-      setError(err.response?.data?.detail || "Could not place order");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+function WarehouseDetailChip({ label, value }) {
   return (
-    <div className="fixed inset-0 z-[750] flex items-center justify-center bg-black/45 px-4">
-      <div className="w-full max-w-lg rounded-[28px] bg-white p-6 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Warehouse order</p>
-            <h3 className="mt-1 text-xl font-semibold text-[#081224]">{part.part_name}</h3>
-            <p className="mt-1 text-sm text-slate-500">{part.warehouse_name} · {formatCurrencyUSD(part.price)} each</p>
-          </div>
-          <button onClick={onClose} className="rounded-full border border-slate-200 p-2 text-slate-400 hover:bg-slate-50"><X size={16} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          <Input label="Quantity" type="number" value={quantity} onChange={(value) => setQuantity(Math.max(1, Number(value)))} />
-          <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Note to warehouse
-            <textarea
-              rows={4}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-[#dbe7ff] bg-[#f8fbff] px-3 py-3 text-sm text-[#081224] outline-none"
-              placeholder="Add urgency, compatibility notes, or a pickup request."
-            />
-          </label>
-          {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="rounded-full border border-[#dbe7ff] px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
-            <button type="submit" disabled={loading} className="rounded-full bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
-              {loading ? "Submitting..." : "Place order"}
-            </button>
-          </div>
-        </form>
-      </div>
+    <div className="rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-medium text-[#081224]">{value || "Not provided"}</p>
     </div>
   );
 }

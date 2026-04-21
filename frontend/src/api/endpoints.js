@@ -55,6 +55,7 @@ export const updateAppointmentStatus = (id, data) => API.patch(`/appointments/${
 export const getMessageThread = (params) => API.get("/messages/thread", { params });
 export const sendMessage = (data) => API.post("/messages/thread", data);
 export const getMessageInbox = () => API.get("/messages/inbox");
+export const deleteMessageThread = (params) => API.delete("/messages/thread", { params });
 
 // --- Reviews ---
 export const submitReview = (data) => API.post("/reviews", data);
@@ -79,14 +80,19 @@ export const searchAdminWorkItem = (query) => API.get("/admin/lookup", { params:
 
 // --- Warehouses ---
 export const getWarehouseMarketplace = (params) => API.get("/warehouses/marketplace", { params });
+export const getWarehouseDetail = (warehouseId) => API.get(`/warehouses/marketplace/${warehouseId}`);
 export const searchWarehouseParts = (params) => API.get("/warehouses/marketplace/parts", { params });
 export const getMyWarehouseProfile = () => API.get("/warehouses/me");
 export const getWarehouseInventory = () => API.get("/warehouses/inventory");
 export const addWarehousePart = (data) => API.post("/warehouses/inventory", data);
 export const updateWarehousePart = (id, data) => API.patch(`/warehouses/inventory/${id}`, data);
 export const getWarehouseOrders = () => API.get("/warehouses/orders");
+export const getWarehouseOrderDetail = (orderRef) => API.get(`/warehouses/orders/${encodeURIComponent(orderRef)}`);
 export const createWarehouseOrder = (data) => API.post("/warehouses/orders", data);
+export const createWarehouseOrderGroup = (data) => API.post("/warehouses/orders/group", data);
 export const updateWarehouseOrder = (id, data) => API.patch(`/warehouses/orders/${id}`, data);
+export const updateWarehouseOrderGroup = (orderRef, data) => API.patch(`/warehouses/orders/group/${encodeURIComponent(orderRef)}`, data);
 export const getWarehouseInbox = () => API.get("/warehouses/messages/inbox");
 export const getWarehouseThread = (params) => API.get("/warehouses/messages/thread", { params });
 export const sendWarehouseMessage = (data) => API.post("/warehouses/messages/thread", data);
+export const deleteWarehouseThread = (params) => API.delete("/warehouses/messages/thread", { params });
