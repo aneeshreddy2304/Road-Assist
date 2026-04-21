@@ -30,6 +30,7 @@ class JobUpdateOut(BaseModel):
 
 class ServiceRequestOut(BaseModel):
     id: str
+    request_ref: str | None = None
     owner_id: str
     mechanic_id: str | None
     vehicle_id: str

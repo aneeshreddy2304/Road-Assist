@@ -168,10 +168,11 @@ export default function Dashboard() {
   const filteredAssignedJobs = assignedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
   const filteredCompletedJobs = completedJobs.filter((job) => withinRange(job.updated_at ?? job.created_at));
   const filteredParts = parts.filter((part) => withinRange(part.updated_at ?? part.created_at));
-  const lowStockParts = parts.filter((part) => Number(part.quantity) < 4);
+  const inventoryParts = parts;
+  const lowStockParts = inventoryParts.filter((part) => Number(part.quantity) < 4);
   const filteredLowStockParts = filteredParts.filter((part) => Number(part.quantity) < 4);
-  const outOfStockParts = filteredParts.filter((part) => Number(part.quantity) === 0);
-  const topStockedParts = [...filteredParts]
+  const outOfStockParts = inventoryParts.filter((part) => Number(part.quantity) === 0);
+  const topStockedParts = [...inventoryParts]
     .sort((a, b) => Number(b.quantity) - Number(a.quantity))
     .slice(0, 4);
   const essentialParts = [
@@ -192,7 +193,7 @@ export default function Dashboard() {
   const totalJobs = Number(summary?.total_jobs || 0);
   const completedCount = Number(summary?.completed_jobs || 0);
   const lowStockCount = Number(summary?.low_stock_alerts ?? filteredLowStockParts.length);
-  const inventoryCount = Number(summary?.inventory_items ?? filteredParts.length);
+  const inventoryCount = Number(summary?.inventory_items ?? inventoryParts.length);
   const lowDeadlineJobs = activeJobs.filter((job) => {
     if (!job.deadline_at || job.status === "completed" || job.status === "cancelled") return false;
     const hoursLeft = (new Date(job.deadline_at).getTime() - Date.now()) / 36e5;
@@ -489,8 +490,8 @@ export default function Dashboard() {
               <Card className="rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg xl:min-h-[27rem]">
                 <SectionHeader eyebrow="Inventory health" title="Inventory register" />
                 <div className="mt-4 grid grid-cols-3 gap-3">
-                  <InventoryMetric label="Tracked" value={filteredParts.length} tone="blue" />
-                  <InventoryMetric label="Low stock" value={filteredLowStockParts.length} tone="amber" />
+                  <InventoryMetric label="Tracked" value={inventoryParts.length} tone="blue" />
+                  <InventoryMetric label="Low stock" value={lowStockParts.length} tone="amber" />
                   <InventoryMetric label="Out of stock" value={outOfStockParts.length} tone="red" />
                 </div>
                 <div className="mt-4 max-h-[11rem] space-y-3 overflow-y-auto pr-1">
