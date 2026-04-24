@@ -39,7 +39,10 @@ ACTIVE_WAREHOUSE_ORDER_STATUSES = (
 
 
 async def _get_mechanic_profile_id(db: AsyncSession, user_id: str) -> str:
-    result = await db.execute(text("SELECT id::text FROM mechanics WHERE user_id = :user_id"), {"user_id": user_id})
+    result = await db.execute(
+        text("SELECT id::text FROM mechanics WHERE user_id = CAST(:user_id AS UUID)"),
+        {"user_id": user_id},
+    )
     mechanic_id = result.scalar_one_or_none()
     if not mechanic_id:
         raise HTTPException(status_code=404, detail="Mechanic profile not found")
@@ -47,7 +50,10 @@ async def _get_mechanic_profile_id(db: AsyncSession, user_id: str) -> str:
 
 
 async def _get_warehouse_profile_id(db: AsyncSession, user_id: str) -> str:
-    result = await db.execute(text("SELECT id::text FROM warehouses WHERE user_id = :user_id"), {"user_id": user_id})
+    result = await db.execute(
+        text("SELECT id::text FROM warehouses WHERE user_id = CAST(:user_id AS UUID)"),
+        {"user_id": user_id},
+    )
     warehouse_id = result.scalar_one_or_none()
     if not warehouse_id:
         raise HTTPException(status_code=404, detail="Warehouse profile not found")
