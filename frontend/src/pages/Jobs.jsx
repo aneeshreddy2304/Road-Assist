@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock3, MapPin, MessageSquare, Navigation, RefreshCw, Search, ShieldCheck, Trash2, Wrench } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, Clock3, MapPin, MessageSquare, Navigation, RefreshCw, Search, ShieldCheck, Trash2, Wrench, X } from "lucide-react";
 
 import {
   getMessageInbox,
@@ -36,6 +36,10 @@ export default function Jobs() {
   const [messageDraft, setMessageDraft] = useState("");
   const [messageSending, setMessageSending] = useState(false);
   const [conversationDeleting, setConversationDeleting] = useState(false);
+  const [lookupRefreshing, setLookupRefreshing] = useState(false);
+  const dispatchSectionRef = useRef(null);
+  const appointmentsSectionRef = useRef(null);
+  const messagesSectionRef = useRef(null);
 
   const extractErrorMessage = (error, fallback) => {
     const detail = error?.response?.data?.detail;
@@ -70,6 +74,40 @@ export default function Jobs() {
       setAppointments(apptRes.data);
     } finally {
       if (!background) setLoading(false);
+    }
+  };
+
+  const clearLookup = () => {
+    setLookupQuery("");
+  };
+
+  const scrollToTabSection = (nextTab) => {
+    const targetMap = {
+      appointments: appointmentsSectionRef,
+      messages: messagesSectionRef,
+      dispatch: dispatchSectionRef,
+      accepted: dispatchSectionRef,
+      progress: dispatchSectionRef,
+      completed: dispatchSectionRef,
+    };
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        targetMap[nextTab]?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    });
+  };
+
+  const openLookupSection = (nextTab) => {
+    setTab(nextTab);
+    scrollToTabSection(nextTab);
+  };
+
+  const refreshLookupContext = async () => {
+    setLookupRefreshing(true);
+    try {
+      await Promise.all([fetchAll(true), loadInbox()]);
+    } finally {
+      setLookupRefreshing(false);
     }
   };
 
@@ -320,11 +358,11 @@ export default function Jobs() {
               </div>
               <button
                 type="button"
-                onClick={() => fetchAll(true)}
+                onClick={refreshLookupContext}
                 className="inline-flex items-center gap-2 rounded-[20px] border border-[#dbe7ff] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
               >
-                <RefreshCw size={15} />
-                Refresh
+                <RefreshCw size={15} className={lookupRefreshing ? "animate-spin" : ""} />
+                {lookupRefreshing ? "Refreshing..." : "Refresh"}
               </button>
             </div>
           </div>
@@ -338,11 +376,19 @@ export default function Jobs() {
                   <p className="mt-1 text-sm text-slate-500">{searchResult.item.owner_name} • {searchResult.item.vehicle_label}</p>
                 </div>
                 <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={clearLookup}
+                    className="ml-auto inline-flex rounded-full border border-[#dbe7ff] bg-white p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                    aria-label="Clear quick lookup result"
+                  >
+                    <X size={14} />
+                  </button>
                   <StatusBadge status={searchResult.item.status} />
                   <p className="mt-2 text-sm font-semibold text-[#081224]">{formatCurrencyUSD(searchResult.item.total_cost || searchResult.item.estimated_cost || 0)}</p>
                   <button
                     type="button"
-                    onClick={() => setTab(searchResult.kind)}
+                    onClick={() => openLookupSection(searchResult.kind)}
                     className="mt-3 rounded-full bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white"
                   >
                     Open section
@@ -361,11 +407,19 @@ export default function Jobs() {
                   <p className="mt-1 text-sm text-slate-500">{searchResult.item.vehicle_label || "Vehicle not selected"}</p>
                 </div>
                 <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={clearLookup}
+                    className="ml-auto inline-flex rounded-full border border-[#dbe7ff] bg-white p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                    aria-label="Clear quick lookup result"
+                  >
+                    <X size={14} />
+                  </button>
                   <StatusBadge status={searchResult.item.status === "confirmed" ? "accepted" : searchResult.item.status} />
                   <p className="mt-2 text-xs text-slate-500">{new Date(searchResult.item.scheduled_for).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
                   <button
                     type="button"
-                    onClick={() => setTab("appointments")}
+                    onClick={() => openLookupSection("appointments")}
                     className="mt-3 rounded-full bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white"
                   >
                     Open appointments
@@ -402,7 +456,7 @@ export default function Jobs() {
         </div>
 
         {tab === "appointments" ? (
-          <div className="grid gap-4 xl:grid-cols-[1.05fr,1.15fr]">
+          <div ref={appointmentsSectionRef} className="grid gap-4 xl:grid-cols-[1.05fr,1.15fr]">
                 <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
                   <div className="mb-4 flex items-center justify-between">
                     <div>
@@ -533,7 +587,7 @@ export default function Jobs() {
                 </Card>
           </div>
         ) : tab === "messages" ? (
-          <div className="grid gap-4 xl:grid-cols-[0.95fr,1.25fr]">
+          <div ref={messagesSectionRef} className="grid gap-4 xl:grid-cols-[0.95fr,1.25fr]">
             <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-lg">
               <div className="mb-4 flex items-center justify-between">
                 <div>
@@ -622,7 +676,7 @@ export default function Jobs() {
           const activeColumn = columns.find((column) => column.id === tab || (tab === "dispatch" && column.id === "dispatch"));
           if (!activeColumn) return null;
           return (
-            <div className="space-y-4">
+            <div ref={dispatchSectionRef} className="space-y-4">
               <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>

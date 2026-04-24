@@ -54,6 +54,24 @@ async def _get_warehouse_profile_id(db: AsyncSession, user_id: str) -> str:
     return warehouse_id
 
 
+async def _table_has_column(db: AsyncSession, table_name: str, column_name: str) -> bool:
+    result = await db.execute(
+        text(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = :table_name
+                  AND column_name = :column_name
+            )
+            """
+        ),
+        {"table_name": table_name, "column_name": column_name},
+    )
+    return bool(result.scalar())
+
+
 def _build_order_ref() -> str:
     return f"WO-{str(uuid4()).split('-')[0].upper()}"
 
@@ -76,7 +94,8 @@ async def get_marketplace(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("mechanic")),
 ):
-    mechanic_id = await _get_mechanic_profile_id(db, current_user.id)
+    await _get_mechanic_profile_id(db, current_user.id)
+    approval_filter = "AND w.approval_status = 'approved'" if await _table_has_column(db, "warehouses", "approval_status") else ""
     sql = """
         SELECT
             w.id::text,
@@ -97,7 +116,7 @@ async def get_marketplace(
         JOIN users u ON u.id = w.user_id
         LEFT JOIN warehouse_parts wp ON wp.warehouse_id = w.id
         WHERE w.is_active = TRUE
-          AND w.approval_status = 'approved'
+          {approval_filter}
           AND (
             :query IS NULL
             OR w.name ILIKE :like_query
@@ -111,15 +130,57 @@ async def get_marketplace(
           )
         GROUP BY w.id, u.email
         ORDER BY available_parts DESC, w.name ASC
-    """
+    """.format(approval_filter=approval_filter)
     result = await db.execute(
         text(sql),
-        {"query": query, "like_query": f"%{query.strip()}%" if query else None, "mechanic_id": mechanic_id},
+        {"query": query, "like_query": f"%{query.strip()}%" if query else None},
     )
     return [
         WarehouseSummaryOut(**row, average_shipping_time="Varies by stocked part")
         for row in result.mappings().all()
     ]
+
+
+@router.get("/marketplace/parts", response_model=list[WarehousePartOut])
+async def search_marketplace_parts(
+    query: str = Query(..., min_length=2),
+    warehouse_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("mechanic")),
+):
+    await _get_mechanic_profile_id(db, current_user.id)
+    approval_filter = "AND w.approval_status = 'approved'" if await _table_has_column(db, "warehouses", "approval_status") else ""
+    sql = """
+        SELECT
+            wp.id::text,
+            wp.warehouse_id::text,
+            w.name AS warehouse_name,
+            wp.part_name,
+            wp.part_number,
+            wp.quantity,
+            wp.min_threshold,
+            CAST(wp.price AS FLOAT) AS price,
+            COALESCE(wp.compatible_vehicles::text[], '{}') AS compatible_vehicles,
+            wp.manufacturer,
+            wp.lead_time_label,
+            (wp.quantity <= wp.min_threshold) AS is_low_stock,
+            wp.created_at,
+            wp.updated_at
+        FROM warehouse_parts wp
+        JOIN warehouses w ON w.id = wp.warehouse_id
+        WHERE w.is_active = TRUE
+          {approval_filter}
+          AND wp.quantity > 0
+          AND (:warehouse_id IS NULL OR wp.warehouse_id = CAST(:warehouse_id AS UUID))
+          AND (
+            wp.part_name ILIKE :like_query
+            OR COALESCE(wp.part_number, '') ILIKE :like_query
+            OR COALESCE(wp.manufacturer, '') ILIKE :like_query
+          )
+        ORDER BY wp.quantity DESC, wp.part_name ASC
+    """.format(approval_filter=approval_filter)
+    result = await db.execute(text(sql), {"warehouse_id": warehouse_id, "like_query": f"%{query.strip()}%"})
+    return [WarehousePartOut(**row) for row in result.mappings().all()]
 
 
 @router.get("/marketplace/{warehouse_id}", response_model=WarehouseDetailOut)
@@ -129,6 +190,7 @@ async def get_marketplace_warehouse_detail(
     current_user: User = Depends(require_role("mechanic")),
 ):
     await _get_mechanic_profile_id(db, current_user.id)
+    approval_filter = "AND w.approval_status = 'approved'" if await _table_has_column(db, "warehouses", "approval_status") else ""
     warehouse_result = await db.execute(
         text(
             """
@@ -152,9 +214,9 @@ async def get_marketplace_warehouse_detail(
             LEFT JOIN warehouse_parts wp ON wp.warehouse_id = w.id
             WHERE w.id = CAST(:warehouse_id AS UUID)
               AND w.is_active = TRUE
-              AND w.approval_status = 'approved'
+              {approval_filter}
             GROUP BY w.id, u.email
-            """
+            """.format(approval_filter=approval_filter)
         ),
         {"warehouse_id": warehouse_id},
     )
@@ -197,47 +259,6 @@ async def get_marketplace_warehouse_detail(
         average_shipping_time=average_shipping_time,
         inventory=inventory,
     )
-
-
-@router.get("/marketplace/parts", response_model=list[WarehousePartOut])
-async def search_marketplace_parts(
-    query: str = Query(..., min_length=2),
-    warehouse_id: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("mechanic")),
-):
-    await _get_mechanic_profile_id(db, current_user.id)
-    sql = """
-        SELECT
-            wp.id::text,
-            wp.warehouse_id::text,
-            w.name AS warehouse_name,
-            wp.part_name,
-            wp.part_number,
-            wp.quantity,
-            wp.min_threshold,
-            CAST(wp.price AS FLOAT) AS price,
-            COALESCE(wp.compatible_vehicles::text[], '{}') AS compatible_vehicles,
-            wp.manufacturer,
-            wp.lead_time_label,
-            (wp.quantity <= wp.min_threshold) AS is_low_stock,
-            wp.created_at,
-            wp.updated_at
-        FROM warehouse_parts wp
-        JOIN warehouses w ON w.id = wp.warehouse_id
-        WHERE w.is_active = TRUE
-          AND w.approval_status = 'approved'
-          AND wp.quantity > 0
-          AND (:warehouse_id IS NULL OR wp.warehouse_id = CAST(:warehouse_id AS UUID))
-          AND (
-            wp.part_name ILIKE :like_query
-            OR COALESCE(wp.part_number, '') ILIKE :like_query
-            OR COALESCE(wp.manufacturer, '') ILIKE :like_query
-          )
-        ORDER BY wp.quantity DESC, wp.part_name ASC
-    """
-    result = await db.execute(text(sql), {"warehouse_id": warehouse_id, "like_query": f"%{query.strip()}%"})
-    return [WarehousePartOut(**row) for row in result.mappings().all()]
 
 
 @router.get("/me", response_model=WarehouseSummaryOut)
