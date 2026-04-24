@@ -5,7 +5,7 @@ import {
   MessagesSquare,
   PackagePlus,
   Pencil,
-  Search,
+  RefreshCw,
   Send,
   ShoppingCart,
   Store,
@@ -48,7 +48,6 @@ export default function Inventory() {
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({});
 
-  const [warehouseQuery, setWarehouseQuery] = useState("");
   const [warehouses, setWarehouses] = useState([]);
   const [marketplaceLoading, setMarketplaceLoading] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
@@ -85,11 +84,11 @@ export default function Inventory() {
     }
   };
 
-  const loadWarehouses = async (query = warehouseQuery) => {
+  const loadWarehouses = async () => {
     setMarketplaceLoading(true);
     setMarketplaceMessage("");
     try {
-      const res = await getWarehouseMarketplace(query.trim() ? { query } : {});
+      const res = await getWarehouseMarketplace();
       setWarehouses(res.data);
       setSelectedWarehouse((current) => {
         if (!res.data.length) return null;
@@ -202,7 +201,7 @@ export default function Inventory() {
 
   useEffect(() => {
     loadInventory();
-    loadWarehouses("");
+    loadWarehouses();
     loadOrders();
     loadInbox();
   }, []);
@@ -256,14 +255,8 @@ export default function Inventory() {
   const pendingOrders = useMemo(() => orders.filter((order) => !["delivered", "cancelled"].includes(order.status)), [orders]);
   const filteredWarehouseInventory = useMemo(() => {
     const inventory = selectedWarehouseDetail?.inventory || [];
-    const query = warehouseQuery.trim().toLowerCase();
-    if (!query) return inventory;
-    return inventory.filter((part) =>
-      [part.part_name, part.part_number, part.manufacturer]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query))
-    );
-  }, [selectedWarehouseDetail?.inventory, warehouseQuery]);
+    return inventory;
+  }, [selectedWarehouseDetail?.inventory]);
   const cartSummary = useMemo(() => {
     const inventory = selectedWarehouseDetail?.inventory || [];
     return inventory.reduce(
@@ -382,9 +375,6 @@ export default function Inventory() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Mechanic supply operations</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#081224]">Inventory, sourcing, and supplier chat</h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-500">
-                Keep your own workshop stocked, browse warehouse inventory, place supplier orders, and maintain long-form part negotiations without leaving the mechanic workspace.
-              </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:w-[28rem]">
               <MetricTile label="Tracked parts" value={parts.length} tone="blue" />
@@ -499,30 +489,23 @@ export default function Inventory() {
         {tab === "warehouses" ? (
           <div className="grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
             <Card className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3 rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-3">
-                <Search size={16} className="text-slate-400" />
-                <input
-                  value={warehouseQuery}
-                  onChange={(e) => setWarehouseQuery(e.target.value)}
-                  placeholder="Search suppliers, part names, or part numbers"
-                  className="w-full bg-transparent text-sm text-[#081224] outline-none placeholder:text-slate-400"
-                />
-                <button
-                  onClick={() => {
-                    loadWarehouses(warehouseQuery);
-                  }}
-                  className="rounded-full bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white"
-                >
-                  Search
-                </button>
-              </div>
-
-              <div className="mt-5 flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Warehouse network</p>
                   <h2 className="mt-2 text-2xl font-semibold text-[#081224]">{warehouses.length} suppliers</h2>
+                  <p className="mt-2 text-sm text-slate-500">All warehouses enrolled in the system appear here automatically.</p>
                 </div>
-                {marketplaceLoading ? <Spinner /> : null}
+                <div className="flex items-center gap-3">
+                  {marketplaceLoading ? <Spinner /> : null}
+                  <button
+                    type="button"
+                    onClick={() => loadWarehouses()}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#dbe7ff] bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-[#f8fbff]"
+                  >
+                    <RefreshCw size={14} />
+                    Refresh list
+                  </button>
+                </div>
               </div>
 
               {marketplaceMessage ? <p className="mt-4 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{marketplaceMessage}</p> : null}
