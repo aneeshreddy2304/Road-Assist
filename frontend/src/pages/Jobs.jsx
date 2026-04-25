@@ -356,8 +356,6 @@ export default function Jobs() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Quick lookup</p>
-              <h2 className="mt-1 text-2xl font-semibold text-[#081224]">Search a request or appointment ID</h2>
-              <p className="mt-2 text-sm text-slate-500">Paste a full UUID or short ref like `RA-3DFC7E20` or `AP-7A342CCA` to jump straight to the related job.</p>
             </div>
             <div className="flex w-full max-w-xl gap-3">
               <div className="relative flex-1">
