@@ -453,6 +453,72 @@ async def send_message(
     )
 
 
+@router.delete("/messages/thread")
+async def delete_messages_thread(
+    mechanic_id: str | None = Query(None),
+    owner_id: str | None = Query(None),
+    request_id: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    request_refs_enabled = await _chat_request_refs_enabled(db)
+    normalized_request_id = request_id or ""
+
+    if current_user.role == "owner":
+        if not mechanic_id:
+            raise HTTPException(status_code=422, detail="mechanic_id is required")
+        owner_id = current_user.id
+    elif current_user.role == "mechanic":
+        mechanic = await _get_mechanic_for_user(db, current_user.id)
+        if not mechanic:
+            raise HTTPException(status_code=404, detail="Mechanic profile not found")
+        mechanic_id = mechanic.id
+        if not owner_id:
+            raise HTTPException(status_code=422, detail="owner_id is required")
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if request_refs_enabled:
+        if normalized_request_id:
+            result = await db.execute(
+                text(
+                    """
+                    DELETE FROM chat_messages
+                    WHERE owner_id = CAST(:owner_id AS UUID)
+                      AND mechanic_id = CAST(:mechanic_id AS UUID)
+                      AND request_id = CAST(:request_id AS UUID)
+                    """
+                ),
+                {"owner_id": owner_id, "mechanic_id": mechanic_id, "request_id": normalized_request_id},
+            )
+        else:
+            result = await db.execute(
+                text(
+                    """
+                    DELETE FROM chat_messages
+                    WHERE owner_id = CAST(:owner_id AS UUID)
+                      AND mechanic_id = CAST(:mechanic_id AS UUID)
+                      AND request_id IS NULL
+                    """
+                ),
+                {"owner_id": owner_id, "mechanic_id": mechanic_id},
+            )
+    else:
+        result = await db.execute(
+            text(
+                """
+                DELETE FROM chat_messages
+                WHERE owner_id = CAST(:owner_id AS UUID)
+                  AND mechanic_id = CAST(:mechanic_id AS UUID)
+                """
+            ),
+            {"owner_id": owner_id, "mechanic_id": mechanic_id},
+        )
+
+    await db.commit()
+    return {"detail": "Conversation deleted", "deleted_count": result.rowcount or 0}
+
+
 @router.get("/messages/inbox")
 async def get_messages_inbox(
     db: AsyncSession = Depends(get_db),

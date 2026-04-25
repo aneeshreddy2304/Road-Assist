@@ -18,6 +18,15 @@ import { formatCurrencyUSD } from "../lib/formatters";
 
 const RICHMOND = { lat: 37.5407, lng: -77.4360 };
 
+const messagesMatch = (current, next) =>
+  current.length === next.length &&
+  current.every(
+    (message, index) =>
+      message.id === next[index]?.id &&
+      message.message === next[index]?.message &&
+      message.created_at === next[index]?.created_at
+  );
+
 export default function Jobs() {
   const [loading, setLoading] = useState(true);
   const [openJobs, setOpenJobs] = useState([]);
@@ -105,14 +114,16 @@ export default function Jobs() {
   const refreshLookupContext = async () => {
     setLookupRefreshing(true);
     try {
-      await Promise.all([fetchAll(true), loadInbox()]);
+      await Promise.all([fetchAll(true), loadInbox({ background: true })]);
     } finally {
       setLookupRefreshing(false);
     }
   };
 
-  const loadInbox = async () => {
-    setMessageInboxLoading(true);
+  const loadInbox = async ({ background = false } = {}) => {
+    if (!background) {
+      setMessageInboxLoading(true);
+    }
     try {
       const response = await getMessageInbox();
       setMessageInbox(response.data || []);
@@ -131,7 +142,9 @@ export default function Jobs() {
       console.error(error);
       setMessageInbox([]);
     } finally {
-      setMessageInboxLoading(false);
+      if (!background) {
+        setMessageInboxLoading(false);
+      }
     }
   };
 
@@ -150,7 +163,8 @@ export default function Jobs() {
         owner_id: conversation.owner_id,
         request_id: conversation.request_id || undefined,
       });
-      setThreadMessages(response.data || []);
+      const nextMessages = response.data || [];
+      setThreadMessages((current) => (messagesMatch(current, nextMessages) ? current : nextMessages));
     } catch (error) {
       setThreadMessages([]);
       setThreadError(error.response?.data?.detail || "Could not load this conversation");
@@ -169,7 +183,7 @@ export default function Jobs() {
   useEffect(() => {
     const interval = window.setInterval(() => {
       fetchAll(true);
-      loadInbox();
+      loadInbox({ background: true });
     }, 20000);
     return () => window.clearInterval(interval);
   }, []);
@@ -182,8 +196,7 @@ export default function Jobs() {
     loadThread(selectedConversation);
     const interval = window.setInterval(() => {
       loadThread(selectedConversation, { background: true });
-      loadInbox();
-    }, 4000);
+    }, 5000);
     return () => window.clearInterval(interval);
   }, [selectedConversation]);
 
@@ -261,7 +274,7 @@ export default function Jobs() {
       });
       setThreadMessages((current) => [...current, response.data]);
       setMessageDraft("");
-      await loadInbox();
+      await loadInbox({ background: true });
     } catch (error) {
       setThreadError(error.response?.data?.detail || "Could not send message");
     } finally {
@@ -271,16 +284,16 @@ export default function Jobs() {
 
   const handleDeleteConversation = async () => {
     if (!selectedConversation?.owner_id || conversationDeleting) return;
-    const confirmed = window.confirm(`Delete this conversation with ${selectedConversation.counterpart_name || "this owner"}?`);
-    if (!confirmed) return;
-
     setConversationDeleting(true);
     setThreadError("");
     try {
-      await deleteMessageThread({
+      const response = await deleteMessageThread({
         owner_id: selectedConversation.owner_id,
         request_id: selectedConversation.request_id || undefined,
       });
+      if (!response.data?.deleted_count) {
+        throw new Error("No messages were removed from this conversation");
+      }
       const currentOwnerId = selectedConversation.owner_id;
       const currentRequestId = selectedConversation.request_id || null;
       setMessageInbox((current) =>
@@ -303,9 +316,9 @@ export default function Jobs() {
       });
       setThreadMessages([]);
       setMessageDraft("");
-      await loadInbox();
+      await loadInbox({ background: true });
     } catch (error) {
-      setThreadError(error.response?.data?.detail || "Could not delete this conversation");
+      setThreadError(error.response?.data?.detail || error.message || "Could not delete this conversation");
     } finally {
       setConversationDeleting(false);
     }
@@ -870,6 +883,14 @@ function ConversationSurface({
   emptyTitle,
   emptySubtitle,
 }) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    if (disabled || deleting) {
+      setConfirmingDelete(false);
+    }
+  }, [disabled, deleting, title]);
+
   return (
     <Card className="flex h-[42rem] min-h-[42rem] flex-col overflow-hidden rounded-[30px] border border-[#dbe7ff] bg-white p-0 shadow-lg">
       <div className="flex items-start justify-between gap-3 border-b border-[#dbe7ff] px-5 py-4">
@@ -878,15 +899,40 @@ function ConversationSurface({
           <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         </div>
         {!disabled ? (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting}
-            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
-          >
-            <Trash2 size={14} />
-            {deleting ? "Deleting..." : "Delete chat"}
-          </button>
+          confirmingDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500">Delete this chat?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  onDelete();
+                }}
+                disabled={deleting}
+                className="rounded-full bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Confirm"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              disabled={deleting}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+            >
+              <Trash2 size={14} />
+              Delete chat
+            </button>
+          )
         ) : null}
       </div>
 
