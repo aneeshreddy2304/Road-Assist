@@ -155,6 +155,22 @@ async def get_marketplace(
     warehouse_columns = await _warehouse_column_map(db)
     approval_filter = "AND w.approval_status = 'approved'" if warehouse_columns.get("approval_status") else ""
     warehouse_selects = _warehouse_select_columns(warehouse_columns)
+    search_filter = ""
+    params: dict[str, object] = {}
+    if query and query.strip():
+        search_filter = """
+          AND (
+            w.name ILIKE :like_query
+            OR w.address ILIKE :like_query
+            OR EXISTS (
+              SELECT 1
+              FROM warehouse_parts wp2
+              WHERE wp2.warehouse_id = w.id
+                AND (wp2.part_name ILIKE :like_query OR COALESCE(wp2.part_number, '') ILIKE :like_query)
+            )
+          )
+        """
+        params["like_query"] = f"%{query.strip()}%"
     sql = """
         SELECT
             w.id::text,
@@ -172,24 +188,11 @@ async def get_marketplace(
         LEFT JOIN warehouse_parts wp ON wp.warehouse_id = w.id
         WHERE w.is_active = TRUE
           {approval_filter}
-          AND (
-            :query IS NULL
-            OR w.name ILIKE :like_query
-            OR w.address ILIKE :like_query
-            OR EXISTS (
-              SELECT 1
-              FROM warehouse_parts wp2
-              WHERE wp2.warehouse_id = w.id
-                AND (wp2.part_name ILIKE :like_query OR COALESCE(wp2.part_number, '') ILIKE :like_query)
-            )
-          )
+          {search_filter}
         GROUP BY w.id, u.email
         ORDER BY available_parts DESC, w.name ASC
-    """.format(approval_filter=approval_filter, warehouse_selects=warehouse_selects)
-    result = await db.execute(
-        text(sql),
-        {"query": query, "like_query": f"%{query.strip()}%" if query else None},
-    )
+    """.format(approval_filter=approval_filter, warehouse_selects=warehouse_selects, search_filter=search_filter)
+    result = await db.execute(text(sql), params)
     return [
         WarehouseSummaryOut(**row, average_shipping_time="Varies by stocked part")
         for row in result.mappings().all()
@@ -506,50 +509,76 @@ async def get_warehouse_orders(
 ):
     if current_user.role == "mechanic":
         sql = """
+            WITH order_lines AS (
+                SELECT
+                    COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) AS order_ref,
+                    wo.warehouse_id,
+                    wo.mechanic_id,
+                    wo.status,
+                    wo.quantity,
+                    wo.total_price,
+                    wo.note,
+                    wo.created_at,
+                    wo.updated_at
+                FROM warehouse_orders wo
+                WHERE wo.mechanic_id = CAST(:profile_id AS UUID)
+            )
             SELECT
-                COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) AS order_ref,
-                wo.warehouse_id::text,
+                ol.order_ref,
+                ol.warehouse_id::text,
                 w.name AS warehouse_name,
-                wo.mechanic_id::text,
+                ol.mechanic_id::text,
                 mu.name AS mechanic_name,
-                MIN(CASE WHEN wo.status::text = 'confirmed' THEN 'accepted' ELSE wo.status::text END) AS status,
+                MIN(CASE WHEN ol.status::text = 'confirmed' THEN 'accepted' ELSE ol.status::text END) AS status,
                 COUNT(*) AS line_count,
-                COALESCE(SUM(wo.quantity), 0) AS total_quantity,
-                CAST(COALESCE(SUM(wo.total_price), 0) AS FLOAT) AS total_price,
-                MAX(wo.note) AS note,
-                MIN(wo.created_at) AS created_at,
-                MAX(wo.updated_at) AS updated_at
-            FROM warehouse_orders wo
-            JOIN warehouses w ON w.id = wo.warehouse_id
-            JOIN mechanics m ON m.id = wo.mechanic_id
+                COALESCE(SUM(ol.quantity), 0) AS total_quantity,
+                CAST(COALESCE(SUM(ol.total_price), 0) AS FLOAT) AS total_price,
+                MAX(ol.note) AS note,
+                MIN(ol.created_at) AS created_at,
+                MAX(ol.updated_at) AS updated_at
+            FROM order_lines ol
+            JOIN warehouses w ON w.id = ol.warehouse_id
+            JOIN mechanics m ON m.id = ol.mechanic_id
             JOIN users mu ON mu.id = m.user_id
-            WHERE wo.mechanic_id = CAST(:profile_id AS UUID)
-            GROUP BY order_ref, wo.warehouse_id, w.name, wo.mechanic_id, mu.name
-            ORDER BY MIN(wo.created_at) DESC
+            GROUP BY ol.order_ref, ol.warehouse_id, w.name, ol.mechanic_id, mu.name
+            ORDER BY MIN(ol.created_at) DESC
         """
         profile_id = await _get_mechanic_profile_id(db, current_user.id)
     else:
         sql = """
+            WITH order_lines AS (
+                SELECT
+                    COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) AS order_ref,
+                    wo.warehouse_id,
+                    wo.mechanic_id,
+                    wo.status,
+                    wo.quantity,
+                    wo.total_price,
+                    wo.note,
+                    wo.created_at,
+                    wo.updated_at
+                FROM warehouse_orders wo
+                WHERE wo.warehouse_id = CAST(:profile_id AS UUID)
+            )
             SELECT
-                COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) AS order_ref,
-                wo.warehouse_id::text,
+                ol.order_ref,
+                ol.warehouse_id::text,
                 w.name AS warehouse_name,
-                wo.mechanic_id::text,
+                ol.mechanic_id::text,
                 mu.name AS mechanic_name,
-                MIN(CASE WHEN wo.status::text = 'confirmed' THEN 'accepted' ELSE wo.status::text END) AS status,
+                MIN(CASE WHEN ol.status::text = 'confirmed' THEN 'accepted' ELSE ol.status::text END) AS status,
                 COUNT(*) AS line_count,
-                COALESCE(SUM(wo.quantity), 0) AS total_quantity,
-                CAST(COALESCE(SUM(wo.total_price), 0) AS FLOAT) AS total_price,
-                MAX(wo.note) AS note,
-                MIN(wo.created_at) AS created_at,
-                MAX(wo.updated_at) AS updated_at
-            FROM warehouse_orders wo
-            JOIN warehouses w ON w.id = wo.warehouse_id
-            JOIN mechanics m ON m.id = wo.mechanic_id
+                COALESCE(SUM(ol.quantity), 0) AS total_quantity,
+                CAST(COALESCE(SUM(ol.total_price), 0) AS FLOAT) AS total_price,
+                MAX(ol.note) AS note,
+                MIN(ol.created_at) AS created_at,
+                MAX(ol.updated_at) AS updated_at
+            FROM order_lines ol
+            JOIN warehouses w ON w.id = ol.warehouse_id
+            JOIN mechanics m ON m.id = ol.mechanic_id
             JOIN users mu ON mu.id = m.user_id
-            WHERE wo.warehouse_id = CAST(:profile_id AS UUID)
-            GROUP BY order_ref, wo.warehouse_id, w.name, wo.mechanic_id, mu.name
-            ORDER BY MIN(wo.created_at) DESC
+            GROUP BY ol.order_ref, ol.warehouse_id, w.name, ol.mechanic_id, mu.name
+            ORDER BY MIN(ol.created_at) DESC
         """
         profile_id = await _get_warehouse_profile_id(db, current_user.id)
 
@@ -573,26 +602,39 @@ async def get_warehouse_order_detail(
     summary_result = await db.execute(
         text(
             f"""
+            WITH order_lines AS (
+                SELECT
+                    COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) AS order_ref,
+                    wo.warehouse_id,
+                    wo.mechanic_id,
+                    wo.status,
+                    wo.quantity,
+                    wo.total_price,
+                    wo.note,
+                    wo.created_at,
+                    wo.updated_at
+                FROM warehouse_orders wo
+                WHERE COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) = :order_ref
+                  AND {visibility_clause}
+            )
             SELECT
-                COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) AS order_ref,
-                wo.warehouse_id::text,
+                ol.order_ref,
+                ol.warehouse_id::text,
                 w.name AS warehouse_name,
-                wo.mechanic_id::text,
+                ol.mechanic_id::text,
                 mu.name AS mechanic_name,
-                MIN(CASE WHEN wo.status::text = 'confirmed' THEN 'accepted' ELSE wo.status::text END) AS status,
+                MIN(CASE WHEN ol.status::text = 'confirmed' THEN 'accepted' ELSE ol.status::text END) AS status,
                 COUNT(*) AS line_count,
-                COALESCE(SUM(wo.quantity), 0) AS total_quantity,
-                CAST(COALESCE(SUM(wo.total_price), 0) AS FLOAT) AS total_price,
-                MAX(wo.note) AS note,
-                MIN(wo.created_at) AS created_at,
-                MAX(wo.updated_at) AS updated_at
-            FROM warehouse_orders wo
-            JOIN warehouses w ON w.id = wo.warehouse_id
-            JOIN mechanics m ON m.id = wo.mechanic_id
+                COALESCE(SUM(ol.quantity), 0) AS total_quantity,
+                CAST(COALESCE(SUM(ol.total_price), 0) AS FLOAT) AS total_price,
+                MAX(ol.note) AS note,
+                MIN(ol.created_at) AS created_at,
+                MAX(ol.updated_at) AS updated_at
+            FROM order_lines ol
+            JOIN warehouses w ON w.id = ol.warehouse_id
+            JOIN mechanics m ON m.id = ol.mechanic_id
             JOIN users mu ON mu.id = m.user_id
-            WHERE COALESCE(wo.order_ref, 'WO-' || UPPER(SUBSTRING(wo.id::text, 1, 8))) = :order_ref
-              AND {visibility_clause}
-            GROUP BY order_ref, wo.warehouse_id, w.name, wo.mechanic_id, mu.name
+            GROUP BY ol.order_ref, ol.warehouse_id, w.name, ol.mechanic_id, mu.name
             """
         ),
         {"order_ref": order_ref, "profile_id": profile_id},
