@@ -188,6 +188,30 @@ async def ensure_schema_updates() -> None:
             text(
                 """
                 ALTER TABLE warehouses
+                ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(30)
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE warehouses
+                ADD COLUMN IF NOT EXISTS description TEXT
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE warehouses
+                ADD COLUMN IF NOT EXISTS fulfillment_hours VARCHAR(120)
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE warehouses
                 ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'
                 """
             )
@@ -221,6 +245,9 @@ async def ensure_schema_updates() -> None:
                 """
             )
         )
+        await conn.execute(text("ALTER TABLE warehouse_parts ADD COLUMN IF NOT EXISTS compatible_vehicles vehicle_type[] NOT NULL DEFAULT '{}'"))
+        await conn.execute(text("ALTER TABLE warehouse_parts ADD COLUMN IF NOT EXISTS manufacturer VARCHAR(120)"))
+        await conn.execute(text("ALTER TABLE warehouse_parts ADD COLUMN IF NOT EXISTS lead_time_label VARCHAR(120)"))
         await conn.execute(
             text(
                 """

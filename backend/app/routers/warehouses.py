@@ -27,6 +27,8 @@ from app.schemas.warehouse import (
 )
 
 router = APIRouter(prefix="/warehouses", tags=["Warehouses"])
+DEFAULT_WAREHOUSE_LAT = 37.5407
+DEFAULT_WAREHOUSE_LNG = -77.4360
 
 ACTIVE_WAREHOUSE_ORDER_STATUSES = (
     "requested",
@@ -78,6 +80,55 @@ async def _table_has_column(db: AsyncSession, table_name: str, column_name: str)
     return bool(result.scalar())
 
 
+async def _warehouse_column_map(db: AsyncSession) -> dict[str, bool]:
+    columns = [
+        "lat",
+        "lng",
+        "contact_phone",
+        "description",
+        "fulfillment_hours",
+        "approval_status",
+    ]
+    return {column: await _table_has_column(db, "warehouses", column) for column in columns}
+
+
+async def _warehouse_part_column_map(db: AsyncSession) -> dict[str, bool]:
+    columns = [
+        "manufacturer",
+        "lead_time_label",
+        "compatible_vehicles",
+    ]
+    return {column: await _table_has_column(db, "warehouse_parts", column) for column in columns}
+
+
+def _warehouse_select_columns(columns: dict[str, bool]) -> str:
+    lat_expr = f"CAST(w.lat AS FLOAT) AS lat" if columns.get("lat") else f"{DEFAULT_WAREHOUSE_LAT}::FLOAT AS lat"
+    lng_expr = f"CAST(w.lng AS FLOAT) AS lng" if columns.get("lng") else f"{DEFAULT_WAREHOUSE_LNG}::FLOAT AS lng"
+    contact_phone_expr = "w.contact_phone" if columns.get("contact_phone") else "NULL::VARCHAR AS contact_phone"
+    description_expr = "w.description" if columns.get("description") else "NULL::TEXT AS description"
+    fulfillment_expr = "w.fulfillment_hours" if columns.get("fulfillment_hours") else "NULL::VARCHAR AS fulfillment_hours"
+    return ",\n            ".join(
+        [
+            lat_expr,
+            lng_expr,
+            contact_phone_expr,
+            description_expr,
+            fulfillment_expr,
+        ]
+    )
+
+
+def _warehouse_part_select_columns(columns: dict[str, bool]) -> str:
+    compatible_expr = (
+        "COALESCE(wp.compatible_vehicles::text[], '{}') AS compatible_vehicles"
+        if columns.get("compatible_vehicles")
+        else "ARRAY[]::text[] AS compatible_vehicles"
+    )
+    manufacturer_expr = "wp.manufacturer" if columns.get("manufacturer") else "NULL::VARCHAR AS manufacturer"
+    lead_time_expr = "wp.lead_time_label" if columns.get("lead_time_label") else "NULL::VARCHAR AS lead_time_label"
+    return ",\n                ".join([compatible_expr, manufacturer_expr, lead_time_expr])
+
+
 def _build_order_ref() -> str:
     return f"WO-{str(uuid4()).split('-')[0].upper()}"
 
@@ -101,18 +152,16 @@ async def get_marketplace(
     current_user: User = Depends(require_role("mechanic")),
 ):
     await _get_mechanic_profile_id(db, current_user.id)
-    approval_filter = "AND w.approval_status = 'approved'" if await _table_has_column(db, "warehouses", "approval_status") else ""
+    warehouse_columns = await _warehouse_column_map(db)
+    approval_filter = "AND w.approval_status = 'approved'" if warehouse_columns.get("approval_status") else ""
+    warehouse_selects = _warehouse_select_columns(warehouse_columns)
     sql = """
         SELECT
             w.id::text,
             w.user_id::text,
             w.name,
             w.address,
-            CAST(w.lat AS FLOAT) AS lat,
-            CAST(w.lng AS FLOAT) AS lng,
-            w.contact_phone,
-            w.description,
-            w.fulfillment_hours,
+            {warehouse_selects},
             w.is_active,
             COUNT(wp.id) FILTER (WHERE wp.quantity > 0) AS available_parts,
             COUNT(wp.id) FILTER (WHERE wp.quantity <= wp.min_threshold) AS low_stock_parts,
@@ -136,7 +185,7 @@ async def get_marketplace(
           )
         GROUP BY w.id, u.email
         ORDER BY available_parts DESC, w.name ASC
-    """.format(approval_filter=approval_filter)
+    """.format(approval_filter=approval_filter, warehouse_selects=warehouse_selects)
     result = await db.execute(
         text(sql),
         {"query": query, "like_query": f"%{query.strip()}%" if query else None},
@@ -155,7 +204,10 @@ async def search_marketplace_parts(
     current_user: User = Depends(require_role("mechanic")),
 ):
     await _get_mechanic_profile_id(db, current_user.id)
-    approval_filter = "AND w.approval_status = 'approved'" if await _table_has_column(db, "warehouses", "approval_status") else ""
+    warehouse_columns = await _warehouse_column_map(db)
+    warehouse_part_columns = await _warehouse_part_column_map(db)
+    approval_filter = "AND w.approval_status = 'approved'" if warehouse_columns.get("approval_status") else ""
+    warehouse_part_selects = _warehouse_part_select_columns(warehouse_part_columns)
     sql = """
         SELECT
             wp.id::text,
@@ -166,9 +218,7 @@ async def search_marketplace_parts(
             wp.quantity,
             wp.min_threshold,
             CAST(wp.price AS FLOAT) AS price,
-            COALESCE(wp.compatible_vehicles::text[], '{}') AS compatible_vehicles,
-            wp.manufacturer,
-            wp.lead_time_label,
+            {warehouse_part_selects},
             (wp.quantity <= wp.min_threshold) AS is_low_stock,
             wp.created_at,
             wp.updated_at
@@ -182,9 +232,9 @@ async def search_marketplace_parts(
             wp.part_name ILIKE :like_query
             OR COALESCE(wp.part_number, '') ILIKE :like_query
             OR COALESCE(wp.manufacturer, '') ILIKE :like_query
-          )
+        )
         ORDER BY wp.quantity DESC, wp.part_name ASC
-    """.format(approval_filter=approval_filter)
+    """.format(approval_filter=approval_filter, warehouse_part_selects=warehouse_part_selects)
     result = await db.execute(text(sql), {"warehouse_id": warehouse_id, "like_query": f"%{query.strip()}%"})
     return [WarehousePartOut(**row) for row in result.mappings().all()]
 
@@ -196,7 +246,11 @@ async def get_marketplace_warehouse_detail(
     current_user: User = Depends(require_role("mechanic")),
 ):
     await _get_mechanic_profile_id(db, current_user.id)
-    approval_filter = "AND w.approval_status = 'approved'" if await _table_has_column(db, "warehouses", "approval_status") else ""
+    warehouse_columns = await _warehouse_column_map(db)
+    warehouse_part_columns = await _warehouse_part_column_map(db)
+    approval_filter = "AND w.approval_status = 'approved'" if warehouse_columns.get("approval_status") else ""
+    warehouse_selects = _warehouse_select_columns(warehouse_columns)
+    warehouse_part_selects = _warehouse_part_select_columns(warehouse_part_columns)
     warehouse_result = await db.execute(
         text(
             """
@@ -205,11 +259,7 @@ async def get_marketplace_warehouse_detail(
                 w.user_id::text,
                 w.name,
                 w.address,
-                CAST(w.lat AS FLOAT) AS lat,
-                CAST(w.lng AS FLOAT) AS lng,
-                w.contact_phone,
-                w.description,
-                w.fulfillment_hours,
+                {warehouse_selects},
                 w.is_active,
                 COUNT(wp.id) FILTER (WHERE wp.quantity > 0) AS available_parts,
                 COUNT(wp.id) FILTER (WHERE wp.quantity <= wp.min_threshold) AS low_stock_parts,
@@ -222,7 +272,7 @@ async def get_marketplace_warehouse_detail(
               AND w.is_active = TRUE
               {approval_filter}
             GROUP BY w.id, u.email
-            """.format(approval_filter=approval_filter)
+            """.format(approval_filter=approval_filter, warehouse_selects=warehouse_selects)
         ),
         {"warehouse_id": warehouse_id},
     )
@@ -242,9 +292,7 @@ async def get_marketplace_warehouse_detail(
                 wp.quantity,
                 wp.min_threshold,
                 CAST(wp.price AS FLOAT) AS price,
-                COALESCE(wp.compatible_vehicles::text[], '{}') AS compatible_vehicles,
-                wp.manufacturer,
-                wp.lead_time_label,
+                {warehouse_part_selects},
                 (wp.quantity <= wp.min_threshold) AS is_low_stock,
                 wp.created_at,
                 wp.updated_at
@@ -252,7 +300,7 @@ async def get_marketplace_warehouse_detail(
             JOIN warehouses w ON w.id = wp.warehouse_id
             WHERE wp.warehouse_id = CAST(:warehouse_id AS UUID)
             ORDER BY wp.quantity DESC, wp.part_name ASC
-            """
+            """.format(warehouse_part_selects=warehouse_part_selects)
         ),
         {"warehouse_id": warehouse_id},
     )
@@ -273,6 +321,8 @@ async def get_my_warehouse(
     current_user: User = Depends(require_role("warehouse")),
 ):
     warehouse_id = await _get_warehouse_profile_id(db, current_user.id)
+    warehouse_columns = await _warehouse_column_map(db)
+    warehouse_selects = _warehouse_select_columns(warehouse_columns)
     result = await db.execute(
         text(
             """
@@ -281,11 +331,7 @@ async def get_my_warehouse(
                 w.user_id::text,
                 w.name,
                 w.address,
-                CAST(w.lat AS FLOAT) AS lat,
-                CAST(w.lng AS FLOAT) AS lng,
-                w.contact_phone,
-                w.description,
-                w.fulfillment_hours,
+                {warehouse_selects},
                 w.is_active,
                 COUNT(wp.id) FILTER (WHERE wp.quantity > 0) AS available_parts,
                 COUNT(wp.id) FILTER (WHERE wp.quantity <= wp.min_threshold) AS low_stock_parts,
@@ -294,7 +340,7 @@ async def get_my_warehouse(
             LEFT JOIN warehouse_parts wp ON wp.warehouse_id = w.id
             WHERE w.id = CAST(:warehouse_id AS UUID)
             GROUP BY w.id
-            """
+            """.format(warehouse_selects=warehouse_selects)
         ),
         {"warehouse_id": warehouse_id},
     )
@@ -310,6 +356,8 @@ async def get_warehouse_inventory(
     current_user: User = Depends(require_role("warehouse")),
 ):
     warehouse_id = await _get_warehouse_profile_id(db, current_user.id)
+    warehouse_part_columns = await _warehouse_part_column_map(db)
+    warehouse_part_selects = _warehouse_part_select_columns(warehouse_part_columns)
     result = await db.execute(
         text(
             """
@@ -322,9 +370,7 @@ async def get_warehouse_inventory(
                 wp.quantity,
                 wp.min_threshold,
                 CAST(wp.price AS FLOAT) AS price,
-                COALESCE(wp.compatible_vehicles::text[], '{}') AS compatible_vehicles,
-                wp.manufacturer,
-                wp.lead_time_label,
+                {warehouse_part_selects},
                 (wp.quantity <= wp.min_threshold) AS is_low_stock,
                 wp.created_at,
                 wp.updated_at
@@ -332,7 +378,7 @@ async def get_warehouse_inventory(
             JOIN warehouses w ON w.id = wp.warehouse_id
             WHERE wp.warehouse_id = CAST(:warehouse_id AS UUID)
             ORDER BY wp.part_name ASC
-            """
+            """.format(warehouse_part_selects=warehouse_part_selects)
         ),
         {"warehouse_id": warehouse_id},
     )
