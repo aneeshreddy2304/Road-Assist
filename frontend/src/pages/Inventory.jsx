@@ -62,6 +62,7 @@ export default function Inventory() {
   const [selectedOrderRef, setSelectedOrderRef] = useState(null);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState(null);
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
+  const [receivedWarehouseKeys, setReceivedWarehouseKeys] = useState([]);
 
   const [inbox, setInbox] = useState([]);
   const [inboxLoading, setInboxLoading] = useState(false);
@@ -72,6 +73,9 @@ export default function Inventory() {
   const [messageDraft, setMessageDraft] = useState("");
   const [messageSending, setMessageSending] = useState(false);
   const [conversationDeleting, setConversationDeleting] = useState(false);
+
+  const getPartIdentity = (part) =>
+    `${String(part?.part_number || "").trim().toLowerCase()}::${String(part?.part_name || "").trim().toLowerCase()}`;
 
   const loadInventory = async () => {
     setLoading(true);
@@ -246,6 +250,42 @@ export default function Inventory() {
     return () => window.clearInterval(timer);
   }, [selectedWarehouse?.id, selectedOrderRef]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadReceivedWarehouseKeys = async () => {
+      const deliveredRefs = orders
+        .filter((order) => order.status === "delivered")
+        .map((order) => order.order_ref)
+        .filter(Boolean);
+
+      if (!deliveredRefs.length) {
+        setReceivedWarehouseKeys([]);
+        return;
+      }
+
+      const details = await Promise.all(
+        deliveredRefs.map((orderRef) =>
+          getWarehouseOrderDetail(orderRef)
+            .then((response) => response.data)
+            .catch(() => null)
+        )
+      );
+
+      if (cancelled) return;
+
+      const keys = details.flatMap((detail) =>
+        (detail?.items || []).map((item) => getPartIdentity(item))
+      );
+      setReceivedWarehouseKeys([...new Set(keys)]);
+    };
+
+    loadReceivedWarehouseKeys();
+    return () => {
+      cancelled = true;
+    };
+  }, [orders]);
+
   const lowStock = useMemo(() => parts.filter((part) => Number(part.quantity) < 4), [parts]);
   const outOfStock = useMemo(() => parts.filter((part) => Number(part.quantity) === 0), [parts]);
   const totalValue = useMemo(
@@ -257,6 +297,24 @@ export default function Inventory() {
     const inventory = selectedWarehouseDetail?.inventory || [];
     return inventory;
   }, [selectedWarehouseDetail?.inventory]);
+  const receivedWarehouseSet = useMemo(() => new Set(receivedWarehouseKeys), [receivedWarehouseKeys]);
+  const sortedParts = useMemo(() => {
+    return [...parts].sort((left, right) => {
+      const leftReceived = receivedWarehouseSet.has(getPartIdentity(left)) ? 1 : 0;
+      const rightReceived = receivedWarehouseSet.has(getPartIdentity(right)) ? 1 : 0;
+      if (leftReceived !== rightReceived) {
+        return rightReceived - leftReceived;
+      }
+
+      const leftUpdated = new Date(left.updated_at || left.created_at || 0).getTime();
+      const rightUpdated = new Date(right.updated_at || right.created_at || 0).getTime();
+      if (leftUpdated !== rightUpdated) {
+        return rightUpdated - leftUpdated;
+      }
+
+      return String(left.part_name || "").localeCompare(String(right.part_name || ""));
+    });
+  }, [parts, receivedWarehouseSet]);
   const cartSummary = useMemo(() => {
     const inventory = selectedWarehouseDetail?.inventory || [];
     return inventory.reduce(
@@ -413,6 +471,11 @@ export default function Inventory() {
               <div>
                 <p className="text-sm font-semibold text-[#081224]">Workshop stock register</p>
                 <p className="mt-1 text-sm text-slate-500">Your own carried stock still lives here exactly as before.</p>
+                {receivedWarehouseKeys.length ? (
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
+                    Newly received warehouse parts are pinned to the top
+                  </p>
+                ) : null}
               </div>
               <button
                 onClick={() => setShowAdd(true)}
@@ -448,7 +511,7 @@ export default function Inventory() {
                   <div className="text-right">Actions</div>
                 </div>
                 <div className="max-h-[38rem] overflow-y-auto">
-                  {parts.map((part) => (
+                  {sortedParts.map((part) => (
                     <div key={part.id} className="grid grid-cols-[1.7fr,1fr,0.8fr,0.8fr,1fr,1fr] gap-3 border-b border-[#eef2ff] px-5 py-4 text-sm text-[#081224]">
                       {editId === part.id ? (
                         <>
@@ -465,7 +528,14 @@ export default function Inventory() {
                       ) : (
                         <>
                           <div>
-                            <p className="font-semibold">{part.part_name}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold">{part.part_name}</p>
+                              {receivedWarehouseSet.has(getPartIdentity(part)) ? (
+                                <span className="inline-flex rounded-full bg-[#eff6ff] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#2563eb] ring-1 ring-[#dbe7ff]">
+                                  Received
+                                </span>
+                              ) : null}
+                            </div>
                             {part.is_low_stock ? <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">low stock</span> : null}
                           </div>
                           <div className="flex items-center text-slate-500">{part.part_number || "—"}</div>
