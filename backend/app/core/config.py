@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_TITLE: str = "RoadAssist API"
     APP_VERSION: str = "1.0.0"
+    # Schema creation and demo-data seeding can modify a database. Keep it
+    # disabled by default; enable it explicitly only for a new database.
+    AUTO_BOOTSTRAP_SCHEMA: bool = False
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587

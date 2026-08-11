@@ -230,7 +230,9 @@ async def search_marketplace_parts(
         WHERE w.is_active = TRUE
           {approval_filter}
           AND wp.quantity > 0
-          AND (:warehouse_id IS NULL OR wp.warehouse_id = CAST(:warehouse_id AS UUID))
+          -- Cast the optional parameter before checking for NULL. PostgreSQL
+          -- otherwise cannot infer a type when no warehouse filter is sent.
+          AND (CAST(:warehouse_id AS UUID) IS NULL OR wp.warehouse_id = CAST(:warehouse_id AS UUID))
           AND (
             wp.part_name ILIKE :like_query
             OR COALESCE(wp.part_number, '') ILIKE :like_query

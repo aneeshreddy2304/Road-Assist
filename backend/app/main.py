@@ -49,7 +49,8 @@ app.include_router(warehouses.router)
 
 @app.on_event("startup")
 async def bootstrap_schema():
-    await ensure_schema_updates()
+    if settings.AUTO_BOOTSTRAP_SCHEMA:
+        await ensure_schema_updates()
 
 
 @app.get("/", tags=["Health"])
