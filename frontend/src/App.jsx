@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import Navbar      from "./components/Navbar";
 
@@ -13,6 +13,7 @@ import Inventory   from "./pages/Inventory";
 import Jobs        from "./pages/Jobs";
 import Admin       from "./pages/Admin";
 import Warehouse   from "./pages/Warehouse";
+import Landing     from "./pages/Landing";
 
 function Protected({ children, roles }) {
   const { user } = useAuth();
@@ -32,21 +33,23 @@ function AuthRoute({ children }) {
   return children;
 }
 
-function RootRedirect() {
-  const { user } = useAuth();
-  if (!user)                    return <Navigate to="/login" replace />;
-  if (user.role === "mechanic") return <Navigate to="/dashboard" replace />;
-  if (user.role === "admin")    return <Navigate to="/admin" replace />;
-  if (user.role === "warehouse") return <Navigate to="/warehouse" replace />;
-  return <Navigate to="/search" replace />;
-}
-
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
+      <AppShell />
+    </BrowserRouter>
+  );
+}
+
+function AppShell() {
+  const pathname = useLocation().pathname;
+  const isPublicPage = pathname === "/" || pathname === "/login" || pathname === "/register";
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {!isPublicPage && <Navbar />}
         <Routes>
+          <Route path="/"            element={<Landing />} />
           <Route path="/login"       element={<AuthRoute><Login /></AuthRoute>} />
           <Route path="/register"    element={<AuthRoute><Register /></AuthRoute>} />
           <Route path="/search"      element={<Protected roles={["owner"]}><Search /></Protected>} />
@@ -58,10 +61,8 @@ export default function App() {
           <Route path="/jobs"        element={<Protected roles={["mechanic"]}><Jobs /></Protected>} />
           <Route path="/admin"       element={<Protected roles={["admin"]}><Admin /></Protected>} />
           <Route path="/warehouse"   element={<Protected roles={["warehouse"]}><Warehouse /></Protected>} />
-          <Route path="/"            element={<RootRedirect />} />
           <Route path="*"            element={<Navigate to="/" replace />} />
         </Routes>
-      </div>
-    </BrowserRouter>
+    </div>
   );
 }

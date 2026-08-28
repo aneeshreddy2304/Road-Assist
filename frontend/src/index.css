@@ -48,6 +48,242 @@ body {
     translateZ(0);
 }
 
+.wingman-site {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.wingman-deck { isolation: isolate; }
+.wingman-deck-scene { position: absolute; inset: 0; overflow: hidden; background: #173e31; color: #f6f3eb; opacity:0; transform:translate3d(0,4vh,0) scale(.985); transform-origin:center; transition:opacity .72s cubic-bezier(.2,.8,.2,1),transform .9s cubic-bezier(.2,.8,.2,1); will-change:opacity,transform; }
+.wingman-deck-scene.is-active { opacity:1; transform:translate3d(0,0,0) scale(1); }
+.wingman-deck-scene nav, .wingman-deck-scene > .relative { transition:opacity .5s ease .12s,transform .7s cubic-bezier(.2,.8,.2,1) .08s; }.wingman-deck-scene:not(.is-active) nav,.wingman-deck-scene:not(.is-active)> .relative{opacity:0;transform:translateY(2rem);}
+.wingman-deck-light { color:#173e31; }.wingman-deck-light .wingman-kicker{color:#547d44!important;}.wingman-deck-light p:not(.wingman-kicker){color:#50675a;}.wingman-deck-light .text-\[\#cbff78\]{color:#4e873e!important;}.wingman-deck-light .text-white\/70,.wingman-deck-light .text-white\/55,.wingman-deck-light .text-white\/45{color:rgba(23,61,49,.6)!important;}.wingman-deck-light .wingman-deck-route path:first-child{stroke:rgba(23,61,49,.2);}
+.wingman-deck-sand { background:#dcc9a5; color:#18392e; }.wingman-deck-sand .wingman-deck-grid{opacity:.46;}.wingman-deck-sand .wingman-kicker,.wingman-deck-sand .text-\[\#cbff78\]{color:#4b633b!important;}.wingman-deck-sand p:not(.wingman-kicker),.wingman-deck-sand .text-white\/70,.wingman-deck-sand .text-white\/55,.wingman-deck-sand .text-white\/45{color:rgba(24,57,46,.68)!important;}.wingman-deck-sand .wingman-deck-route path:first-child{stroke:rgba(24,57,46,.2);}.wingman-deck-sand .wingman-deck-route-dash{stroke:#9c6637;}
+.wingman-deck-blue { background:#d7e2f5; color:#133742; }.wingman-deck-blue .wingman-deck-grid{opacity:.48;}.wingman-deck-blue .wingman-kicker,.wingman-deck-blue .text-\[\#cbff78\]{color:#376c71!important;}.wingman-deck-blue p:not(.wingman-kicker),.wingman-deck-blue .text-white\/70,.wingman-deck-blue .text-white\/55,.wingman-deck-blue .text-white\/45{color:rgba(19,55,66,.68)!important;}.wingman-deck-blue .wingman-deck-route path:first-child{stroke:rgba(19,55,66,.2);}.wingman-deck-blue .wingman-deck-route-dash{stroke:#377a89;}
+.wingman-deck-slate { background:#2a4651; }.wingman-deck-slate .wingman-deck-glow-a{background:rgba(145,190,201,.37);}.wingman-deck-slate .wingman-deck-glow-b{background:rgba(189,212,255,.2);}.wingman-deck-slate .text-\[\#cbff78\],.wingman-deck-slate .wingman-kicker{color:#bdd4ff!important;}.wingman-deck-slate .wingman-deck-route-dash{stroke:#bdd4ff;}
+.wingman-deck-warm { background:#4a3528; }.wingman-deck-warm .wingman-deck-glow-a{background:rgba(235,159,97,.37);}.wingman-deck-warm .wingman-deck-glow-b{background:rgba(255,210,167,.19);}.wingman-deck-warm .text-\[\#cbff78\],.wingman-deck-warm .wingman-kicker{color:#ffd2a7!important;}.wingman-deck-warm .wingman-deck-route-dash{stroke:#ffd2a7;}
+.wingman-deck-layout-center > .relative.z-10 > div:first-child { margin:auto; text-align:center; }.wingman-deck-layout-center > .relative.z-10 > div:first-child p{margin-left:auto;margin-right:auto;}.wingman-deck-layout-center .wingman-deck-orbit{right:50%;top:61%;transform:translate(50%,-50%) scale(.68);opacity:.5;}.wingman-deck-layout-center h1{max-width:1100px;}
+.wingman-deck-layout-right > .relative.z-10 > div:first-child { margin-left:auto; max-width:48rem; }.wingman-deck-layout-right .wingman-deck-route{transform:scaleX(-1);}.wingman-deck-layout-right .wingman-deck-glow-a{left:-18vw;right:auto;}.wingman-deck-layout-right .wingman-deck-glow-b{right:20vw;left:auto;}.wingman-deck-layout-right .wingman-deck-orbit{left:10vw;right:auto;}
+.wingman-deck-layout-lower > .relative.z-10{justify-content:flex-end;padding-bottom:8rem;}.wingman-deck-layout-lower > .relative.z-10 > div:first-child{max-width:52rem;}.wingman-deck-layout-lower h1{font-size:clamp(4rem,9vw,10rem);}.wingman-deck-layout-lower .wingman-deck-glow-a{top:-24vw;right:-8vw;}.wingman-deck-layout-lower .wingman-deck-route{opacity:.9;}
+.wingman-deck-layout-split > .relative.z-10 > div:first-child{max-width:40rem;margin-left:auto;text-align:right;}.wingman-deck-layout-split > .relative.z-10 > div:first-child p{margin-left:auto;}.wingman-deck-layout-split .wingman-deck-orbit{left:12vw;right:auto;top:49%;}.wingman-deck-layout-split .wingman-deck-glow-b{left:-12vw;bottom:-18vw;}.wingman-deck-layout-split .wingman-deck-route{transform:scaleX(-1);}
+.wingman-deck-locate { background: #f6f4ed; color: #173e31; }.wingman-deck-locate .wingman-deck-grid { opacity:.65; }.wingman-deck-locate .wingman-deck-glow-a { background:rgba(203,255,120,.52); }.wingman-deck-locate .wingman-deck-glow-b { background:rgba(23,61,49,.12); }.wingman-deck-locate .wingman-deck-route-dash { stroke:#4d893d; }.wingman-deck-locate .wingman-deck-car { fill:#173e31; stroke:#cbff78; }
+.wingman-deck-loop { background:#173e31; }.wingman-deck-signal { background:#153c30; }.wingman-deck-map { background:#d9e9b4; color:#173e31; }.wingman-deck-map .wingman-deck-grid { opacity:.5; }.wingman-deck-map .wingman-deck-route-dash { stroke:#285f47; }.wingman-deck-map .wingman-deck-car { fill:#f6f3eb; stroke:#173e31; }.wingman-deck-final { background:#0c2920; }
+.wingman-deck-grid { position:absolute; inset:0; opacity:.18; background-image:linear-gradient(rgba(246,243,235,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(246,243,235,.14) 1px,transparent 1px); background-size:58px 58px; mask-image:radial-gradient(ellipse at 60% 55%,black,transparent 72%); }
+.wingman-deck-glow { position:absolute; border-radius:50%; filter:blur(10px); opacity:.55; animation:wingman-drift 12s ease-in-out infinite alternate; }.wingman-deck-glow-a { right:-15vw; top:9vh; width:65vw; height:65vw; background:rgba(98,169,121,.48); }.wingman-deck-glow-b { left:18vw; bottom:-35vw; width:52vw; height:52vw; background:rgba(203,255,120,.2); animation-delay:-5s; }
+.wingman-deck-route { position:absolute; inset:0; z-index:0; width:100%; height:100%; opacity:.72; }.wingman-deck-route path { fill:none; }.wingman-deck-route path:first-child { stroke:rgba(246,243,235,.22); stroke-width:1.2; }.wingman-deck-route-dash { stroke:#cbff78; stroke-width:2.2; stroke-dasharray:9 17; animation:wingman-road 13s linear infinite; }.wingman-deck-car { fill:#f6f3eb; stroke:#173e31; stroke-width:2; filter:drop-shadow(0 0 11px rgba(203,255,120,.9)); }
+.wingman-deck-orbit { position:absolute; right:12vw; top:50%; width:min(37vw,31rem); aspect-ratio:1; transform:translateY(-43%); border:1px solid rgba(246,243,235,.28); border-radius:50%; box-shadow:0 0 0 4rem rgba(246,243,235,.035),0 0 0 10rem rgba(203,255,120,.03); }.wingman-deck-orbit::before,.wingman-deck-orbit::after { content:""; position:absolute; border:1px dashed rgba(203,255,120,.55); border-radius:inherit; }.wingman-deck-orbit::before{inset:14%;animation:wingman-spin 22s linear infinite;}.wingman-deck-orbit::after{inset:31%;border-style:solid;}.wingman-deck-orbit span{position:absolute;inset:0;z-index:2;display:grid;width:5rem;height:5rem;margin:auto;place-items:center;border-radius:50%;background:#cbff78;color:#173e31;box-shadow:0 0 0 14px rgba(203,255,120,.13),0 0 55px rgba(203,255,120,.35);}.wingman-deck-orbit i{position:absolute;width:.8rem;height:.8rem;border-radius:50%;background:#cbff78;box-shadow:0 0 15px #cbff78;animation:wingman-orbit 4s ease-in-out infinite;}.wingman-deck-orbit i:nth-of-type(1){top:12%;left:31%;}.wingman-deck-orbit i:nth-of-type(2){right:10%;top:55%;animation-delay:-1.3s;}.wingman-deck-orbit i:nth-of-type(3){bottom:14%;left:20%;animation-delay:-2.6s;}
+.wingman-deck-rail { position:absolute; z-index:30; right:1.4rem; top:50%; display:grid; gap:.5rem; transform:translateY(-50%); }.wingman-deck-rail span{display:block;width:.35rem;height:1.9rem;background:rgba(246,243,235,.2);transition:.35s ease;}.wingman-deck-rail span.is-active{background:#cbff78;transform:scaleY(1.18);}
+@media(max-width:640px){.wingman-deck-orbit{right:-3rem;top:62%;width:19rem;}.wingman-deck-scene h1{max-width:95%;}.wingman-deck-rail{right:.75rem;}.wingman-deck-scene nav .hidden{display:none;}}
+
+.wingman-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -28% 25%;
+  height: 58%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(203, 255, 120, 0.18), transparent 65%);
+  filter: blur(20px);
+}
+
+.wingman-hero-sequence { isolation: isolate; }
+.wingman-hero-sequence .wingman-hero > nav,
+.wingman-hero-content { transition: opacity .8s cubic-bezier(.2,.8,.2,1), transform 1.05s cubic-bezier(.2,.8,.2,1); }
+.wingman-hero-progressed .wingman-hero > nav { opacity: .3; transform: translateY(-18px); }
+.wingman-hero-progressed .wingman-hero-content { transform: translateY(-7vh) scale(.975); }
+.wingman-hero-progressed .wingman-hero h1 { transform: translateX(-5vw); opacity: .32; filter: blur(2px); }
+.wingman-hero-progressed .wingman-hero p { opacity: .38; }
+.wingman-hero-progressed .wingman-hero-route { transform: scale(1.15) translateY(-6%); opacity: .85; }
+.wingman-hero-progressed .wingman-hero-glow-one { transform: translate3d(-16vw, 16vh, 0) scale(1.2); }
+.wingman-hero h1, .wingman-hero p, .wingman-hero-route { transition: opacity .85s cubic-bezier(.2,.8,.2,1), transform 1.05s cubic-bezier(.2,.8,.2,1), filter .7s ease; }
+
+.wingman-grain {
+  position: absolute;
+  inset: 0;
+  opacity: .17;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.wingman-hero-glow {
+  position: absolute;
+  width: 43rem;
+  height: 43rem;
+  border-radius: 999px;
+  filter: blur(14px);
+  opacity: .5;
+  animation: wingman-drift 14s ease-in-out infinite alternate;
+}
+
+.wingman-hero-glow-one { right: -15rem; top: 9rem; background: rgba(108, 160, 119, .55); }
+.wingman-hero-glow-two { left: -15rem; bottom: -19rem; background: rgba(203, 255, 120, .18); animation-delay: -6s; }
+.wingman-hero-horizon { position: absolute; right: -15vw; bottom: -17vw; width: 85vw; height: 37vw; border: 1px solid rgba(203,255,120,.23); border-radius: 50% 50% 0 0; transform: rotate(-7deg); opacity: .5; }
+
+.wingman-hero-route { position: absolute; inset: 0; opacity: .55; pointer-events: none; }
+.wingman-hero-route svg { width: 100%; height: 100%; }
+.wingman-hero-route path { fill: none; stroke: rgba(246, 243, 235, .18); stroke-width: 1.2; }
+.wingman-hero-route .wingman-route-dash { stroke: #cbff78; stroke-width: 2; stroke-dasharray: 8 16; animation: wingman-road 15s linear infinite; }
+.wingman-hero-vehicle { fill: #f6f3eb; stroke: #173e31; stroke-width: 2; filter: drop-shadow(0 0 10px rgba(203,255,120,.85)); }
+
+.wingman-login-route { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .62; pointer-events: none; }
+.wingman-login-road-base, .wingman-login-road-dash { fill: none; }
+.wingman-login-road-base { stroke: rgba(246, 243, 235, .16); stroke-width: 1.2; }
+.wingman-login-road-dash { stroke: #cbff78; stroke-width: 2; stroke-dasharray: 7 15; animation: wingman-road 12s linear infinite; }
+.wingman-login-vehicle { fill: #f6f3eb; stroke: #173e31; stroke-width: 1.8; filter: drop-shadow(0 0 9px rgba(203,255,120,.9)); }
+.wingman-login-panel { --login-accent: #cbff78; box-shadow: 0 28px 70px rgba(0,0,0,.16); }
+.wingman-login-tone-blue { --login-accent: #bdd4ff; }
+.wingman-login-tone-orange { --login-accent: #ffd2a7; }
+.wingman-login-tone-violet { --login-accent: #d8c2ff; }
+.wingman-role-reveal { animation: wingman-panel-arrive .58s cubic-bezier(.2,.85,.25,1) both; }
+.wingman-role-choice { position: relative; overflow: hidden; }
+.wingman-role-choice::after { content: ""; position: absolute; inset: auto 0 0; height: 2px; background: #cbff78; transform: scaleX(0); transform-origin: left; transition: transform .3s ease; }
+.wingman-role-choice:has(.scale-100)::after { transform: scaleX(1); }
+.wingman-enter-button { position: relative; overflow: hidden; }
+.wingman-enter-button::before { content: ""; position: absolute; inset: 0 auto 0 -40%; width: 35%; background: linear-gradient(90deg, transparent, rgba(203,255,120,.25), transparent); transform: skewX(-20deg); transition: transform .6s ease; }
+.wingman-enter-button:hover::before { transform: translateX(420%) skewX(-20deg); }
+
+.wingman-marquee { border-bottom: 1px solid rgba(23, 61, 49, .12); border-top: 1px solid rgba(23, 61, 49, .12); }
+.wingman-marquee-track { display: inline-block; min-width: max-content; animation: wingman-marquee 24s linear infinite; }
+.wingman-marquee-track span { display: inline-block; margin: 0 1.25rem; }
+
+.wingman-kicker { font-size: .7rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+.wingman-enter { animation: wingman-rise .8s cubic-bezier(.2,.8,.2,1) both; }
+.wingman-enter-two { animation-delay: .1s; }
+.wingman-enter-three { animation-delay: .22s; }
+.wingman-enter-four { animation-delay: .32s; }
+.wingman-enter-five { animation-delay: .44s; }
+.wingman-hero-foot b { font-variant-numeric: tabular-nums; }
+
+.wingman-forward { isolation: isolate; }
+.wingman-forward-grid { position: absolute; inset: 0; opacity: .66; background-image: linear-gradient(rgba(23,61,49,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(23,61,49,.07) 1px, transparent 1px); background-size: 72px 72px; mask-image: linear-gradient(90deg, transparent, black 22%, black 78%, transparent); }
+.wingman-forward-orb { position: absolute; border-radius: 999px; pointer-events: none; transition: transform 1s cubic-bezier(.2,.8,.2,1), background 1s ease; }
+.wingman-forward-orb-one { right: -12rem; top: 9%; width: min(63vw, 62rem); height: min(63vw, 62rem); background: radial-gradient(circle at 35% 35%, rgba(203,255,120,.72), rgba(203,255,120,.16) 29%, rgba(23,61,49,.08) 59%, transparent 70%); filter: blur(2px); }
+.wingman-forward-orb-two { left: 25%; bottom: -23rem; width: 48rem; height: 48rem; border: 1px solid rgba(23,61,49,.15); }
+.wingman-forward-route { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
+.wingman-forward-motion-path, .wingman-forward-route-base, .wingman-forward-route-dash { fill: none; }
+.wingman-forward-motion-path { stroke: none; }
+.wingman-forward-route-base { stroke: rgba(23,61,49,.18); stroke-width: 1.4; }
+.wingman-forward-route-dash { stroke: #5b923c; stroke-width: 2.4; stroke-dasharray: 9 18; animation: wingman-road 13s linear infinite; }
+.wingman-forward-vehicle { fill: #173e31; stroke: #cbff78; stroke-width: 2; filter: drop-shadow(0 0 10px rgba(203,255,120,.82)); }
+.wingman-forward-word { margin: .7rem 0 -1rem -0.08em; color: rgba(23,61,49,.075); font-size: clamp(5.5rem, 14.3vw, 15rem); font-weight: 900; line-height: .78; letter-spacing: -.1em; transition: transform .9s cubic-bezier(.2,.8,.2,1), color .9s ease; user-select: none; }
+.wingman-forward-title { max-width: 47rem; font-size: clamp(3.3rem, 6.1vw, 7.4rem); font-weight: 900; line-height: .83; letter-spacing: -.085em; color: #173e31; animation: wingman-forward-enter .72s cubic-bezier(.2,.85,.2,1) both; }
+.wingman-forward-copy { max-width: 30rem; margin-top: 1.7rem; color: #566b5d; font-size: 1rem; line-height: 1.75; animation: wingman-forward-enter .76s .07s cubic-bezier(.2,.85,.2,1) both; }
+.wingman-forward-readout { min-height: 27rem; padding: 2rem 2rem 2rem 3rem; border-left: 1px solid rgba(23,61,49,.18); animation: wingman-forward-enter .78s cubic-bezier(.2,.85,.2,1) both; }
+.wingman-forward-index { position: absolute; right: -.08em; top: -.2em; color: rgba(23,61,49,.09); font-size: clamp(10rem, 20vw, 20rem); font-weight: 900; line-height: .7; letter-spacing: -.12em; }
+.wingman-forward-marker { position: absolute; right: 11%; top: 18%; width: 10rem; height: 10rem; border: 1px solid rgba(23,61,49,.2); border-radius: 50%; animation: wingman-forward-orbit 16s linear infinite; }
+.wingman-forward-marker::before { content: ""; position: absolute; inset: 2.6rem; border-radius: 50%; background: #cbff78; box-shadow: 0 0 0 14px rgba(203,255,120,.15); }
+.wingman-forward-marker span { position: absolute; width: .65rem; height: .65rem; border-radius: 50%; background: #173e31; }
+.wingman-forward-marker span:nth-child(1) { left: 1rem; top: 4rem; }.wingman-forward-marker span:nth-child(2) { right: 1.6rem; top: 1.7rem; }.wingman-forward-marker span:nth-child(3) { right: 1.2rem; bottom: 2.2rem; }
+.wingman-forward-progress { position: absolute; right: 2rem; top: 50%; display: grid; gap: .55rem; transform: translateY(-50%); }.wingman-forward-progress span { display: block; width: .45rem; height: 2.4rem; background: rgba(23,61,49,.14); transition: background .45s ease, transform .45s ease; }.wingman-forward-progress span.is-active { background: #173e31; transform: scaleY(1.15); }
+.wingman-forward-phase-1 .wingman-forward-orb-one { transform: translate3d(-26vw, 8vh, 0) scale(.78); background: radial-gradient(circle at 35% 35%, rgba(171,202,255,.68), rgba(171,202,255,.15) 30%, rgba(23,61,49,.08) 59%, transparent 70%); }.wingman-forward-phase-1 .wingman-forward-word { transform: translateX(7vw); color: rgba(48,84,99,.08); }.wingman-forward-phase-1 .wingman-forward-route-dash { stroke: #7799d7; }
+.wingman-forward-phase-2 .wingman-forward-orb-one { transform: translate3d(-44vw, -4vh, 0) scale(.67); background: radial-gradient(circle at 35% 35%, rgba(255,190,123,.62), rgba(255,190,123,.15) 30%, rgba(23,61,49,.08) 59%, transparent 70%); }.wingman-forward-phase-2 .wingman-forward-orb-two { transform: translate3d(35vw,-18vh,0) scale(1.25); }.wingman-forward-phase-2 .wingman-forward-word { transform: translateX(13vw); color: rgba(122,82,42,.08); }.wingman-forward-phase-2 .wingman-forward-route-dash { stroke: #d58f4c; }
+
+.wingman-map { position: relative; }
+.wingman-map-route { fill: none; stroke: #cbff78; stroke-width: 4; stroke-dasharray: 10 12; animation: wingman-road 7s linear infinite; }
+.wingman-map-pulse { fill: #f6f3eb; animation: wingman-pulse 2.2s ease-out infinite; transform-origin: 115px 365px; }
+.wingman-map-point { fill: #cbff78; stroke: #173e31; stroke-width: 6; }
+.wingman-map-vehicle { fill: #f6f3eb; stroke: #173e31; stroke-width: 1.5; filter: drop-shadow(0 0 8px rgba(203,255,120,.8)); }
+
+.wingman-reveal {
+  opacity: 0;
+  transform: translateY(34px);
+  transition: opacity .9s cubic-bezier(.2,.8,.2,1), transform .9s cubic-bezier(.2,.8,.2,1);
+}
+
+.wingman-reveal-visible { opacity: 1; transform: translateY(0); }
+.wingman-reveal-delay { transition-delay: .13s; }
+
+.wingman-role-card:hover { transform: translateY(-7px); box-shadow: 0 32px 70px rgba(18, 48, 38, .28); }
+.wingman-role-card { transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s cubic-bezier(.2,.8,.2,1); }
+.wingman-role-card:hover > span { transform: scale(1.25); opacity: .36; }
+
+.wingman-journey { --journey-accent: #cbff78; }
+.wingman-journey-blue { --journey-accent: #bdd4ff; }
+.wingman-journey-orange { --journey-accent: #ffd2a7; }
+.wingman-loop { --journey-accent: #cbff78; }
+.wingman-loop-blue { --journey-accent: #bdd4ff; }
+.wingman-loop-orange { --journey-accent: #ffd2a7; }
+.wingman-journey-grid, .wingman-field-grid { position: absolute; inset: 0; pointer-events: none; opacity: .25; background-image: linear-gradient(rgba(246,243,235,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(246,243,235,.14) 1px, transparent 1px); background-size: 52px 52px; mask-image: radial-gradient(ellipse at center, black, transparent 75%); }
+.wingman-journey-route { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .32; pointer-events: none; }
+.wingman-journey-route path { fill: none; stroke: rgba(246,243,235,.3); stroke-width: 1.2; }
+.wingman-journey-route .wingman-journey-route-dash { stroke: var(--journey-accent); stroke-width: 2; stroke-dasharray: 8 17; animation: wingman-road 12s linear infinite; transition: stroke .6s ease; }
+.wingman-journey-stage { animation: wingman-stage-swap .72s cubic-bezier(.2,.85,.25,1) both; box-shadow: 0 35px 90px rgba(0,0,0,.2); }
+.wingman-journey-icon { box-shadow: 0 0 0 10px color-mix(in srgb, var(--journey-accent) 12%, transparent), 0 0 32px color-mix(in srgb, var(--journey-accent) 45%, transparent); animation: wingman-icon-pulse 2.8s ease-in-out infinite; }
+.wingman-journey-console { box-shadow: 0 34px 90px rgba(0, 0, 0, .2); }
+.wingman-loop-stage { display: grid; min-height: 31rem; grid-template-columns: minmax(13rem,.7fr) minmax(0,1.3fr); align-items: center; gap: clamp(2rem,5vw,7rem); animation: wingman-loop-enter .75s cubic-bezier(.2,.85,.25,1) both; }
+.wingman-loop-ring { position: relative; aspect-ratio: 1; width: min(27vw, 23rem); min-width: 13rem; border: 1px solid color-mix(in srgb,var(--journey-accent) 42%,transparent); border-radius: 50%; box-shadow: 0 0 0 3rem color-mix(in srgb,var(--journey-accent) 5%,transparent), 0 0 0 8rem color-mix(in srgb,var(--journey-accent) 3%,transparent); }
+.wingman-loop-ring::before,.wingman-loop-ring::after { content:""; position:absolute; border:1px dashed color-mix(in srgb,var(--journey-accent) 55%,transparent); border-radius:inherit; }.wingman-loop-ring::before { inset:12%; animation:wingman-spin 22s linear infinite; }.wingman-loop-ring::after { inset:29%; border-style:solid; opacity:.6; animation:wingman-spin 15s linear reverse infinite; }
+.wingman-loop-core { position:absolute; inset:0; z-index:2; display:grid; width:4.8rem; height:4.8rem; margin:auto; place-items:center; border-radius:50%; background:var(--journey-accent); color:#173e31; box-shadow:0 0 0 12px color-mix(in srgb,var(--journey-accent) 12%,transparent),0 0 50px color-mix(in srgb,var(--journey-accent) 45%,transparent); }
+.wingman-loop-ring i { position:absolute; z-index:3; display:block; width:.8rem; height:.8rem; border-radius:50%; background:var(--journey-accent); box-shadow:0 0 16px currentColor; animation:wingman-orbit 4s ease-in-out infinite; }.wingman-loop-ring i:nth-of-type(1){left:8%;top:37%;}.wingman-loop-ring i:nth-of-type(2){right:11%;top:17%;animation-delay:-1.4s;}.wingman-loop-ring i:nth-of-type(3){right:20%;bottom:12%;animation-delay:-2.8s;}
+.wingman-loop-copy { position:relative; z-index:2; }.wingman-loop-copy::after { content:"0" counter(wingmanStage); display:none; }
+.wingman-stage-orbit { position: relative; width: 11rem; height: 11rem; margin-left: auto; margin-right: auto; border-radius: 999px; border: 1px solid rgba(255,255,255,.15); transition: .7s ease; }
+.wingman-stage-orbit > span { position: absolute; inset: 0; display: grid; place-items: center; width: 3.2rem; height: 3.2rem; margin: auto; border-radius: 999px; background: #cbff78; color: #173e31; box-shadow: 0 0 0 10px rgba(203,255,120,.09); transition: .7s ease; }
+.wingman-stage-orbit i { position: absolute; display: block; width: .6rem; height: .6rem; border-radius: 999px; background: #cbff78; box-shadow: 0 0 14px currentColor; animation: wingman-orbit 6s linear infinite; }
+.wingman-stage-orbit i:nth-of-type(1) { top: 5%; left: 26%; }
+.wingman-stage-orbit i:nth-of-type(2) { right: 3%; top: 53%; animation-delay: -2s; }
+.wingman-stage-orbit i:nth-of-type(3) { bottom: 8%; left: 18%; animation-delay: -4s; }
+.wingman-stage-blue > span, .wingman-stage-blue i { background: #bdd4ff; }
+.wingman-stage-orange > span, .wingman-stage-orange i { background: #ffd2a7; }
+
+.wingman-field { --field-accent: #cbff78; }
+.wingman-field-grid { opacity: .52; background-image: linear-gradient(rgba(23,61,49,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(23,61,49,.1) 1px, transparent 1px); }
+.wingman-field-blue { --field-accent: #89afff; }
+.wingman-field-orange { --field-accent: #e9964d; }
+.wingman-field-enter { animation: wingman-field-in .7s cubic-bezier(.2,.85,.25,1) both; }
+.wingman-field-next { box-shadow: 0 18px 44px rgba(23,61,49,.2); }
+.wingman-field-signal::before { content: ""; position: absolute; width: 26rem; height: 26rem; border-radius: 999px; background: var(--field-accent); opacity: .11; filter: blur(6px); animation: wingman-drift 9s ease-in-out infinite alternate; }
+.wingman-field-orbit { position: relative; width: 15rem; height: 15rem; border: 1px solid color-mix(in srgb, var(--field-accent) 38%, transparent); border-radius: 999px; }
+.wingman-field-orbit::before, .wingman-field-orbit::after { content: ""; position: absolute; inset: 1.8rem; border: 1px solid color-mix(in srgb, var(--field-accent) 22%, transparent); border-radius: inherit; }
+.wingman-field-orbit::after { inset: 4rem; border-style: dashed; animation: wingman-spin 16s linear infinite; }
+.wingman-field-orbit > span { position: absolute; inset: 0; width: 4.5rem; height: 4.5rem; margin: auto; display: grid; place-items: center; border-radius: 999px; background: var(--field-accent); color: #173e31; box-shadow: 0 0 0 13px color-mix(in srgb, var(--field-accent) 11%, transparent); }
+.wingman-field-orbit i { position: absolute; z-index: 2; width: .85rem; height: .85rem; border-radius: 999px; background: var(--field-accent); box-shadow: 0 0 14px var(--field-accent); animation: wingman-orbit 4s ease-in-out infinite; }
+.wingman-field-orbit i:nth-of-type(1) { top: 1.8rem; left: 2.9rem; }
+.wingman-field-orbit i:nth-of-type(2) { right: 1.4rem; top: 7rem; animation-delay: -1.3s; }
+.wingman-field-orbit i:nth-of-type(3) { bottom: 2.4rem; left: 3.8rem; animation-delay: -2.6s; }
+
+@keyframes wingman-orbit { 0%, 100% { transform: scale(.75); opacity: .45; } 50% { transform: scale(1.4); opacity: 1; } }
+
+@keyframes wingman-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes wingman-panel-arrive { from { opacity: 0; transform: translateY(18px) scale(.98); filter: blur(5px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+@keyframes wingman-stage-swap { from { opacity: 0; transform: translate3d(7%, 0, 0) scale(.98); filter: blur(7px); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); } }
+@keyframes wingman-field-in { from { opacity: 0; transform: translate3d(5%, 0, 0); filter: blur(8px); } to { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } }
+@keyframes wingman-icon-pulse { 0%, 100% { transform: scale(.96); } 50% { transform: scale(1.04); } }
+@keyframes wingman-spin { to { transform: rotate(360deg); } }
+@keyframes wingman-road { to { stroke-dashoffset: -160; } }
+@keyframes wingman-drift { from { transform: translate3d(-3%, 1%, 0) scale(.96); } to { transform: translate3d(5%, -4%, 0) scale(1.06); } }
+@keyframes wingman-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes wingman-pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(3.4); opacity: 0; } }
+@keyframes wingman-forward-enter { from { opacity: 0; transform: translate3d(0, 42px, 0); filter: blur(8px); } to { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } }
+@keyframes wingman-forward-orbit { to { transform: rotate(360deg); } }
+@keyframes wingman-loop-enter { from { opacity:0; transform:translate3d(6vw,0,0); filter:blur(8px); } to { opacity:1; transform:translate3d(0,0,0); filter:blur(0); } }
+
+@media (max-width: 1023px) {
+  .wingman-forward { height: 290svh; }
+  .wingman-loop { height: 290svh; }
+  .wingman-loop-stage { grid-template-columns: minmax(10rem,.65fr) minmax(0,1.35fr); }
+  .wingman-forward-readout { min-height: 19rem; }
+  .wingman-forward-word { font-size: clamp(5rem, 18vw, 9rem); }
+}
+
+@media (max-width: 640px) {
+  .wingman-hero-horizon { width: 120vw; height: 62vw; bottom: -16vw; right: -46vw; }
+  .wingman-hero-foot { align-items: flex-start; }
+  .wingman-forward { height: 310svh; }
+  .wingman-loop { height: 310svh; }
+  .wingman-loop-stage { min-height: 31rem; grid-template-columns: 1fr; gap: 2rem; }
+  .wingman-loop-ring { width: 12rem; margin: 3rem auto 0; }
+  .wingman-forward-readout { min-height: 17rem; padding: 1.35rem; border-left: 0; border-top: 1px solid rgba(23,61,49,.18); }
+  .wingman-forward-marker { transform: scale(.72); transform-origin: top right; }
+  .wingman-forward-progress { right: 1rem; }
+  .wingman-forward-copy { font-size: .92rem; line-height: 1.65; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wingman-enter, .wingman-hero-glow, .wingman-hero-route .wingman-route-dash, .wingman-login-road-dash, .wingman-map-route, .wingman-map-pulse, .wingman-stage-orbit i, .wingman-journey-route .wingman-journey-route-dash, .wingman-journey-icon, .wingman-marquee-track, .wingman-role-reveal, .wingman-field-enter, .wingman-field-signal::before, .wingman-field-orbit::after, .wingman-field-orbit i, .wingman-forward-route-dash, .wingman-forward-marker, .wingman-forward-title, .wingman-forward-copy, .wingman-forward-readout, .wingman-loop-stage, .wingman-loop-ring::before, .wingman-loop-ring::after, .wingman-loop-ring i { animation: none !important; }
+  .wingman-hero-vehicle, .wingman-login-vehicle, .wingman-map-vehicle { display: none; }
+  .wingman-reveal { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
 @keyframes roadassist-float {
   0%, 100% {
     transform: translate3d(0, 0, 0);
