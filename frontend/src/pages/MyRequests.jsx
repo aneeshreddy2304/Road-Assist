@@ -120,7 +120,7 @@ function ReviewSection({ requestId }) {
       await submitReview({ request_id: requestId, rating, comment });
       setSubmitted(true);
     } catch (e) {
-      // Already reviewed or error — silently ignore
+      // Already reviewed or error, silently ignore
       setSubmitted(true);
     } finally {
       setLoading(false);

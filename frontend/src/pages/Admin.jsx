@@ -790,7 +790,7 @@ export default function Admin() {
           <Card className="rounded-[28px] border border-[#dbe7ff] bg-white/95 p-5 shadow-lg">
             <SectionHeader title="Demand hotspots" />
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <MiniMetric label="Most requested" value={displayedTopParts[0]?.part_name || "--"} tone="blue" />
+              <MiniMetric label="Most requested" value={displayedTopParts[0]?.part_name || "--"} tone="blue" wrap />
               <MiniMetric label="Peak usage" value={`${displayedTopParts[0]?.times_used || 0}x`} tone="amber" />
             </div>
             <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto pr-1">
@@ -989,7 +989,7 @@ function MetricCard({ icon, label, value, tone }) {
   );
 }
 
-function MiniMetric({ label, value, tone, compact = false }) {
+function MiniMetric({ label, value, tone, compact = false, wrap = false }) {
   const tones = {
     blue: "bg-[#eff6ff] text-[#1d4ed8]",
     green: "bg-[#ecfdf3] text-[#166534]",
@@ -1000,8 +1000,14 @@ function MiniMetric({ label, value, tone, compact = false }) {
     <div className={`min-w-0 rounded-[20px] px-4 py-3 ${tones[tone]}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-80">{label}</p>
       <p
-        className={`mt-2 overflow-hidden text-ellipsis whitespace-nowrap font-semibold tabular-nums leading-none ${
-          compact ? "text-[clamp(1.05rem,1.5vw,1.75rem)]" : "text-[clamp(1.35rem,2vw,2rem)]"
+        className={`mt-2 font-semibold ${
+          wrap
+            ? compact
+              ? "break-words text-[clamp(0.95rem,1.2vw,1.2rem)] leading-snug"
+              : "break-words text-[clamp(1.05rem,1.5vw,1.45rem)] leading-snug"
+            : `overflow-hidden text-ellipsis whitespace-nowrap tabular-nums leading-none ${
+                compact ? "text-[clamp(1.05rem,1.5vw,1.75rem)]" : "text-[clamp(1.35rem,2vw,2rem)]"
+              }`
         }`}
       >
         {value}

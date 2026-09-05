@@ -1,13 +1,13 @@
 export function StatusBadge({ status }) {
   const styles = {
-    requested:   "bg-yellow-100 text-yellow-800",
-    accepted:    "bg-blue-100 text-blue-800",
-    in_progress: "bg-purple-100 text-purple-800",
-    completed:   "bg-green-100 text-green-800",
-    cancelled:   "bg-gray-100 text-gray-600",
+    requested:   "bg-[#e8e6df] text-[#3b454c] border border-[#aeb8bc]",
+    accepted:    "bg-[#c9d0d3] text-[#252a2e] border border-[#aeb8bc]",
+    in_progress: "bg-[#3b454c] text-[#f4f1ea] border border-[#3b454c]",
+    completed:   "bg-[#252a2e] text-[#f4f1ea] border border-[#252a2e]",
+    cancelled:   "bg-[#e8e6df] text-[#59646a] border border-[#c9d0d3]",
   };
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${styles[status] || "bg-gray-100 text-gray-600"}`}>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${styles[status] || "bg-[#e8e6df] text-[#59646a] border border-[#c9d0d3]"}`}>
       {status.replace("_", " ")}
     </span>
   );
@@ -15,7 +15,7 @@ export function StatusBadge({ status }) {
 
 export function Card({ children, className = "" }) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 shadow-sm ${className}`}>
+    <div className={`bg-[#f4f1ea] rounded-xl border border-[#c9d0d3] shadow-[0_10px_28px_rgba(37,42,46,0.08)] ${className}`}>
       {children}
     </div>
   );
@@ -24,7 +24,7 @@ export function Card({ children, className = "" }) {
 export function Spinner() {
   return (
     <div className="flex justify-center items-center py-12">
-      <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-4 border-[#3b454c] border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }

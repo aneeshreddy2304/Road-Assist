@@ -46,7 +46,7 @@ function AppShell() {
   const isPublicPage = pathname === "/" || pathname === "/login" || pathname === "/register";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${isPublicPage ? "wingman-public-shell" : "wingman-workspace-shell"} bg-gray-50`}>
       {!isPublicPage && <Navbar />}
         <Routes>
           <Route path="/"            element={<Landing />} />

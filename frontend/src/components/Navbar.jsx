@@ -277,15 +277,15 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-[700] border-b border-[#16305f] bg-[#071225]/95 text-white shadow-[0_12px_30px_rgba(3,10,24,0.35)] backdrop-blur-xl">
+    <nav className="wingman-workspace-nav sticky top-0 z-[700] border-b border-[#3b454c] bg-[#252a2e]/95 text-white shadow-[0_12px_30px_rgba(20,23,25,0.35)] backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 lg:px-6">
         <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[linear-gradient(160deg,#0e2b57_0%,#123d78_100%)] text-[#7ec0ff] shadow-[0_14px_30px_rgba(23,78,166,0.35)]">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[#3b454c] text-[#f4f1ea] shadow-[0_14px_30px_rgba(20,23,25,0.35)]">
             <Wrench size={18} />
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-[0.32em] text-white/40">Roadside Network</p>
-            <p className="text-[1.45rem] font-black tracking-[-0.03em] text-white">RoadAssist</p>
+            <p className="text-[1.45rem] font-black tracking-[-0.03em] text-white">wingman</p>
           </div>
         </Link>
 

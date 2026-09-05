@@ -58,6 +58,47 @@ const activeMarker = new L.DivIcon({
 });
 
 const DEFAULT_CENTER = [37.5407, -77.4360];
+const DEMO_SERVICE_REGION = {
+  latMin: 36.0,
+  latMax: 39.8,
+  lngMin: -79.9,
+  lngMax: -76.0,
+};
+
+function isFiniteCoordinate(value) {
+  return Number.isFinite(value);
+}
+
+function isWithinDemoServiceRegion(lat, lng) {
+  return (
+    isFiniteCoordinate(lat)
+    && isFiniteCoordinate(lng)
+    && lat >= DEMO_SERVICE_REGION.latMin
+    && lat <= DEMO_SERVICE_REGION.latMax
+    && lng >= DEMO_SERVICE_REGION.lngMin
+    && lng <= DEMO_SERVICE_REGION.lngMax
+  );
+}
+
+function normalizeMechanicCenter(rawLat, rawLng) {
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
+
+  const candidates = [
+    [lat, lng],
+    [lat, -Math.abs(lng)],
+    [lng, lat],
+    [lng, -Math.abs(lat)],
+  ];
+
+  for (const [candidateLat, candidateLng] of candidates) {
+    if (isWithinDemoServiceRegion(candidateLat, candidateLng)) {
+      return [candidateLat, candidateLng];
+    }
+  }
+
+  return DEFAULT_CENTER;
+}
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -98,8 +139,7 @@ export default function Dashboard() {
       const currentProfile = profileRes.data;
       setProfile(currentProfile);
 
-      const centerLat = currentProfile.lat ?? DEFAULT_CENTER[0];
-      const centerLng = currentProfile.lng ?? DEFAULT_CENTER[1];
+      const [centerLat, centerLng] = normalizeMechanicCenter(currentProfile.lat, currentProfile.lng);
 
       const [summaryRes, alertsRes, jobsRes, openRes, partsRes, appointmentsRes] = await Promise.allSettled([
         getMechanicDashboard(currentProfile.mechanic_id, { range }),
@@ -287,7 +327,7 @@ export default function Dashboard() {
     { id: "progress", title: "In Progress", jobs: activeJobs.filter((job) => job.status === "in_progress"), empty: "No active repair in progress" },
   ];
 
-  const center = [profile?.lat ?? DEFAULT_CENTER[0], profile?.lng ?? DEFAULT_CENTER[1]];
+  const center = normalizeMechanicCenter(profile?.lat, profile?.lng);
 
   const toggleAvailability = async () => {
     if (!profile) return;

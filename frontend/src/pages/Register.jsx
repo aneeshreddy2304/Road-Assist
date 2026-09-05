@@ -121,14 +121,14 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
+    <div className="wingman-register min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-3xl">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-brand-600 rounded-xl mb-3">
             <Wrench size={24} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-          <p className="text-sm text-gray-500 mt-1">Join RoadAssist today</p>
+          <p className="text-sm text-gray-500 mt-1">Join Wingman today</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">

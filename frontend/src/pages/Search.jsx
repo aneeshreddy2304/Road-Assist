@@ -1800,7 +1800,7 @@ function RequestModal({ mechanic, userLocation, onSuccess, onOpenConversation, o
                 >
                   {vehicles.map((vehicle) => (
                     <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.year} {vehicle.make} {vehicle.model} — {vehicle.license_plate}
+                      {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.license_plate}
                     </option>
                   ))}
                 </select>
@@ -2428,7 +2428,7 @@ function ScheduleAppointmentModal({ mechanic, onSuccess, onOpenConversation, onC
                   >
                     {vehicles.map((vehicle) => (
                       <option key={vehicle.id} value={vehicle.id}>
-                        {vehicle.year} {vehicle.make} {vehicle.model} — {vehicle.license_plate}
+                        {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.license_plate}
                       </option>
                     ))}
                   </select>

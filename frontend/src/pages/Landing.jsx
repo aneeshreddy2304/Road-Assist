@@ -3,13 +3,17 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  Bike,
+  Car,
   CarFront,
   ChevronLeft,
   ChevronRight,
   CircleDot,
   Package,
   Navigation,
+  Pencil,
   ShieldCheck,
+  Truck,
   Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -95,7 +99,7 @@ export default function Landing() {
               <span className="text-[#cbff78]">Wingman starts.</span>
             </h1>
             <p className="wingman-enter wingman-enter-three mt-5 max-w-xl text-sm leading-6 text-white/70 md:text-base md:leading-7">
-              A connected roadside-assistance workspace for drivers, mechanics, and parts suppliers—built to turn a breakdown into a clear next move.
+              A connected roadside-assistance workspace for drivers, mechanics, and parts suppliers, built to turn a breakdown into a clear next move.
             </p>
             <div className="wingman-enter wingman-enter-four mt-6 flex flex-wrap gap-3">
               <Link to={appDestination} className="inline-flex items-center gap-3 rounded-full bg-[#f6f3eb] px-6 py-3.5 text-sm font-bold text-[#163d30] transition hover:-translate-y-0.5 hover:bg-[#cbff78]">
@@ -108,7 +112,7 @@ export default function Landing() {
           </div>
 
           <div className="wingman-hero-foot wingman-enter wingman-enter-five mt-8 flex flex-wrap items-end justify-between gap-5 border-t border-white/15 pt-4 md:mt-10 md:pt-5">
-            <p className="max-w-xs text-sm leading-5 text-white/60">One clear signal—from the roadside to the people who can move it forward.</p>
+            <p className="max-w-xs text-sm leading-5 text-white/60">One clear signal, from the roadside to the people who can move it forward.</p>
             <div className="flex items-center gap-6 text-xs font-bold uppercase tracking-[.16em] text-white/65"><span><b className="mr-2 text-[#cbff78]">01</b> Locate</span><span><b className="mr-2 text-[#cbff78]">02</b> Match</span><span><b className="mr-2 text-[#cbff78]">03</b> Move</span></div>
           </div>
         </div>
@@ -133,7 +137,7 @@ export default function Landing() {
               <p className="wingman-kicker text-[#42643a]">The demo network</p>
               <h2 className="mt-5 text-5xl font-black leading-[0.88] tracking-[-0.07em] text-[#173e31] md:text-7xl">Every response has a route.</h2>
             </div>
-            <p className="max-w-sm text-sm leading-6 text-[#426043]">Wingman currently demonstrates its verified provider network around Richmond, Virginia. We show that boundary clearly—because trust starts with honesty.</p>
+            <p className="max-w-sm text-sm leading-6 text-[#426043]">Wingman currently demonstrates its verified provider network around Richmond, Virginia. We show that boundary clearly, because trust starts with honesty.</p>
           </div>
 
           <div className="wingman-map wingman-reveal mt-12 overflow-hidden rounded-[2rem] border border-[#315f49]/20 bg-[#173e31] p-5 shadow-[0_35px_90px_rgba(23,61,49,0.27)] md:p-8">
@@ -180,26 +184,72 @@ export default function Landing() {
   );
 }
 
+function LandingV2({ appDestination }) {
+  const [active, setActive] = useState(0);
+  const timerRef = useRef(null);
+  const lastTapRef = useRef(0);
+  const scenes = [
+    { id: "hero", kicker: "Roadside response, rethought", title: <>When the road stops,<br /><em>Wingman starts.</em></>, body: "A connected roadside-assistance workspace for drivers, mechanics, and parts suppliers, built to turn a breakdown into a clear next move." },
+    { id: "problem", title: "Help should feel close.", body: "" },
+    { id: "availability", title: "Know before you go.", body: "" },
+    { id: "timeline", title: "Stay close to the repair.", body: "" },
+    { id: "statement", title: <>One signal.<br /><em>Every handoff.</em></>, body: "Each role sees the same response differently; nobody loses the thread." },
+    { id: "mechanic", title: "Work arrives with context.", body: "" },
+    { id: "health", title: "Know your car between services.", body: "" },
+    { id: "dealership", title: <>From roadside<br /><em>to routine care.</em></>, body: "Find immediate help, schedule directly with nearby dealerships such as BMW, and stay ahead of the next service." },
+    { id: "dispatch", title: "Prepare the right kind of work.", body: "Warehouse ordering is mechanic-side only." },
+    { id: "gallery", title: "See it live.", body: "" },
+    { id: "footer", title: "", body: "" },
+  ];
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+  const tap = (event) => {
+    if (event.target.closest("a, button")) return;
+    const now = Date.now();
+    if (now - lastTapRef.current < 330) { clearTimeout(timerRef.current); lastTapRef.current = 0; setActive((v) => Math.max(0, v - 1)); return; }
+    lastTapRef.current = now;
+    timerRef.current = setTimeout(() => { setActive((v) => Math.min(scenes.length - 1, v + 1)); lastTapRef.current = 0; }, 250);
+  };
+  const scene = scenes[active];
+  return <main className="wingman-v2" onClick={tap} onWheel={(event) => event.preventDefault()}><V2Nav appDestination={appDestination} dark={["problem", "statement", "footer"].includes(scene.id)} /><section key={scene.id} className={`wingman-v2-scene wingman-v2-${scene.id} is-active`}><V2Content scene={scene} appDestination={appDestination} /></section></main>;
+}
+
+function V2Nav({ appDestination, dark }) {
+  return <nav className={`wingman-v2-nav ${dark ? "is-dark" : ""}`}><Link to="/" className="wingman-v2-brand"><span><Navigation size={16} fill="currentColor" /></span>wingman</Link><div className="wingman-v2-navlinks"><span>How it works</span><span>The network</span><Link to="/login">Sign in</Link></div><Link to={appDestination} className="wingman-v2-cta">Explore the demo <ArrowUpRight size={15} /></Link></nav>;
+}
+
+function V2Content({ scene, appDestination }) {
+  if (scene.id === "footer") return <footer className="wingman-v2-footer"><p>This prototype currently demonstrates a seeded provider network around Richmond, Virginia. Coverage, availability, and service details shown in the demo are illustrative.</p><div /><div className="wingman-v2-footer-bottom"><strong>wingman</strong><span>Product&nbsp;&nbsp;&nbsp; Company&nbsp;&nbsp;&nbsp; Legal&nbsp;&nbsp;&nbsp; Contact</span></div></footer>;
+  if (scene.id === "availability") return <div className="wingman-v2-centered"><h2>{scene.title}</h2><p>See service capability and parts availability before you commit.</p><div className="wingman-v2-compare"><MechanicCard name="Avery Auto Care" unavailable /><MechanicCard name="Reed Auto Works" /></div></div>;
+  if (scene.id === "timeline") return <div className="wingman-v2-timeline-wrap"><h2>{scene.title}</h2><div className="wingman-v2-timeline">{["Requested", "Accepted", "In progress", "Completed"].map((item, index) => <div key={item} className={index < 3 ? "is-complete" : ""}><i /><span>{item}</span></div>)}</div></div>;
+  if (scene.id === "statement") return <div className="wingman-v2-statement"><h2>{scene.title}</h2><p>{scene.body}</p></div>;
+  if (scene.id === "mechanic") return <div className="wingman-v2-split"><div><h2>{scene.title}</h2></div><JobQueue /></div>;
+  if (scene.id === "health") return <div className="wingman-v2-centered"><h2>{scene.title}</h2><div className="wingman-v2-healthcards"><div className="wingman-v2-health"><b>8,200</b><span>mi since last service</span></div><div className="wingman-v2-note"><Pencil size={17} /><p>Noticed a rattle near the left wheel</p></div></div></div>;
+  if (scene.id === "dealership") return <div className="wingman-v2-dealer"><div><h2>{scene.title}</h2><p>{scene.body}</p></div><CalendarMock /></div>;
+  if (scene.id === "dispatch") return <div className="wingman-v2-split"><div><h2>{scene.title}</h2><p>{scene.body}</p></div><DispatchBoard /></div>;
+  if (scene.id === "gallery") return <div className="wingman-v2-gallery"><h2>{scene.title}</h2><div>{["Dispatch map", "Mechanic queue", "Repair timeline", "Vehicle notes", "Dealership booking"].map((item, i) => <article key={item} className={`wingman-v2-thumb thumb-${i}`}><span>{item}</span></article>)}</div></div>;
+  return <div className={`wingman-v2-copy ${scene.id === "hero" ? "is-hero" : ""}`}><p className="wingman-v2-kicker">{scene.kicker}</p><h1>{scene.title}</h1>{scene.body && <p className="wingman-v2-body">{scene.body}</p>}{scene.id === "hero" && <div className="wingman-v2-actions"><Link to={appDestination}>See the product in motion</Link><span>See how it works</span></div>}{scene.id === "problem" && <div className="wingman-v2-thread"><i /><i /><i /><i /><i /></div>}<V2Route /></div>;
+}
+
+function V2Route() { return <svg className="wingman-v2-route" viewBox="0 0 900 600" aria-hidden="true"><path d="M-40 535C160 500 176 344 345 407s174-166 369-189" /><circle cx="345" cy="407" r="6" /><circle cx="714" cy="218" r="6" /></svg>; }
+function MechanicCard({ name, unavailable }) { return <article className="wingman-v2-mechanic-card"><b>{name}</b><small>{unavailable ? "Mobile service" : "Shop · Electrical"}</small><hr /><p className={unavailable ? "unavailable" : "available"}>Battery: {unavailable ? "out of stock" : "4 in stock"}</p></article>; }
+function JobQueue() { return <div className="wingman-v2-queue">{["Battery fault · 1.2 mi", "Flat tire · 2.8 mi", "Oil service · scheduled"].map((item, i) => <div className={i === 0 ? "focus" : ""} key={item}><b>{item}</b><span>{i === 0 ? "Needs attention" : "In queue"}</span></div>)}</div>; }
+function CalendarMock() { return <div className="wingman-v2-calendar"><b>Schedule service</b><div>{Array.from({ length: 14 }, (_, i) => <span className={i === 9 ? "selected" : ""} key={i}>{i + 1}</span>)}</div></div>; }
+function DispatchBoard() { return <div className="wingman-v2-dispatch"><header>Live dispatch board <small>streaming</small></header>{["M. Carter · Battery", "J. Walker · Brake check", "A. Reed · Parts pickup", "S. Moore · Engine light"].map((row) => <div key={row}>{row}<span>12 min</span></div>)}<footer><i /><i /><i /><i /></footer></div>; }
+
 function CinematicDeck({ appDestination }) {
   const [active, setActive] = useState(0);
   const tapTimerRef = useRef(null);
   const lastTapRef = useRef(0);
   const scenes = [
-    { eyebrow: "Roadside response, rethought", lead: "When the road stops,", accent: "Wingman starts.", body: "One connected workspace for the driver, the people doing the work, and the parts that keep it moving.", number: "00", label: "The signal begins", visual: "road", theme: "dark", layout: "hero" },
-    { eyebrow: "A clearer way forward", lead: "Help should", accent: "feel close.", body: "A breakdown should not become a hunt for updates. Wingman gives the next move a clear shape from the start.", number: "01", label: "The next move", visual: "locate", theme: "light", layout: "center" },
-    { eyebrow: "Step one · driver", lead: "Share the", accent: "real situation.", body: "Add your location, vehicle, and what happened once—so the response begins with the details that matter.", number: "02", label: "Location ready", visual: "road", theme: "dark", layout: "right" },
-    { eyebrow: "Step two · matching", lead: "See the", accent: "right response.", body: "Wingman distinguishes mobile mechanics who can come to you from shops that need you to bring the vehicle in.", number: "03", label: "Service mode visible", visual: "locate", theme: "sand", layout: "lower" },
-    { eyebrow: "Step three · progress", lead: "Stay close", accent: "to the repair.", body: "Follow acceptance, arrival, work, and completion in one timeline instead of wondering what happens after the request.", number: "04", label: "Progress connected", visual: "loop", theme: "blue", layout: "split" },
-    { eyebrow: "The response loop", lead: "Built to keep", accent: "help moving.", body: "The request is not passed around as loose messages. It becomes a live operational thread.", number: "05", label: "One live response", visual: "signal", theme: "dark", layout: "center" },
-    { eyebrow: "The response loop · driver", lead: "A signal leaves", accent: "the roadside.", body: "The driver starts with the problem at hand, while the vehicle and location keep the request grounded in reality.", number: "06", label: "Driver signal", visual: "road", theme: "slate", layout: "lower" },
-    { eyebrow: "The response loop · mechanic", lead: "Work arrives", accent: "with context.", body: "A mechanic can choose the right service path: travel to the driver, or prepare the shop for a scheduled vehicle visit.", number: "07", label: "Mechanic decision", visual: "loop", theme: "dark", layout: "right" },
-    { eyebrow: "The response loop · warehouse", lead: "The right part", accent: "joins the plan.", body: "When a repair needs stock, inventory becomes visible early—before the job stalls at the counter.", number: "08", label: "Parts in view", visual: "signal", theme: "warm", layout: "split" },
-    { eyebrow: "A shared field of view", lead: "One signal.", accent: "Every handoff.", body: "Each role sees the same response differently, but nobody loses the thread of what happens next.", number: "09", label: "Shared context", visual: "locate", theme: "light", layout: "center" },
-    { eyebrow: "For drivers", lead: "Know your car", accent: "between services.", body: "Vehicle health turns mileage and time since the last service into a useful reminder—not something you have to remember alone.", number: "10", label: "Vehicle health", visual: "road", theme: "blue", layout: "right" },
-    { eyebrow: "For drivers", lead: "Keep the small", accent: "details close.", body: "Save a quick note under a vehicle profile whenever you notice something worth remembering for the next visit.", number: "11", label: "Vehicle notes", visual: "locate", theme: "sand", layout: "lower" },
-    { eyebrow: "For service teams", lead: "Prepare the", accent: "right kind of work.", body: "Mechanics and warehouses see the context they need to decide whether the job needs a visit, a bay, or a part.", number: "12", label: "Service readiness", visual: "loop", theme: "slate", layout: "split" },
-    { eyebrow: "The demo network", lead: "Every response", accent: "has a route.", body: "Today, the public demo shows a seeded provider network around Richmond, Virginia—clearly labelled so the experience stays honest.", number: "13", label: "Route in motion", visual: "map", theme: "light", layout: "hero" },
-    { eyebrow: "Built for the next move", lead: "From roadside", accent: "to routine care.", body: "Find immediate help, schedule directly with nearby dealerships such as BMW, and stay ahead of the next service.", number: "14", label: "Wingman", visual: "final", theme: "dark", layout: "center" },
+    { eyebrow: "Roadside response, rethought", lead: "When the road stops,", accent: "Wingman starts.", body: "One connected workspace for the driver, the people doing the work, and the parts that keep it moving.", number: "00", label: "The signal begins", visual: "road", theme: "carbon", layout: "hero" },
+    { eyebrow: "A clearer way forward", lead: "Help should", accent: "feel close.", body: "Start from where you are. Wingman turns a stressful stop into a nearby response you can understand at a glance.", number: "01", label: "Help nearby", visual: "locate", theme: "porcelain", layout: "center", product: "nearby" },
+    { eyebrow: "The owner request", lead: "Share the", accent: "real situation.", body: "Details before the decision.", number: "02", label: "Request ready", visual: "road", theme: "gunmetal", layout: "hero", product: "request" },
+    { eyebrow: "Service mode visible", lead: "See the", accent: "right response.", body: "See whether a mechanic has the part you need and can come to you, or whether it makes more sense to bring the vehicle in.", number: "03", label: "Match with clarity", visual: "locate", theme: "aluminum", layout: "lower", product: "match" },
+    { eyebrow: "Progress connected", lead: "Stay close", accent: "to the repair.", body: "", number: "04", label: "Repair timeline", visual: "loop", theme: "gunmetal", layout: "split", product: "timeline" },
+    { eyebrow: "For mechanics", lead: "Take the work", accent: "that fits.", body: "Review nearby requests, then accept only the mobile visits, shop jobs, or scheduled service you can take on.", number: "05", label: "Mechanic workspace", visual: "loop", theme: "aluminum", layout: "right", product: "queue" },
+    { eyebrow: "Parts, in the same workspace", lead: "Source the part", accent: "without leaving the job.", body: "", number: "06", label: "Parts ordering", visual: "signal", theme: "gunmetal", layout: "split", product: "warehouse" },
+    { eyebrow: "Built for the next move", lead: "From roadside", accent: "to routine care.", body: "", number: "07", label: "Service booking", visual: "final", theme: "porcelain", layout: "center", product: "schedule" },
+    { eyebrow: "The demo network", lead: "Every response", accent: "has a route.", body: "Today, the public demo shows a seeded provider network around Richmond, Virginia, clearly labelled so the experience stays honest.", number: "08", label: "Richmond demo", visual: "map", theme: "carbon", layout: "hero" },
   ];
 
   useEffect(() => {
@@ -231,27 +281,27 @@ function CinematicDeck({ appDestination }) {
   };
   return (
     <main className="wingman-deck h-[100svh] overflow-hidden bg-[#173e31] text-[#f6f3eb]" onClick={advance} onWheel={(event) => event.preventDefault()}>
-      {scenes.map((scene, index) => <DeckScene key={scene.number} scene={scene} index={index} active={index === active} appDestination={appDestination} />)}
+      {scenes.map((scene, index) => <DeckScene key={scene.number} scene={scene} index={index} active={index === active} appDestination={appDestination} onNavigate={setActive} />)}
     </main>
   );
 }
 
-function DeckScene({ scene, index, active, appDestination }) {
+function DeckScene({ scene, index, active, appDestination, onNavigate }) {
   const style = { pointerEvents: active ? "auto" : "none" };
   return (
-    <section className={`wingman-deck-scene wingman-deck-${scene.visual} wingman-deck-${scene.theme} wingman-deck-layout-${scene.layout} ${active ? "is-active" : ""}`} style={style} aria-hidden={!active}>
+    <section className={`wingman-deck-scene wingman-deck-${scene.visual} wingman-deck-${scene.theme} wingman-deck-layout-${scene.layout} wingman-deck-product-${scene.product || "none"} ${active ? "is-active" : ""}`} style={style} aria-hidden={!active}>
       <div className="wingman-deck-grid" aria-hidden="true" />
       <div className="wingman-deck-glow wingman-deck-glow-a" aria-hidden="true" />
       <div className="wingman-deck-glow wingman-deck-glow-b" aria-hidden="true" />
       <DeckVisual type={scene.visual} />
+      {scene.product && <DeckProductMoment type={scene.product} />}
       <nav className="relative z-20 mx-auto flex max-w-[1540px] items-center justify-between px-5 py-6 md:px-10 md:py-8">
         <Link to="/" className="flex items-center gap-3" aria-label="Wingman home"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-current/25 bg-white/10"><Navigation size={17} fill="currentColor" /></span><span className="text-xl font-black tracking-[-.07em]">wingman</span></Link>
-        <div className="hidden gap-8 text-sm font-semibold opacity-70 md:flex"><span>How it works</span><span>The network</span><Link to="/login">Sign in</Link></div>
+        <div className="hidden gap-8 text-sm font-semibold opacity-70 md:flex"><button type="button" onClick={() => onNavigate(1)} className="transition hover:opacity-100">How it works</button><button type="button" onClick={() => onNavigate(8)} className="transition hover:opacity-100">The network</button><Link to="/login" className="transition hover:opacity-100">Sign in</Link></div>
         <Link to={appDestination} className="rounded-full bg-[#cbff78] px-5 py-2.5 text-sm font-bold text-[#173e31]">Explore the demo <ArrowUpRight className="ml-1 inline" size={15} /></Link>
       </nav>
       <div className="relative z-10 mx-auto flex min-h-[calc(100svh-92px)] max-w-[1540px] flex-col justify-between px-5 pb-8 pt-8 md:px-10 md:pt-12">
-        <div className="max-w-[1030px]"><p className="wingman-kicker text-[#cbff78]">{scene.eyebrow}</p><h1 className="mt-5 text-[clamp(3.6rem,8.2vw,9.2rem)] font-black leading-[.8] tracking-[-.095em]"><span className="block">{scene.lead}</span><span className="block text-[#cbff78]">{scene.accent}</span></h1><p className="mt-6 max-w-md text-sm leading-6 text-white/70 md:text-base md:leading-7">{scene.body}</p></div>
-        <div className="flex items-end justify-between border-t border-white/15 pt-4"><span className="text-xs font-bold uppercase tracking-[.18em] text-white/55">{scene.number} · {scene.label}</span>{index === 5 ? <Link to={appDestination} className="text-sm font-bold text-[#cbff78]">Enter Wingman <ArrowUpRight className="ml-1 inline" size={16} /></Link> : <span className="text-xs font-bold uppercase tracking-[.18em] text-white/45">Response in motion</span>}</div>
+        {scene.product === "timeline" ? <div className="wingman-deck-timeline-heading"><h1><span>Stay close</span><span>to the repair.</span></h1></div> : <div className="max-w-[1030px]"><p className="wingman-kicker text-[#cbff78]">{scene.eyebrow}</p><h1 className="mt-5 text-[clamp(3.6rem,8.2vw,9.2rem)] font-black leading-[.8] tracking-[-.095em]"><span className="block">{scene.lead}</span><span className="block text-[#cbff78]">{scene.accent}</span></h1><p className="mt-6 max-w-md text-sm leading-6 text-white/70 md:text-base md:leading-7">{scene.body}</p></div>}
       </div>
     </section>
   );
@@ -261,6 +311,21 @@ function DeckVisual({ type }) {
   if (type === "loop" || type === "signal") return <div className="wingman-deck-orbit" aria-hidden="true"><span>{type === "loop" ? <Wrench size={28} /> : <Navigation size={28} />}</span><i /><i /><i /></div>;
   if (type === "map") return <svg className="wingman-deck-route" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true"><path id="deck-map-road" d="M-80 720C250 700 225 174 612 340c280 120 302 375 830 70" /><path className="wingman-deck-route-dash" d="M-80 720C250 700 225 174 612 340c280 120 302 375 830 70" /><g className="wingman-deck-car"><rect x="-11" y="-7" width="22" height="14" rx="4" /><circle cx="-6" cy="8" r="3" /><circle cx="6" cy="8" r="3" /><animateMotion dur="10s" repeatCount="indefinite" rotate="auto"><mpath href="#deck-map-road" /></animateMotion></g></svg>;
   return <svg className="wingman-deck-route" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true"><path id={`deck-road-${type}`} d="M-90 720C170 600 276 294 510 448c190 126 300-170 497 20 160 154 275 28 545-197" /><path className="wingman-deck-route-dash" d="M-90 720C170 600 276 294 510 448c190 126 300-170 497 20 160 154 275 28 545-197" /><g className="wingman-deck-car"><rect x="-11" y="-7" width="22" height="14" rx="4" /><circle cx="-6" cy="8" r="3" /><circle cx="6" cy="8" r="3" /><animateMotion dur="14s" repeatCount="indefinite" rotate="auto"><mpath href={`#deck-road-${type}`} /></animateMotion></g></svg>;
+}
+
+function DeckProductMoment({ type }) {
+  if (type === "nearby") return <div className="wingman-product wingman-product-nearby" aria-hidden="true"><div className="wingman-nearby-radar"><i className="wingman-radar-ring ring-one" /><i className="wingman-radar-ring ring-two" /><i className="wingman-radar-ring ring-three" /><i className="wingman-radar-scan" /><span className="wingman-radar-hub"><Navigation size={18} fill="currentColor" /></span><span className="wingman-radar-contact is-primary"><Wrench size={15} /></span><span className="wingman-radar-contact contact-one" /><span className="wingman-radar-contact contact-two" /><span className="wingman-radar-distance">1.2 mi</span></div><article><span>Nearby response</span><b>Reed Auto Works</b><p><CircleDot size={14} fill="currentColor" /> Available now · 1.2 mi</p></article></div>;
+  if (type === "request") return <div className="wingman-product wingman-product-request" aria-hidden="true"><div className="wingman-request-case"><div className="wingman-request-head"><span>Assistance case · 024</span><b>Request ready</b></div><div className="wingman-request-row"><Navigation size={18} /><div><small>Current location</small><strong>Richmond, VA</strong></div><em>Shared</em></div><div className="wingman-request-row"><CarFront size={18} /><div><small>Vehicle</small><strong>2021 BMW 330i</strong></div><em>Added</em></div><div className="wingman-request-row is-issue"><Wrench size={18} /><div><small>What happened</small><strong>Battery will not start</strong></div><em>Sent</em></div><div className="wingman-request-stamp">Ready to assess</div></div></div>;
+  if (type === "match") return <div className="wingman-product wingman-product-match" aria-hidden="true"><div className="wingman-product-kicker">Matching the next move</div><div className="wingman-match-cards"><article className="wingman-product-card is-muted"><span>Mobile service</span><b>Avery Auto Care</b><p>Battery <i>out of stock</i></p></article><article className="wingman-product-card is-selected"><span>Shop · Electrical</span><b>Reed Auto Works</b><p>Battery <strong>4 in stock</strong></p><em>1.2 mi · bring vehicle in</em></article></div></div>;
+  if (type === "timeline") return <div className="wingman-product wingman-product-timeline" aria-hidden="true"><div className="wingman-road-timeline"><div className="wingman-road-lane"><i /><i /><i /><i /><i /><i /></div><div className="wingman-timeline-line"><span className="is-done"><i><CarFront size={19} /></i><b>Requested</b></span><span className="is-done"><i><Truck size={19} /></i><b>Accepted</b></span><span className="is-done"><i><Car size={19} /></i><b>In progress</b></span><span><i><Bike size={19} /></i><b>Completed</b></span></div></div></div>;
+  if (type === "queue") return <div className="wingman-product wingman-product-queue" aria-hidden="true"><div className="wingman-queue-top"><span>Today’s queue</span><b>3 live</b></div>{[["Battery fault", "Needs attention"], ["Flat tire", "In queue"], ["Oil service", "Booked"]].map(([job, status], index) => <article className={index === 0 ? "is-priority" : ""} key={job}><span className="wingman-queue-number">0{index + 1}</span><b>{job}</b><em>{status}</em></article>)}</div>;
+  if (type === "warehouse") return <div className="wingman-product wingman-product-warehouse" aria-hidden="true"><div className="wingman-warehouse-flow"><article className="wingman-flow-origin"><Package size={25} /><span>Warehouse stock</span><b>Blue Ridge Parts</b><small>6 terminal kits available</small></article><div className="wingman-flow-route"><i className="wingman-flow-line" /><div className="wingman-flow-cargo"><Package size={19} /><span>Battery terminal kit</span></div><div className="wingman-flow-stages">{["Requested", "Quoted", "Confirmed", "Packed", "Delivered"].map((status, index) => <span className={index < 3 ? "is-done" : ""} key={status}><i />{status}</span>)}</div></div></div></div>;
+  if (type === "health") return <div className="wingman-product wingman-product-health" aria-hidden="true"><div className="wingman-health-dial"><div><b>8,200</b><span>mi since last service</span></div></div><article className="wingman-health-note"><Pencil size={18} /><span>Vehicle note</span><p>Noticed a rattle near the left wheel.</p><i /></article></div>;
+  if (type === "schedule") {
+    const days = Array.from({ length: 30 }, (_, index) => String(index + 1));
+    return <div className="wingman-product wingman-product-schedule" aria-hidden="true"><div className="wingman-calendar-head"><span>Schedule service</span><b>June 2026</b></div><div className="wingman-calendar-week"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div><div className="wingman-calendar-days">{days.map((day) => <span className={day === "17" ? "is-selected" : day === "19" ? "has-note" : ""} key={day}><b>{day}</b></span>)}</div><div className="wingman-calendar-notes"><article><span>Tue, Jun 17 · 10:30 AM</span><b>BMW Richmond · Service appointment</b></article><article><span>Thu, Jun 19 · 2:00 PM</span><b>Northside Tire · Tire check</b></article></div></div>;
+  }
+  return null;
 }
 
 function CinematicForward() {
@@ -281,7 +346,7 @@ function CinematicForward() {
       word: "Match.",
       eyebrow: "The next right hand",
       title: "Context gets there first.",
-      copy: "Available mechanics see a usable request—not a vague call. The location, vehicle, and problem arrive together.",
+      copy: "Available mechanics see a usable request, not a vague call. The location, vehicle, and problem arrive together.",
       note: "Best-fit mechanic · 1.2 mi",
     },
     {
@@ -359,7 +424,7 @@ function ResponseJourney() {
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
   const chapters = [
-    { label: "Driver", title: "A signal leaves the roadside.", copy: "A driver shares a location, vehicle, and the problem—not a loose collection of calls and texts.", icon: <Navigation size={18} />, tone: "lime" },
+    { label: "Driver", title: "A signal leaves the roadside.", copy: "A driver shares a location, vehicle, and the problem, not a loose collection of calls and texts.", icon: <Navigation size={18} />, tone: "lime" },
     { label: "Mechanic", title: "The right hands see the full picture.", copy: "Available mechanics receive a usable case: where, what, when, and what the vehicle needs next.", icon: <Wrench size={18} />, tone: "blue" },
     { label: "Warehouse", title: "Parts become part of the response.", copy: "When the repair needs stock, the network can surface the right inventory and keep fulfillment visible.", icon: <Package size={18} />, tone: "orange" },
   ];
@@ -414,7 +479,7 @@ function SharedFieldCarousel() {
         {panel < 0 ? (
           <div key="intro" className="wingman-field-enter grid min-h-[68svh] items-center gap-12 lg:grid-cols-[1fr_.8fr]">
             <div><p className="wingman-kicker text-[#42643a]">A shared field of view</p><h2 className="mt-5 max-w-3xl text-6xl font-black leading-[.85] tracking-[-.08em] text-[#173e31] md:text-8xl">One signal.<br />Every handoff.</h2></div>
-            <div className="lg:justify-self-end"><p className="max-w-md text-lg leading-8 text-[#617168]">Wingman brings the people who solve the problem into the same response loop—without adding another dashboard to decode.</p><button type="button" onClick={() => setPanel(0)} className="wingman-field-next mt-10 ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#173e31] text-[#cbff78] transition hover:scale-110 hover:bg-[#285b44]" aria-label="Show driver workflow"><ChevronRight size={33} /></button></div>
+            <div className="lg:justify-self-end"><p className="max-w-md text-lg leading-8 text-[#617168]">Wingman brings the people who solve the problem into the same response loop, without adding another dashboard to decode.</p><button type="button" onClick={() => setPanel(0)} className="wingman-field-next mt-10 ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#173e31] text-[#cbff78] transition hover:scale-110 hover:bg-[#285b44]" aria-label="Show driver workflow"><ChevronRight size={33} /></button></div>
           </div>
         ) : (
           <div key={current.index} className="wingman-field-enter grid min-h-[68svh] items-center gap-10 lg:grid-cols-[.75fr_1.25fr]">
