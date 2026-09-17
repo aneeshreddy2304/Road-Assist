@@ -380,7 +380,7 @@ export default function Dashboard() {
   if (loading) return <Spinner />;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
+    <div className="wingman-workspace-page wingman-mechanic-workspace mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 rounded-[30px] border border-[#dbe7ff] bg-white/95 p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
           <div>

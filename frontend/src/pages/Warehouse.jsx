@@ -273,7 +273,7 @@ export default function Warehouse() {
   if (loading) return <Spinner />;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
+    <div className="wingman-workspace-page wingman-warehouse-workspace mx-auto max-w-[1440px] px-4 py-6 lg:px-6">
       <div className="space-y-6">
         <div className="rounded-[30px] border border-[#dbe7ff] bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">

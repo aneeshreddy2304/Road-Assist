@@ -31,6 +31,94 @@ body {
   outline-offset: 3px;
 }
 
+/* Functional workspaces deliberately share the same graphite / aluminum system.
+   These overrides sit above the older utility-first surfaces while the product is
+   migrated screen by screen, so no role falls back to the former blue dashboard. */
+.wingman-workspace-page {
+  --workspace-ink: #252a2e;
+  --workspace-muted: #657078;
+  --workspace-line: #c9d0d3;
+  --workspace-paper: #f4f1ea;
+  --workspace-metal: #dfe2e1;
+  --workspace-accent: #3b454c;
+  color: var(--workspace-ink);
+}
+
+.wingman-workspace-page .bg-white,
+.wingman-workspace-page .bg-\[\#f8fbff\],
+.wingman-workspace-page .bg-\[\#fbfdff\] {
+  background-color: var(--workspace-paper) !important;
+}
+
+.wingman-workspace-page .bg-\[\#eff6ff\],
+.wingman-workspace-page .bg-\[\#ecfdf5\],
+.wingman-workspace-page .bg-\[\#fff7ed\],
+.wingman-workspace-page .bg-\[\#fef2f2\] {
+  background-color: var(--workspace-metal) !important;
+}
+
+.wingman-workspace-page .border-\[\#dbe7ff\],
+.wingman-workspace-page .border-\[\#eef2ff\],
+.wingman-workspace-page .border-slate-200,
+.wingman-workspace-page .border-gray-200 {
+  border-color: var(--workspace-line) !important;
+}
+
+.wingman-workspace-page .text-\[\#081224\],
+.wingman-workspace-page .text-gray-900,
+.wingman-workspace-page .text-slate-900 {
+  color: var(--workspace-ink) !important;
+}
+
+.wingman-workspace-page .text-slate-500,
+.wingman-workspace-page .text-gray-500,
+.wingman-workspace-page .text-slate-400,
+.wingman-workspace-page .text-gray-400 {
+  color: var(--workspace-muted) !important;
+}
+
+.wingman-workspace-page .bg-\[\#0f172a\],
+.wingman-workspace-page .bg-\[\#2563eb\],
+.wingman-workspace-page .bg-brand-600 {
+  background-color: var(--workspace-accent) !important;
+}
+
+.wingman-workspace-page .text-\[\#2563eb\],
+.wingman-workspace-page .text-brand-600,
+.wingman-workspace-page .text-blue-600 {
+  color: #475158 !important;
+}
+
+.wingman-workspace-page button,
+.wingman-workspace-page a {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.wingman-workspace-page button:hover:not(:disabled),
+.wingman-workspace-page a:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.wingman-mechanic-workspace > .space-y-6 > :first-child,
+.wingman-warehouse-workspace > .space-y-6 > :first-child,
+.wingman-admin-workspace > .space-y-6 > :first-child {
+  background: linear-gradient(135deg, #30383d, #424d54) !important;
+  border-color: #4e5a61 !important;
+  color: #f4f1ea;
+}
+
+.wingman-mechanic-workspace > .space-y-6 > :first-child :is(h1,h2,p),
+.wingman-warehouse-workspace > .space-y-6 > :first-child :is(h1,h2,p),
+.wingman-admin-workspace > .space-y-6 > :first-child :is(h1,h2,p) {
+  color: #f4f1ea !important;
+}
+
+.wingman-workspace-page [class*="shadow-"] { box-shadow: 0 14px 32px rgba(37,42,46,.09) !important; }
+
+@media (max-width: 768px) {
+  .wingman-workspace-page { padding-bottom: 2rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

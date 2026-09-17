@@ -295,7 +295,7 @@ export default function Admin() {
   if (loading) return <Spinner />;
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-6 lg:px-6">
+    <div className="wingman-workspace-page wingman-admin-workspace mx-auto max-w-[1480px] px-4 py-6 lg:px-6">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="text-3xl font-semibold tracking-tight text-[#081224]">Admin dashboard</h1>
