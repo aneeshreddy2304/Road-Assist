@@ -1,3 +1,5 @@
+from uuid import NAMESPACE_URL, uuid5
+
 from sqlalchemy import text
 
 from app.db.session import engine
@@ -523,3 +525,57 @@ async def ensure_owner_marketplace_schema() -> None:
             ('b4e18cfa-3a10-4d01-9981-100000000006', 'b4e18cfa-3a10-4d01-9981-000000000009', 'Portable Tire Inflator', 'Slime', 'Tools', 36.99, 10, 'Compact emergency tire inflator.')
           ON CONFLICT (id) DO UPDATE SET price = EXCLUDED.price, stock_count = EXCLUDED.stock_count, description = EXCLUDED.description
         """))
+
+        # Publicly listed California chain locations.  The directory deliberately
+        # keeps contact routes synthetic, but its business names, service types,
+        # and city coverage are drawn from the providers' California locators.
+        # City-centre pins are used for these supplemental listings until a street
+        # address is separately reviewed; this avoids inventing an exact address.
+        california_cities = [
+            ("Anaheim", 33.8366, -117.9143), ("Bakersfield", 35.3733, -119.0187),
+            ("Chula Vista", 32.6401, -117.0842), ("Daly City", 37.6879, -122.4702),
+            ("El Cajon", 32.7948, -116.9625), ("Fresno", 36.7378, -119.7871),
+            ("Fremont", 37.5485, -121.9886), ("Irvine", 33.6846, -117.8265),
+            ("Long Beach", 33.7701, -118.1937), ("Los Angeles", 34.0522, -118.2437),
+            ("Modesto", 37.6391, -120.9969), ("Oakland", 37.8044, -122.2712),
+            ("Oceanside", 33.1959, -117.3795), ("Pasadena", 34.1478, -118.1445),
+            ("Redding", 40.5865, -122.3917), ("Sacramento", 38.5816, -121.4944),
+            ("San Diego", 32.7157, -117.1611), ("San Francisco", 37.7749, -122.4194),
+            ("San Jose", 37.3382, -121.8863), ("Santa Ana", 33.7455, -117.8677),
+            ("Santa Rosa", 38.4404, -122.7141), ("Stockton", 37.9577, -121.2908),
+            ("Sunnyvale", 37.3688, -122.0363), ("Temecula", 33.4936, -117.1484),
+            ("Ventura", 34.2746, -119.2290),
+        ]
+        directory_chains = [
+            ("O'Reilly Auto Parts", "oreilly", "parts", ["Batteries", "Wiper blade installation", "Bulb installation", "Check engine light testing", "Tools"], ["parts"], False, "https://locations.oreillyauto.com/en-us/ca/"),
+            ("AutoZone", "autozone", "parts", ["Batteries", "Oil and filters", "Brake parts", "Wipers", "Loan-A-Tool"], ["parts"], False, "https://www.autozone.com/locations/ca.html"),
+            ("Midas", "midas", "repair", ["Oil change", "Brakes", "Tires", "Alignment", "Engine tune-up"], ["shop"], True, "https://www.midas.com/store/ca"),
+            ("Firestone Complete Auto Care", "firestone", "tire", ["Tires", "Flat repair", "Wheel alignment", "Brake service", "Vehicle inspection"], ["shop"], True, "https://www.firestonecompleteautocare.com/california/"),
+        ]
+        for city, lat, lng in california_cities:
+            for name, key_prefix, category, services, modes, can_schedule, website in directory_chains:
+                key = f"{key_prefix}-{city.lower().replace(' ', '-')}-directory"
+                await conn.execute(
+                    text("""
+                      INSERT INTO owner_directory_providers
+                        (id, external_key, name, category, city, address, location, services, service_modes, can_schedule, description, synthetic_phone, synthetic_email, website_url)
+                      VALUES
+                        (CAST(:id AS UUID), :external_key, :name, :category, :city, :address,
+                         ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :services, :service_modes,
+                         :can_schedule, :description, :phone, :email, :website)
+                      ON CONFLICT (external_key) DO UPDATE SET
+                        name = EXCLUDED.name, category = EXCLUDED.category, city = EXCLUDED.city,
+                        address = EXCLUDED.address, location = EXCLUDED.location, services = EXCLUDED.services,
+                        service_modes = EXCLUDED.service_modes, can_schedule = EXCLUDED.can_schedule,
+                        description = EXCLUDED.description, website_url = EXCLUDED.website_url
+                    """),
+                    {
+                        "id": str(uuid5(NAMESPACE_URL, f"https://wingman.demo/directory/{key}")),
+                        "external_key": key, "name": name, "category": category, "city": city,
+                        "address": f"{name} service area, {city}, CA",
+                        "lat": lat, "lng": lng, "services": services, "service_modes": modes,
+                        "can_schedule": can_schedule,
+                        "description": f"Public directory listing for {name} in {city}. Exact contact details are simulated for this demo.",
+                        "phone": "+1 (555) 010-CA01", "email": f"{key}@wingman-demo.example", "website": website,
+                    },
+                )
