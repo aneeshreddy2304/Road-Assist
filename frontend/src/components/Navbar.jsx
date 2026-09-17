@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   CarFront,
   ClipboardList,
+  HeartPulse,
   LayoutDashboard,
   LogOut,
   Pencil,
@@ -295,6 +296,8 @@ export default function Navbar() {
               {user.role === "owner" ? (
                 <>
                   <HeaderNavLink to="/search" icon={<Search size={16} />} label="Find Help" active={pathname === "/search"} />
+                  <HeaderNavLink to="/explore" icon={<CarFront size={16} />} label="Explore" active={pathname === "/explore"} />
+                  <HeaderNavLink to="/vehicles" icon={<HeartPulse size={16} />} label="Vehicle Care" active={pathname.startsWith("/vehicles")} />
                 </>
               ) : null}
 
@@ -509,6 +512,14 @@ export default function Navbar() {
                                     {vehicle.vehicle_type} · {vehicle.fuel_type || "Fuel not set"} · {vehicle.color || "Color not set"}
                                   </p>
                                   {vehicle.notes ? <p className="mt-2 text-sm text-slate-500">{vehicle.notes}</p> : null}
+                                  <Link
+                                    to={`/vehicles/${vehicle.id}/care`}
+                                    onClick={() => setOpenPanel(null)}
+                                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#b9c8e4] bg-white px-3 text-xs font-semibold text-[#172033] transition hover:border-[#52647f] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                                  >
+                                    <HeartPulse size={15} aria-hidden="true" />
+                                    Open Vehicle Care
+                                  </Link>
                                 </div>
 
                                 <div className="flex items-center gap-2">

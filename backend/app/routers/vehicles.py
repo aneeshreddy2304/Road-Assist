@@ -1,7 +1,9 @@
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from pydantic import BaseModel
+from sqlalchemy import select, text
+from pydantic import BaseModel, Field
 
 from app.db.session import get_db
 from app.models.user import User
@@ -51,6 +53,16 @@ class VehicleOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class QuickVehicleNoteCreate(BaseModel):
+    note: str = Field(min_length=1, max_length=2000)
+
+
+class QuickVehicleNoteOut(BaseModel):
+    id: str
+    note: str
+    created_at: str
+
+
 @router.get("", response_model=list[VehicleOut])
 async def list_my_vehicles(
     db: AsyncSession = Depends(get_db),
@@ -95,6 +107,44 @@ async def update_vehicle(
     await db.commit()
     await db.refresh(vehicle)
     return vehicle
+
+
+@router.get("/{vehicle_id}/quick-notes", response_model=list[QuickVehicleNoteOut])
+async def list_quick_vehicle_notes(
+    vehicle_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("owner")),
+):
+    vehicle = (await db.execute(select(Vehicle.id).where(Vehicle.id == vehicle_id, Vehicle.owner_id == current_user.id))).scalar_one_or_none()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    rows = await db.execute(text("""
+        SELECT id::text, note, created_at::text
+        FROM vehicle_quick_notes
+        WHERE vehicle_id = CAST(:vehicle_id AS UUID) AND owner_id = :owner_id
+        ORDER BY created_at DESC
+    """), {"vehicle_id": vehicle_id, "owner_id": str(current_user.id)})
+    return [dict(row) for row in rows.mappings().all()]
+
+
+@router.post("/{vehicle_id}/quick-notes", response_model=QuickVehicleNoteOut, status_code=201)
+async def create_quick_vehicle_note(
+    vehicle_id: str,
+    payload: QuickVehicleNoteCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("owner")),
+):
+    vehicle = (await db.execute(select(Vehicle.id).where(Vehicle.id == vehicle_id, Vehicle.owner_id == current_user.id))).scalar_one_or_none()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    note_id = str(uuid4())
+    row = (await db.execute(text("""
+        INSERT INTO vehicle_quick_notes (id, vehicle_id, owner_id, note)
+        VALUES (CAST(:id AS UUID), CAST(:vehicle_id AS UUID), :owner_id, :note)
+        RETURNING id::text, note, created_at::text
+    """), {"id": note_id, "vehicle_id": vehicle_id, "owner_id": str(current_user.id), "note": payload.note.strip()})).mappings().one()
+    await db.commit()
+    return dict(row)
 
 
 @router.delete("/{vehicle_id}", status_code=204)

@@ -1,9 +1,13 @@
+import asyncio
+from contextlib import suppress
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.bootstrap import ensure_schema_updates
+from app.core.bootstrap import ensure_owner_marketplace_schema, ensure_schema_updates, ensure_vehicle_care_schema
 from app.core.config import get_settings
-from app.routers import auth, mechanics, parts, requests, admin, vehicles, engagement, warehouses
+from app.routers import auth, mechanics, parts, requests, admin, vehicles, engagement, warehouses, owner_marketplace
+from app.routers import vehicle_care
 
 settings = get_settings()
 
@@ -45,12 +49,42 @@ app.include_router(engagement.router)
 app.include_router(vehicles.router)
 app.include_router(admin.router)
 app.include_router(warehouses.router)
+app.include_router(vehicle_care.router)
+app.include_router(owner_marketplace.router)
+
+
+async def vehicle_care_reminder_loop() -> None:
+    """Keep in-app reminders current even if an owner does not open the app."""
+    while True:
+        try:
+            await vehicle_care.refresh_all_owner_reminders()
+        except Exception:
+            # A later pass retries a transient database failure without taking
+            # the API offline. This loop deliberately has no email side effect.
+            import logging
+            logging.getLogger(__name__).exception("Vehicle Care reminder refresh failed")
+        await asyncio.sleep(15 * 60)
 
 
 @app.on_event("startup")
 async def bootstrap_schema():
     if settings.AUTO_BOOTSTRAP_SCHEMA:
         await ensure_schema_updates()
+    # Vehicle Care ships with an idempotent schema installer so fresh and existing
+    # deployments receive the feature without a manual migration step.
+    await ensure_vehicle_care_schema()
+    await ensure_owner_marketplace_schema()
+    await vehicle_care.refresh_all_owner_reminders()
+    app.state.vehicle_care_reminder_task = asyncio.create_task(vehicle_care_reminder_loop())
+
+
+@app.on_event("shutdown")
+async def stop_vehicle_care_reminder_loop():
+    task = getattr(app.state, "vehicle_care_reminder_task", None)
+    if task:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 @app.get("/", tags=["Health"])

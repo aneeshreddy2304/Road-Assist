@@ -8,6 +8,8 @@ import Search      from "./pages/Search";
 import MechanicProfile from "./pages/MechanicProfile";
 import MyRequests  from "./pages/MyRequests";
 import Vehicles    from "./pages/Vehicles";
+import VehicleCare from "./pages/VehicleCare";
+import OwnerDirectory from "./pages/OwnerDirectory";
 import Dashboard   from "./pages/Dashboard";
 import Inventory   from "./pages/Inventory";
 import Jobs        from "./pages/Jobs";
@@ -46,16 +48,18 @@ function AppShell() {
   const isPublicPage = pathname === "/" || pathname === "/login" || pathname === "/register";
 
   return (
-    <div className={`min-h-screen ${isPublicPage ? "wingman-public-shell" : "wingman-workspace-shell"} bg-gray-50`}>
+    <div className={`min-h-screen ${isPublicPage ? "wingman-public-shell" : "wingman-workspace-shell"}`}>
       {!isPublicPage && <Navbar />}
         <Routes>
           <Route path="/"            element={<Landing />} />
           <Route path="/login"       element={<AuthRoute><Login /></AuthRoute>} />
           <Route path="/register"    element={<AuthRoute><Register /></AuthRoute>} />
           <Route path="/search"      element={<Protected roles={["owner"]}><Search /></Protected>} />
+          <Route path="/explore"     element={<Protected roles={["owner"]}><OwnerDirectory /></Protected>} />
           <Route path="/mechanics/:mechanicId" element={<Protected roles={["owner"]}><MechanicProfile /></Protected>} />
           <Route path="/my-requests" element={<Protected roles={["owner"]}><MyRequests /></Protected>} />
           <Route path="/vehicles"    element={<Protected roles={["owner"]}><Vehicles /></Protected>} />
+          <Route path="/vehicles/:vehicleId/care" element={<Protected roles={["owner"]}><VehicleCare /></Protected>} />
           <Route path="/dashboard"   element={<Protected roles={["mechanic"]}><Dashboard /></Protected>} />
           <Route path="/inventory"   element={<Protected roles={["mechanic"]}><Inventory /></Protected>} />
           <Route path="/jobs"        element={<Protected roles={["mechanic"]}><Jobs /></Protected>} />

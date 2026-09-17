@@ -1694,6 +1694,7 @@ function ConversationSurface({
 function RequestModal({ mechanic, userLocation, onSuccess, onOpenConversation, onClose }) {
   const [vehicles, setVehicles] = useState([]);
   const [vehicleId, setVehicleId] = useState("");
+  const [requestType, setRequestType] = useState("Roadside repair");
   const [problemDesc, setProblemDesc] = useState("");
   const [requestedCompletionHours, setRequestedCompletionHours] = useState(6);
   const [loading, setLoading] = useState(false);
@@ -1728,7 +1729,7 @@ function RequestModal({ mechanic, userLocation, onSuccess, onOpenConversation, o
       const response = await createRequest({
         vehicle_id: vehicleId,
         mechanic_id: mechanic.mechanic_id,
-        problem_desc: problemDesc,
+        problem_desc: requestType === "Tow request" ? `Tow request: ${problemDesc}` : problemDesc,
         lat: userLocation.lat,
         lng: userLocation.lng,
         requested_completion_hours: requestedCompletionHours || null,
@@ -1791,6 +1792,17 @@ function RequestModal({ mechanic, userLocation, onSuccess, onOpenConversation, o
 
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
               <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Help needed</label>
+                <select
+                  value={requestType}
+                  onChange={(event) => setRequestType(event.target.value)}
+                  className="h-12 w-full rounded-2xl border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                >
+                  <option>Roadside repair</option>
+                  <option>Tow request</option>
+                </select>
+              </div>
+              <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">Vehicle</label>
                 <select
                   value={vehicleId}
@@ -1813,7 +1825,7 @@ function RequestModal({ mechanic, userLocation, onSuccess, onOpenConversation, o
                   onChange={(e) => setProblemDesc(e.target.value)}
                   required
                   rows={4}
-                  placeholder="Flat tire, dead battery, engine won't start..."
+                  placeholder={requestType === "Tow request" ? "Where is the vehicle, where should it go, and is it safe to drive?" : "Flat tire, dead battery, engine won't start..."}
                   className="w-full rounded-2xl border border-gray-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
               </div>
@@ -1834,7 +1846,7 @@ function RequestModal({ mechanic, userLocation, onSuccess, onOpenConversation, o
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  Mechanics will see this deadline and get an alert when less than 3 hours remain.
+                  {requestType === "Tow request" ? "After sending, use chat to confirm pickup details, destination, and timing." : "Mechanics will see this deadline and get an alert when less than 3 hours remain."}
                 </p>
               </div>
 

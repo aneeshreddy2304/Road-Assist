@@ -35,6 +35,24 @@ export const getMyVehicles = ()     => API.get("/vehicles");
 export const addVehicle    = (data) => API.post("/vehicles", data);
 export const updateVehicle = (id, data) => API.patch(`/vehicles/${id}`, data);
 export const deleteVehicle = (id)   => API.delete(`/vehicles/${id}`);
+export const getVehicleQuickNotes = (id) => API.get(`/vehicles/${id}/quick-notes`);
+export const addVehicleQuickNote = (id, data) => API.post(`/vehicles/${id}/quick-notes`, data);
+
+// --- Vehicle Care ---
+export const getVehicleCare = (vehicleId) => API.get(`/vehicle-care/vehicles/${vehicleId}`);
+export const addVehicleCheckin = (vehicleId, data) => API.post(`/vehicle-care/vehicles/${vehicleId}/checkins`, data);
+export const addServiceRecord = (vehicleId, data) => API.post(`/vehicle-care/vehicles/${vehicleId}/service-records`, data);
+export const getOwnerNotifications = () => API.get("/vehicle-care/notifications");
+export const markNotificationRead = (id, data = { read: true }) => API.patch(`/vehicle-care/notifications/${id}`, data);
+export const downloadServiceInvoice = (recordId) => API.get(`/vehicle-care/service-records/${recordId}/invoice`, { responseType: "blob" });
+
+// --- Owner directory, service scheduling, and direct parts orders ---
+export const getOwnerDirectoryProviders = (params) => API.get("/owner-marketplace/providers", { params });
+export const getOwnerMarketplaceParts = (params) => API.get("/owner-marketplace/parts", { params });
+export const createOwnerPartOrder = (data) => API.post("/owner-marketplace/orders", data);
+export const getOwnerPartOrders = () => API.get("/owner-marketplace/orders");
+export const createProviderBooking = (data) => API.post("/owner-marketplace/bookings", data);
+export const getProviderBookings = () => API.get("/owner-marketplace/bookings");
 
 // --- Service Requests ---
 export const createRequest      = (data)   => API.post("/requests", data);

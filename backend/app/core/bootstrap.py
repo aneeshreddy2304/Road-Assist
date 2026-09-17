@@ -297,3 +297,229 @@ async def ensure_schema_updates() -> None:
         await conn.execute(text(WAREHOUSE_USERS_SEED_SQL))
         await conn.execute(text(WAREHOUSE_PROFILES_SEED_SQL))
         await conn.execute(text(WAREHOUSE_PARTS_SEED_SQL))
+
+
+async def ensure_vehicle_care_schema() -> None:
+    """Install the owner Vehicle Care tables with idempotent, production-safe DDL."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS vehicle_quick_notes (
+                  id UUID PRIMARY KEY,
+                  vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                  note TEXT NOT NULL,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS vehicle_checkins (
+                  id UUID PRIMARY KEY,
+                  vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                  recorded_on DATE NOT NULL DEFAULT CURRENT_DATE,
+                  odometer_miles INTEGER NOT NULL CHECK (odometer_miles >= 0),
+                  note TEXT,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS vehicle_service_records (
+                  id UUID PRIMARY KEY,
+                  vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                  service_date DATE NOT NULL,
+                  odometer_miles INTEGER NOT NULL CHECK (odometer_miles >= 0),
+                  provider_name VARCHAR(160) NOT NULL,
+                  total_cost NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
+                  notes TEXT,
+                  invoice_filename VARCHAR(255),
+                  invoice_storage_key VARCHAR(255),
+                  invoice_content_type VARCHAR(100),
+                  next_due_date DATE,
+                  next_due_miles INTEGER CHECK (next_due_miles IS NULL OR next_due_miles >= 0),
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS vehicle_service_record_items (
+                  id UUID PRIMARY KEY,
+                  service_record_id UUID NOT NULL REFERENCES vehicle_service_records(id) ON DELETE CASCADE,
+                  description VARCHAR(240) NOT NULL,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS vehicle_care_reminders (
+                  id UUID PRIMARY KEY,
+                  vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                  source_service_record_id UUID REFERENCES vehicle_service_records(id) ON DELETE CASCADE,
+                  reminder_type VARCHAR(32) NOT NULL CHECK (reminder_type IN ('monthly_checkin', 'service_due')),
+                  reference_month DATE,
+                  due_at TIMESTAMPTZ NOT NULL,
+                  target_date DATE,
+                  target_miles INTEGER,
+                  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'resolved')),
+                  resolved_at TIMESTAMPTZ,
+                  resolved_by_service_record_id UUID REFERENCES vehicle_service_records(id) ON DELETE SET NULL,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS owner_notifications (
+                  id UUID PRIMARY KEY,
+                  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                  vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                  reminder_id UUID REFERENCES vehicle_care_reminders(id) ON DELETE CASCADE,
+                  kind VARCHAR(40) NOT NULL,
+                  title VARCHAR(180) NOT NULL,
+                  body TEXT NOT NULL,
+                  read_at TIMESTAMPTZ,
+                  completed_at TIMESTAMPTZ,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vehicle_checkins_owner_vehicle ON vehicle_checkins (owner_id, vehicle_id, recorded_on DESC, created_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vehicle_quick_notes_owner_vehicle ON vehicle_quick_notes (owner_id, vehicle_id, created_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vehicle_service_records_owner_vehicle ON vehicle_service_records (owner_id, vehicle_id, service_date DESC, created_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vehicle_care_reminders_owner_status ON vehicle_care_reminders (owner_id, status, due_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_owner_notifications_owner ON owner_notifications (owner_id, completed_at, read_at, created_at DESC)"))
+        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_vehicle_care_monthly_reminder ON vehicle_care_reminders (owner_id, vehicle_id, reminder_type, reference_month) WHERE reminder_type = 'monthly_checkin'"))
+        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_vehicle_care_service_reminder ON vehicle_care_reminders (vehicle_id, source_service_record_id, reminder_type) WHERE reminder_type = 'service_due'"))
+
+
+async def ensure_owner_marketplace_schema() -> None:
+    """Install the owner directory and direct-to-owner parts ordering tables.
+
+    This is intentionally separate from the mechanic-to-warehouse workflow:
+    owners browse California businesses and fixed-price consumer products, while
+    mechanics keep their existing wholesale warehouse tools.
+    """
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS owner_directory_providers (
+              id UUID PRIMARY KEY,
+              external_key VARCHAR(120) UNIQUE NOT NULL,
+              name VARCHAR(180) NOT NULL,
+              category VARCHAR(32) NOT NULL CHECK (category IN ('repair', 'dealership', 'tire', 'towing', 'parts')),
+              city VARCHAR(100) NOT NULL,
+              state CHAR(2) NOT NULL DEFAULT 'CA',
+              address TEXT NOT NULL,
+              location GEOGRAPHY(POINT, 4326) NOT NULL,
+              services TEXT[] NOT NULL DEFAULT '{}',
+              service_modes TEXT[] NOT NULL DEFAULT '{}',
+              can_schedule BOOLEAN NOT NULL DEFAULT FALSE,
+              description TEXT,
+              synthetic_phone VARCHAR(40) NOT NULL,
+              synthetic_email VARCHAR(180) NOT NULL,
+              website_url TEXT,
+              is_active BOOLEAN NOT NULL DEFAULT TRUE,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS owner_part_products (
+              id UUID PRIMARY KEY,
+              provider_id UUID NOT NULL REFERENCES owner_directory_providers(id) ON DELETE CASCADE,
+              name VARCHAR(180) NOT NULL,
+              brand VARCHAR(100),
+              category VARCHAR(60) NOT NULL,
+              price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+              stock_count INTEGER NOT NULL DEFAULT 0 CHECK (stock_count >= 0),
+              description TEXT,
+              is_active BOOLEAN NOT NULL DEFAULT TRUE,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS owner_part_orders (
+              id UUID PRIMARY KEY,
+              order_ref VARCHAR(30) UNIQUE NOT NULL,
+              owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              product_id UUID NOT NULL REFERENCES owner_part_products(id) ON DELETE RESTRICT,
+              quantity INTEGER NOT NULL CHECK (quantity > 0),
+              unit_price NUMERIC(10,2) NOT NULL,
+              total_price NUMERIC(10,2) NOT NULL,
+              delivery_name VARCHAR(120) NOT NULL,
+              delivery_address TEXT NOT NULL,
+              delivery_phone VARCHAR(40) NOT NULL,
+              delivery_notes TEXT,
+              status VARCHAR(32) NOT NULL DEFAULT 'confirmed',
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS owner_provider_appointments (
+              id UUID PRIMARY KEY,
+              owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              provider_id UUID NOT NULL REFERENCES owner_directory_providers(id) ON DELETE RESTRICT,
+              vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
+              requested_for TIMESTAMPTZ NOT NULL,
+              service_type VARCHAR(160) NOT NULL,
+              notes TEXT,
+              status VARCHAR(32) NOT NULL DEFAULT 'requested',
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_owner_directory_location ON owner_directory_providers USING GIST(location)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_owner_directory_category ON owner_directory_providers(category, city)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_owner_parts_provider ON owner_part_products(provider_id, category)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_owner_part_orders_owner ON owner_part_orders(owner_id, created_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_owner_provider_appointments_owner ON owner_provider_appointments(owner_id, requested_for ASC)"))
+        await conn.execute(text("""
+          INSERT INTO owner_directory_providers
+            (id, external_key, name, category, city, address, location, services, service_modes, can_schedule, description, synthetic_phone, synthetic_email, website_url)
+          VALUES
+            ('b4e18cfa-3a10-4d01-9981-000000000001', 'firestone-la-west', 'Firestone Complete Auto Care', 'tire', 'Los Angeles', '10785 Santa Monica Blvd, Los Angeles, CA 90025', ST_SetSRID(ST_MakePoint(-118.4310, 34.0450),4326)::geography, ARRAY['Tires','Oil change','Wheel alignment','Brake service','Flat repair'], ARRAY['shop'], TRUE, 'Service appointments and tire care in Los Angeles.', '+1 (555) 010-2101', 'firestone-la-west@wingman-demo.example', 'https://www.firestonecompleteautocare.com/california/los-angeles/10785-santa-monica-blvd/'),
+            ('b4e18cfa-3a10-4d01-9981-000000000002', 'autozone-la-washington', 'AutoZone', 'parts', 'Los Angeles', '1325 W Washington Blvd, Los Angeles, CA 90007', ST_SetSRID(ST_MakePoint(-118.2833, 34.0397),4326)::geography, ARRAY['Batteries','Brakes','Wipers','Oil and filters','Loan-A-Tool'], ARRAY['parts'], FALSE, 'Consumer maintenance supplies and vehicle parts.', '+1 (555) 010-2102', 'autozone-la@wingman-demo.example', 'https://www.autozone.com/locations/ca/los-angeles/1325-w-washington-blvd'),
+            ('b4e18cfa-3a10-4d01-9981-000000000003', 'bmw-sf', 'BMW of San Francisco', 'dealership', 'San Francisco', '1675 Howard St, San Francisco, CA 94103', ST_SetSRID(ST_MakePoint(-122.4189, 37.7730),4326)::geography, ARRAY['BMW scheduled maintenance','Diagnostics','Brake service','Tire service'], ARRAY['shop'], TRUE, 'BMW dealership service appointments.', '+1 (555) 010-2103', 'bmw-sf@wingman-demo.example', 'https://www.bmwsf.com/'),
+            ('b4e18cfa-3a10-4d01-9981-000000000004', 'big-o-san-diego', 'Big O Tires', 'tire', 'San Diego', '1045 University Ave, San Diego, CA 92103', ST_SetSRID(ST_MakePoint(-117.1540, 32.7488),4326)::geography, ARRAY['Tires','Wheel alignment','Brake service','Oil change'], ARRAY['shop'], TRUE, 'Tires, alignment, and routine vehicle care.', '+1 (555) 010-2104', 'bigo-sd@wingman-demo.example', 'https://www.bigotires.com/'),
+            ('b4e18cfa-3a10-4d01-9981-000000000005', 'aaa-sacramento-demo', 'AAA Roadside Assistance', 'towing', 'Sacramento', '1515 River Park Dr, Sacramento, CA 95815', ST_SetSRID(ST_MakePoint(-121.4378, 38.6038),4326)::geography, ARRAY['Towing','Battery service','Flat tire help','Lockout help'], ARRAY['mobile'], FALSE, 'Roadside assistance directory listing for demo discovery.', '+1 (555) 010-2105', 'aaa-sacramento@wingman-demo.example', 'https://mwg.aaa.com/automotive/roadside-assistance'),
+            ('b4e18cfa-3a10-4d01-9981-000000000006', 'oreilly-san-jose', 'O''Reilly Auto Parts', 'parts', 'San Jose', '1777 Story Rd, San Jose, CA 95122', ST_SetSRID(ST_MakePoint(-121.8403, 37.3374),4326)::geography, ARRAY['Batteries','Motor oil','Filters','Brake parts','Wipers'], ARRAY['parts'], FALSE, 'Parts and basic maintenance products.', '+1 (555) 010-2106', 'oreilly-sj@wingman-demo.example', 'https://www.oreillyauto.com/'),
+            ('b4e18cfa-3a10-4d01-9981-000000000007', 'pep-boys-oakland', 'Pep Boys', 'repair', 'Oakland', '4000 International Blvd, Oakland, CA 94601', ST_SetSRID(ST_MakePoint(-122.2155, 37.7840),4326)::geography, ARRAY['Oil change','Brakes','Tires','Battery service','Diagnostics'], ARRAY['shop'], TRUE, 'Routine auto repair and service appointments.', '+1 (555) 010-2107', 'pepboys-oakland@wingman-demo.example', 'https://www.pepboys.com/'),
+            ('b4e18cfa-3a10-4d01-9981-000000000008', 'midas-irvine', 'Midas', 'repair', 'Irvine', '15380 Barranca Pkwy, Irvine, CA 92618', ST_SetSRID(ST_MakePoint(-117.7300, 33.6740),4326)::geography, ARRAY['Oil change','Brakes','Suspension','Exhaust','Tires'], ARRAY['shop'], TRUE, 'Automotive maintenance and repair.', '+1 (555) 010-2108', 'midas-irvine@wingman-demo.example', 'https://www.midas.com/'),
+            ('b4e18cfa-3a10-4d01-9981-000000000009', 'advance-fresno', 'Advance Auto Parts', 'parts', 'Fresno', '3050 W Shaw Ave, Fresno, CA 93711', ST_SetSRID(ST_MakePoint(-119.8470, 36.8080),4326)::geography, ARRAY['Oil and filters','Batteries','Brakes','Wipers','Tools'], ARRAY['parts'], FALSE, 'Parts for at-home maintenance.', '+1 (555) 010-2109', 'advance-fresno@wingman-demo.example', 'https://shop.advanceautoparts.com/'),
+            ('b4e18cfa-3a10-4d01-9981-000000000010', 'jiffy-lube-riverside', 'Jiffy Lube', 'repair', 'Riverside', '10280 Indiana Ave, Riverside, CA 92503', ST_SetSRID(ST_MakePoint(-117.4440, 33.9020),4326)::geography, ARRAY['Oil change','Filters','Fluid service','Wipers'], ARRAY['shop'], TRUE, 'Routine preventative maintenance.', '+1 (555) 010-2110', 'jiffylube-riverside@wingman-demo.example', 'https://www.jiffylube.com/')
+          ON CONFLICT (external_key) DO UPDATE SET
+            name = EXCLUDED.name, category = EXCLUDED.category, city = EXCLUDED.city,
+            address = EXCLUDED.address, location = EXCLUDED.location, services = EXCLUDED.services,
+            service_modes = EXCLUDED.service_modes, can_schedule = EXCLUDED.can_schedule,
+            description = EXCLUDED.description, synthetic_phone = EXCLUDED.synthetic_phone,
+            synthetic_email = EXCLUDED.synthetic_email, website_url = EXCLUDED.website_url
+        """))
+        await conn.execute(text("""
+          INSERT INTO owner_part_products (id, provider_id, name, brand, category, price, stock_count, description)
+          VALUES
+            ('b4e18cfa-3a10-4d01-9981-100000000001', 'b4e18cfa-3a10-4d01-9981-000000000002', 'Duralast Gold Battery', 'Duralast', 'Battery', 214.99, 12, '12V replacement battery with fixed demo price.'),
+            ('b4e18cfa-3a10-4d01-9981-100000000002', 'b4e18cfa-3a10-4d01-9981-000000000002', 'High Mileage 5W-30 Oil', 'STP', 'Oil and filters', 32.99, 30, 'Five-quart motor oil for at-home maintenance.'),
+            ('b4e18cfa-3a10-4d01-9981-100000000003', 'b4e18cfa-3a10-4d01-9981-000000000006', 'Ceramic Brake Pad Set', 'BrakeBest', 'Brakes', 74.99, 8, 'Front brake pad set.'),
+            ('b4e18cfa-3a10-4d01-9981-100000000004', 'b4e18cfa-3a10-4d01-9981-000000000006', 'All-Season Wiper Pair', 'Rain-X', 'Wipers', 39.99, 20, 'Pair of replacement windshield wipers.'),
+            ('b4e18cfa-3a10-4d01-9981-100000000005', 'b4e18cfa-3a10-4d01-9981-000000000009', 'Oil Change Essentials Kit', 'Fram', 'Oil and filters', 44.99, 16, 'Oil filter and maintenance consumables.'),
+            ('b4e18cfa-3a10-4d01-9981-100000000006', 'b4e18cfa-3a10-4d01-9981-000000000009', 'Portable Tire Inflator', 'Slime', 'Tools', 36.99, 10, 'Compact emergency tire inflator.')
+          ON CONFLICT (id) DO UPDATE SET price = EXCLUDED.price, stock_count = EXCLUDED.stock_count, description = EXCLUDED.description
+        """))
