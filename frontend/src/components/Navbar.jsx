@@ -295,8 +295,7 @@ export default function Navbar() {
             <div className="hidden items-center gap-2 lg:flex">
               {user.role === "owner" ? (
                 <>
-                  <HeaderNavLink to="/search" icon={<Search size={16} />} label="Find Help" active={pathname === "/search"} />
-                  <HeaderNavLink to="/explore" icon={<CarFront size={16} />} label="Explore" active={pathname === "/explore"} />
+                  <HeaderNavLink to="/explore" icon={<Search size={16} />} label="Find service" active={pathname === "/explore" || pathname === "/search"} />
                   <HeaderNavLink to="/vehicles" icon={<HeartPulse size={16} />} label="Vehicle Care" active={pathname.startsWith("/vehicles")} />
                 </>
               ) : null}

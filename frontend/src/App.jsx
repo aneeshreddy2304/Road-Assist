@@ -4,7 +4,6 @@ import Navbar      from "./components/Navbar";
 
 import Login       from "./pages/Login";
 import Register    from "./pages/Register";
-import Search      from "./pages/Search";
 import MechanicProfile from "./pages/MechanicProfile";
 import MyRequests  from "./pages/MyRequests";
 import Vehicles    from "./pages/Vehicles";
@@ -30,7 +29,7 @@ function AuthRoute({ children }) {
     if (user.role === "mechanic") return <Navigate to="/dashboard" replace />;
     if (user.role === "admin")    return <Navigate to="/admin" replace />;
     if (user.role === "warehouse") return <Navigate to="/warehouse" replace />;
-    return <Navigate to="/search" replace />;
+    return <Navigate to="/explore" replace />;
   }
   return children;
 }
@@ -54,7 +53,7 @@ function AppShell() {
           <Route path="/"            element={<Landing />} />
           <Route path="/login"       element={<AuthRoute><Login /></AuthRoute>} />
           <Route path="/register"    element={<AuthRoute><Register /></AuthRoute>} />
-          <Route path="/search"      element={<Protected roles={["owner"]}><Search /></Protected>} />
+          <Route path="/search"      element={<Protected roles={["owner"]}><Navigate to="/explore" replace /></Protected>} />
           <Route path="/explore"     element={<Protected roles={["owner"]}><OwnerDirectory /></Protected>} />
           <Route path="/mechanics/:mechanicId" element={<Protected roles={["owner"]}><MechanicProfile /></Protected>} />
           <Route path="/my-requests" element={<Protected roles={["owner"]}><MyRequests /></Protected>} />
