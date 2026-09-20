@@ -54,6 +54,15 @@ export const getOwnerPartOrders = () => API.get("/owner-marketplace/orders");
 export const createProviderBooking = (data) => API.post("/owner-marketplace/bookings", data);
 export const getProviderBookings = () => API.get("/owner-marketplace/bookings");
 
+// --- Full Wingman workspace profiles and recorded billing ---
+export const getOwnerWorkspaceProfile = () => API.get("/workspace/owner-profile");
+export const updateOwnerWorkspaceProfile = (data) => API.put("/workspace/owner-profile", data);
+export const getBusinessWorkspaceProfile = () => API.get("/workspace/business-profile");
+export const updateBusinessWorkspaceProfile = (data) => API.put("/workspace/business-profile", data);
+export const getRecordedInvoices = () => API.get("/workspace/invoices");
+export const createRecordedInvoice = (data) => API.post("/workspace/invoices", data);
+export const updateRecordedInvoiceStatus = (id, data) => API.patch(`/workspace/invoices/${id}/status`, data);
+
 // --- Service Requests ---
 export const createRequest      = (data)   => API.post("/requests", data);
 export const listRequests       = (params) => API.get("/requests", { params });

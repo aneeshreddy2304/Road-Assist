@@ -297,6 +297,7 @@ export default function Navbar() {
                 <>
                   <HeaderNavLink to="/explore" icon={<Search size={16} />} label="Find service" active={pathname === "/explore" || pathname === "/search"} />
                   <HeaderNavLink to="/vehicles" icon={<HeartPulse size={16} />} label="Vehicle Care" active={pathname.startsWith("/vehicles")} />
+                  <HeaderNavLink to="/profile" icon={<UserRound size={16} />} label="Profile" active={pathname === "/profile"} />
                 </>
               ) : null}
 
@@ -305,6 +306,7 @@ export default function Navbar() {
                   <HeaderNavLink to="/dashboard" icon={<LayoutDashboard size={16} />} label="Dashboard" active={pathname === "/dashboard"} />
                   <HeaderNavLink to="/inventory" icon={<CarFront size={16} />} label="Inventory" active={pathname === "/inventory"} />
                   <HeaderNavLink to="/jobs" icon={<ClipboardList size={16} />} label="Jobs" active={pathname === "/jobs"} />
+                  <HeaderNavLink to="/profile" icon={<UserRound size={16} />} label="Profile" active={pathname === "/profile"} />
                 </>
               ) : null}
 
@@ -313,7 +315,10 @@ export default function Navbar() {
               ) : null}
 
               {user.role === "warehouse" ? (
-                <HeaderNavLink to="/warehouse" icon={<ClipboardList size={16} />} label="Warehouse" active={pathname === "/warehouse"} />
+                <>
+                  <HeaderNavLink to="/warehouse" icon={<ClipboardList size={16} />} label="Warehouse" active={pathname === "/warehouse"} />
+                  <HeaderNavLink to="/profile" icon={<UserRound size={16} />} label="Profile" active={pathname === "/profile"} />
+                </>
               ) : null}
             </div>
 

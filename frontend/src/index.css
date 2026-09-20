@@ -4,6 +4,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Full-workspace profile surface.  It uses the public Wingman graphite and
+   aluminum palette while keeping the richer profile structure from the UI
+   prototype. */
+.wingman-profile-page { min-height: calc(100vh - 4rem); background: radial-gradient(circle at 12% 0%, #4d5960 0%, transparent 28rem), #20262a; color: #f6f3ec; padding: 3rem 1.25rem 5rem; }
+.wingman-profile-wrap { max-width: 1120px; margin: 0 auto; }
+.wingman-back { display: inline-flex; align-items: center; gap: .35rem; color: #c7d0d2; font-size: .9rem; text-decoration: none; }
+.wingman-back:hover { color: #fff; }
+.wingman-profile-hero { display: flex; align-items: center; gap: 1.15rem; margin: 2rem 0 1.5rem; }
+.wingman-profile-icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 1.1rem; background: #eae7df; color: #23292d; box-shadow: 0 16px 32px rgba(0,0,0,.28); }
+.wingman-profile-hero p, .wingman-profile-section h2, .wingman-profile-form label > span { margin: 0; color: #aeb8bc; font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.wingman-profile-hero h1 { margin: .2rem 0; color: #fffdf8; font-size: clamp(2rem, 5vw, 3.8rem); font-weight: 900; letter-spacing: -.06em; line-height: .95; }
+.wingman-profile-hero > div > span { color: #c7d0d2; font-size: .95rem; }
+.wingman-profile-form { display: grid; gap: 1rem; }
+.wingman-profile-section { border: 1px solid rgba(222,229,230,.16); border-radius: 1.5rem; background: linear-gradient(145deg, rgba(61,72,78,.86), rgba(37,44,48,.92)); padding: 1.35rem; box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 24px 50px rgba(0,0,0,.13); }
+.wingman-profile-section h2 { color: #f6f3ec; font-size: .9rem; letter-spacing: .04em; text-transform: none; margin-bottom: 1rem; }
+.wingman-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem; }
+.wingman-profile-grid label { display: grid; gap: .45rem; }
+.wingman-profile-grid label.wide { grid-column: 1 / -1; }
+.wingman-profile-grid input, .wingman-profile-grid textarea, .wingman-profile-grid select { width: 100%; border: 1px solid rgba(222,229,230,.18); border-radius: .8rem; background: rgba(15,19,21,.36); color: #fffdf8; padding: .75rem .8rem; outline: none; transition: border-color .16s, background .16s; }
+.wingman-profile-grid textarea { resize: vertical; }
+.wingman-profile-grid input:focus, .wingman-profile-grid textarea:focus, .wingman-profile-grid select:focus { border-color: #eae7df; background: rgba(15,19,21,.58); }
+.wingman-toggle-list { display: grid; gap: .6rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wingman-toggle-list label { position: relative; display: flex; align-items: center; justify-content: space-between; gap: .75rem; border: 1px solid rgba(222,229,230,.14); border-radius: .8rem; padding: .8rem; color: #eae7df; cursor: pointer; }
+.wingman-toggle-list label span { color: #eae7df; font-size: .9rem; letter-spacing: 0; text-transform: none; }
+.wingman-toggle-list input { position: absolute; opacity: 0; }
+.wingman-toggle-list i { width: 2.2rem; height: 1.3rem; border-radius: 999px; background: #77838a; transition: background .16s; }
+.wingman-toggle-list i::after { content: ''; display: block; width: .92rem; height: .92rem; margin: .19rem; border-radius: 999px; background: #f6f3ec; transition: transform .16s; }
+.wingman-toggle-list input:checked + i { background: #d5e5a3; }.wingman-toggle-list input:checked + i::after { transform: translateX(.9rem); background: #263038; }
+.wingman-profile-save { display: flex; align-items: center; gap: 1rem; margin-top: .25rem; }.wingman-save-button { display: inline-flex; align-items: center; gap: .55rem; border: 0; border-radius: .85rem; background: #f6f3ec; color: #20262a; padding: .85rem 1.1rem; font-weight: 800; cursor: pointer; }.wingman-save-button:disabled { opacity: .65; cursor: wait; }.wingman-save-success, .wingman-save-error { display: inline-flex; align-items: center; gap: .35rem; font-size: .9rem; }.wingman-save-success { color: #d5e5a3; }.wingman-save-error { color: #ffb6ae; }.wingman-profile-loading { display: grid; min-height: 55vh; place-content: center; gap: .75rem; color: #eae7df; }
+@media (max-width: 700px) { .wingman-profile-page { padding-top: 1.5rem; }.wingman-profile-grid, .wingman-toggle-list { grid-template-columns: 1fr; }.wingman-profile-hero { align-items: flex-start; }.wingman-profile-section { padding: 1rem; } }
+
 body {
   background: #e8e6df;
   color: #252a2e;
