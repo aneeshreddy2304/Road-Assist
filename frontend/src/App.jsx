@@ -52,7 +52,7 @@ export default function App() {
 function AppShell() {
   const pathname = useLocation().pathname;
   const isPublicPage = pathname === "/" || pathname === "/login" || pathname === "/register";
-  const usesWingmanWorkspace = pathname === "/explore" || pathname === "/workspace";
+  const usesWingmanWorkspace = pathname === "/explore" || pathname === "/workspace" || pathname === "/demo/owner";
 
   return (
     <div className={`min-h-screen ${isPublicPage ? "wingman-public-shell" : "wingman-workspace-shell"}`}>
@@ -62,6 +62,7 @@ function AppShell() {
           <Route path="/login"       element={<AuthRoute><Login /></AuthRoute>} />
           <Route path="/register"    element={<AuthRoute><Register /></AuthRoute>} />
           <Route path="/search"      element={<Protected roles={["owner"]}><Navigate to="/explore" replace /></Protected>} />
+          <Route path="/demo/owner"  element={<OwnerDirectory previewOnly />} />
           <Route path="/explore"     element={<Protected roles={["owner"]}><OwnerDirectory /></Protected>} />
           <Route path="/mechanics/:mechanicId" element={<Protected roles={["owner"]}><MechanicProfile /></Protected>} />
           <Route path="/my-requests" element={<Protected roles={["owner"]}><MyRequests /></Protected>} />

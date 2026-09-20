@@ -28,7 +28,7 @@ function MapViewport({ center }) {
   return null;
 }
 
-export default function OwnerDirectory() {
+export default function OwnerDirectory({ previewOnly = false }) {
   const route = useLocation();
   const [view, setView] = useState("services");
   const [providers, setProviders] = useState([]);
@@ -61,6 +61,7 @@ export default function OwnerDirectory() {
   };
 
   const loadOwnerWorkspace = async () => {
+    if (previewOnly) return;
     try {
       const [vehicleRes, orderRes, bookingRes] = await Promise.all([
         getMyVehicles(), getOwnerPartOrders(), getProviderBookings(),
@@ -101,19 +102,19 @@ export default function OwnerDirectory() {
         <p className="owner-pearl-caption">YOUR ROAD COMPANION</p>
         <nav className="owner-pearl-nav" aria-label="Owner workspace">
           <button className={view === "services" ? "active" : ""} onClick={() => setView("services")}><MapPin size={19} /> Find help</button>
-          <Link to="/my-requests"><ClipboardList size={19} /> My requests</Link>
-          <Link to="/vehicles"><CarFront size={19} /> My garage</Link>
-          <Link to="/vehicles"><HeartPulse size={19} /> Vehicle Care</Link>
-          <Link to="/my-requests"><CalendarDays size={19} /> Appointments</Link>
+          <Link to={previewOnly ? "/login" : "/my-requests"}><ClipboardList size={19} /> My requests</Link>
+          <Link to={previewOnly ? "/login" : "/vehicles"}><CarFront size={19} /> My garage</Link>
+          <Link to={previewOnly ? "/login" : "/vehicles"}><HeartPulse size={19} /> Vehicle Care</Link>
+          <Link to={previewOnly ? "/login" : "/my-requests"}><CalendarDays size={19} /> Appointments</Link>
           <button className={view === "parts" ? "active" : ""} onClick={() => setView("parts")}><ShoppingBag size={19} /> Parts shop</button>
-          <Link to="/profile"><MessageCircle size={19} /> Messages</Link>
-          <Link to="/profile"><UserRound size={19} /> Profile</Link>
+          <Link to={previewOnly ? "/login" : "/profile"}><MessageCircle size={19} /> Messages</Link>
+          <Link to={previewOnly ? "/login" : "/profile"}><UserRound size={19} /> Profile</Link>
         </nav>
         <div className="owner-pearl-account"><span>{"" + (route.pathname === "/explore" ? "JE" : "OW")}</span><div><strong>Demo account</strong><small>Owner workspace</small></div><ChevronDown size={16} /></div>
       </aside>
       <section className="owner-pearl-content">
         <header className="owner-pearl-title"><div><p>CALIFORNIA DIRECTORY</p><h1>{heading}</h1></div>{view === "services" ? <button onClick={useLocation}><Crosshair size={17} /> Use my location</button> : null}</header>
-        <div className="owner-pearl-disclaimer">Demo directory: public business names and service details, with synthetic Wingman contact routes. No real business is contacted.</div>
+        <div className="owner-pearl-disclaimer">{previewOnly ? "Read-only Wingman preview. " : ""}Demo directory: public business names and service details, with synthetic Wingman contact routes. No real business is contacted.</div>
 
         {notice ? <div className="owner-pearl-notice"><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice("")}><X size={16} /></button></div> : null}
 
@@ -123,7 +124,7 @@ export default function OwnerDirectory() {
         <div className="owner-pearl-finder">
           <section className="owner-pearl-results">
               <div className="owner-pearl-results-heading"><strong>{visible.length} {view === "services" ? "providers" : "products"} nearby</strong><span>Closest first</span></div>
-              {loading ? <Spinner /> : visible.length === 0 ? <EmptyState icon="⌕" title="No matches" subtitle="Try a broader category or a different search." /> : view === "services" ? <div className="space-y-3">{providers.map((provider) => <ProviderRow key={provider.id} provider={provider} active={selected?.id === provider.id} onSelect={() => { setSelected(provider); setCenter({ lat: provider.lat, lng: provider.lng }); }} onBook={() => { loadOwnerWorkspace(); setBookingProvider(provider); }} />)}</div> : <div className="grid gap-3 sm:grid-cols-2">{parts.map((part) => <PartTile key={part.id} part={part} onOrder={() => { loadOwnerWorkspace(); setOrderPart(part); }} />)}</div>}
+              {loading ? <Spinner /> : visible.length === 0 ? <EmptyState icon="⌕" title="No matches" subtitle="Try a broader category or a different search." /> : view === "services" ? <div className="space-y-3">{providers.map((provider) => <ProviderRow key={provider.id} provider={provider} active={selected?.id === provider.id} onSelect={() => { setSelected(provider); setCenter({ lat: provider.lat, lng: provider.lng }); }} onBook={() => { if (previewOnly) { window.location.assign("/login"); return; } loadOwnerWorkspace(); setBookingProvider(provider); }} />)}</div> : <div className="grid gap-3 sm:grid-cols-2">{parts.map((part) => <PartTile key={part.id} part={part} onOrder={() => { if (previewOnly) { window.location.assign("/login"); return; } loadOwnerWorkspace(); setOrderPart(part); }} />)}</div>}
           </section>
           <section className="owner-pearl-map">
             <MapContainer center={[CALIFORNIA.lat, CALIFORNIA.lng]} zoom={6} zoomControl={false} className="h-[32rem] w-full" scrollWheelZoom>
@@ -135,10 +136,10 @@ export default function OwnerDirectory() {
           </section>
         </div>
 
-        <section className="owner-pearl-orders">
+        {!previewOnly ? <section className="owner-pearl-orders">
           <Card className="rounded-[28px] border-[#c9d0d3] p-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#59646a]">Your service appointments</p>{bookings.length ? <div className="mt-4 space-y-3">{bookings.slice(0, 3).map((booking) => <p key={booking.id} className="border-t border-[#c9d0d3] pt-3 text-sm"><b>{booking.provider_name}</b> · {booking.service_type}<br /><span className="text-[#59646a]">{new Date(booking.requested_for).toLocaleString()}</span></p>)}</div> : <p className="mt-3 text-sm text-[#59646a]">Book a service-capable repair shop, tire centre, or dealership to see it here.</p>}</Card>
           <Card className="rounded-[28px] border-[#c9d0d3] p-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#59646a]">Your parts orders</p>{orders.length ? <div className="mt-4 space-y-3">{orders.slice(0, 3).map((order) => <p key={order.id} className="border-t border-[#c9d0d3] pt-3 text-sm"><b>{order.order_ref}</b> · {order.product_name}<br /><span className="text-[#59646a]">{order.status} · {formatCurrencyUSD(order.total_price)}</span></p>)}</div> : <p className="mt-3 text-sm text-[#59646a]">Fixed-price orders with your delivery details will appear here.</p>}</Card>
-        </section>
+        </section> : null}
       </section>
       {orderPart ? <OrderModal part={orderPart} onClose={() => setOrderPart(null)} onPlaced={() => { setOrderPart(null); setNotice("Order confirmed. It is now visible in Your parts orders."); load(); loadOwnerWorkspace(); }} /> : null}
       {bookingProvider ? <BookingModal provider={bookingProvider} vehicles={vehicles} onClose={() => setBookingProvider(null)} onPlaced={() => { setBookingProvider(null); setNotice("Appointment request saved. It is now visible in Your service appointments."); load(); loadOwnerWorkspace(); }} /> : null}
