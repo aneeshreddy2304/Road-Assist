@@ -579,3 +579,102 @@ async def ensure_owner_marketplace_schema() -> None:
                         "phone": "+1 (555) 010-CA01", "email": f"{key}@wingman-demo.example", "website": website,
                     },
                 )
+
+
+async def ensure_workspace_schema() -> None:
+    """Install the role-workspace data used by the full Wingman interface.
+
+    These tables intentionally store operational profile and invoice data rather
+    than browser-only demo state.  They are additive, idempotent, and safe for
+    an existing deployment.
+    """
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS owner_workspace_profiles (
+              user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+              display_name VARCHAR(120),
+              preferred_language VARCHAR(40) NOT NULL DEFAULT 'English',
+              emergency_contact_name VARCHAR(120),
+              emergency_contact_relationship VARCHAR(80),
+              emergency_contact_phone VARCHAR(40),
+              default_vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
+              preferred_service_mode VARCHAR(32) NOT NULL DEFAULT 'no_preference',
+              preferred_appointment_time VARCHAR(32) NOT NULL DEFAULT 'no_preference',
+              accessibility_notes TEXT,
+              notify_request_updates BOOLEAN NOT NULL DEFAULT TRUE,
+              notify_appointment_reminders BOOLEAN NOT NULL DEFAULT TRUE,
+              notify_vehicle_care BOOLEAN NOT NULL DEFAULT TRUE,
+              notify_messages BOOLEAN NOT NULL DEFAULT TRUE,
+              notify_order_updates BOOLEAN NOT NULL DEFAULT TRUE,
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS business_workspace_profiles (
+              user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+              business_name VARCHAR(180),
+              business_category VARCHAR(80),
+              contact_person VARCHAR(120),
+              website_url TEXT,
+              description TEXT,
+              street_address TEXT,
+              city VARCHAR(100),
+              state VARCHAR(100),
+              postal_code VARCHAR(20),
+              service_modes TEXT[] NOT NULL DEFAULT '{}',
+              service_radius_miles INTEGER,
+              areas_served TEXT,
+              business_hours JSONB NOT NULL DEFAULT '{}'::JSONB,
+              holiday_hours TEXT,
+              offered_services TEXT[] NOT NULL DEFAULT '{}',
+              makes_serviced TEXT,
+              vehicle_types_supported TEXT,
+              powertrains_supported TEXT,
+              languages_spoken TEXT,
+              facilities TEXT[] NOT NULL DEFAULT '{}',
+              credentials JSONB NOT NULL DEFAULT '{}'::JSONB,
+              accepts_new_work BOOLEAN NOT NULL DEFAULT TRUE,
+              appointments_required BOOLEAN NOT NULL DEFAULT FALSE,
+              walk_ins_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+              warranty_or_returns_policy TEXT,
+              arrival_or_pickup_instructions TEXT,
+              accepted_payment_methods TEXT,
+              fulfillment_minimum_order NUMERIC(10,2),
+              fulfillment_cutoff_time TIME,
+              fulfillment_processing_time VARCHAR(120),
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS recorded_invoices (
+              id UUID PRIMARY KEY,
+              reference VARCHAR(40) NOT NULL UNIQUE,
+              owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              provider_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+              request_id UUID REFERENCES service_requests(id) ON DELETE SET NULL,
+              appointment_id UUID REFERENCES appointments(id) ON DELETE SET NULL,
+              provider_name VARCHAR(180) NOT NULL,
+              status VARCHAR(24) NOT NULL DEFAULT 'issued'
+                CHECK (status IN ('draft', 'issued', 'paid', 'void')),
+              subtotal NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
+              taxes_and_fees NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (taxes_and_fees >= 0),
+              total NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (total >= 0),
+              payment_recorded_at TIMESTAMPTZ,
+              provider_note TEXT,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS recorded_invoice_items (
+              id UUID PRIMARY KEY,
+              invoice_id UUID NOT NULL REFERENCES recorded_invoices(id) ON DELETE CASCADE,
+              description VARCHAR(240) NOT NULL,
+              quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+              unit_price NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
+              line_total NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (line_total >= 0),
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_recorded_invoices_owner ON recorded_invoices (owner_id, created_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_recorded_invoices_provider ON recorded_invoices (provider_user_id, created_at DESC)"))

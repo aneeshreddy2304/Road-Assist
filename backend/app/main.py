@@ -4,10 +4,10 @@ from contextlib import suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.bootstrap import ensure_owner_marketplace_schema, ensure_schema_updates, ensure_vehicle_care_schema
+from app.core.bootstrap import ensure_owner_marketplace_schema, ensure_schema_updates, ensure_vehicle_care_schema, ensure_workspace_schema
 from app.core.config import get_settings
 from app.routers import auth, mechanics, parts, requests, admin, vehicles, engagement, warehouses, owner_marketplace
-from app.routers import vehicle_care
+from app.routers import vehicle_care, workspace
 
 settings = get_settings()
 
@@ -51,6 +51,7 @@ app.include_router(admin.router)
 app.include_router(warehouses.router)
 app.include_router(vehicle_care.router)
 app.include_router(owner_marketplace.router)
+app.include_router(workspace.router)
 
 
 async def vehicle_care_reminder_loop() -> None:
@@ -74,6 +75,7 @@ async def bootstrap_schema():
     # deployments receive the feature without a manual migration step.
     await ensure_vehicle_care_schema()
     await ensure_owner_marketplace_schema()
+    await ensure_workspace_schema()
     await vehicle_care.refresh_all_owner_reminders()
     app.state.vehicle_care_reminder_task = asyncio.create_task(vehicle_care_reminder_loop())
 
