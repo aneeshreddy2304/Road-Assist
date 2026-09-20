@@ -59,9 +59,10 @@ export default function WorkspaceProfile() {
         const result = isOwner ? await getOwnerWorkspaceProfile() : await getBusinessWorkspaceProfile();
         if (!active) return;
         const data = result.data;
+        const saved = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== null));
         setForm({
           ...(isOwner ? ownerDefaults : businessDefaults),
-          ...data,
+          ...saved,
           service_modes: textList(data.service_modes), offered_services: textList(data.offered_services), facilities: textList(data.facilities),
         });
       } catch (error) {
@@ -81,7 +82,7 @@ export default function WorkspaceProfile() {
         const { name, phone, street_address, city, state, postal_code, ...workspace } = form;
         await updateOwnerWorkspaceProfile(workspace);
       } else {
-        const payload = { ...form, service_modes: toList(form.service_modes || ""), offered_services: toList(form.offered_services || ""), facilities: toList(form.facilities || "") };
+        const payload = { ...form, website_url: form.website_url || null, service_modes: toList(form.service_modes || ""), offered_services: toList(form.offered_services || ""), facilities: toList(form.facilities || "") };
         delete payload.name; delete payload.phone;
         await updateBusinessWorkspaceProfile(payload);
       }
