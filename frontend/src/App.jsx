@@ -17,6 +17,7 @@ import Warehouse   from "./pages/Warehouse";
 import Landing     from "./pages/Landing";
 import WorkspaceProfile from "./pages/WorkspaceProfile";
 import Billing from "./pages/Billing";
+import WorkspaceHome from "./pages/WorkspaceHome";
 
 function Protected({ children, roles }) {
   const { user } = useAuth();
@@ -28,10 +29,7 @@ function Protected({ children, roles }) {
 function AuthRoute({ children }) {
   const { user } = useAuth();
   if (user) {
-    if (user.role === "mechanic") return <Navigate to="/dashboard" replace />;
-    if (user.role === "admin")    return <Navigate to="/admin" replace />;
-    if (user.role === "warehouse") return <Navigate to="/warehouse" replace />;
-    return <Navigate to="/explore" replace />;
+    return <Navigate to="/workspace" replace />;
   }
   return children;
 }
@@ -63,6 +61,7 @@ function AppShell() {
           <Route path="/vehicles/:vehicleId/care" element={<Protected roles={["owner"]}><VehicleCare /></Protected>} />
           <Route path="/profile" element={<Protected roles={["owner", "mechanic", "warehouse"]}><WorkspaceProfile /></Protected>} />
           <Route path="/billing" element={<Protected roles={["owner", "mechanic"]}><Billing /></Protected>} />
+          <Route path="/workspace" element={<Protected roles={["owner", "mechanic", "warehouse", "admin"]}><WorkspaceHome /></Protected>} />
           <Route path="/dashboard"   element={<Protected roles={["mechanic"]}><Dashboard /></Protected>} />
           <Route path="/inventory"   element={<Protected roles={["mechanic"]}><Inventory /></Protected>} />
           <Route path="/jobs"        element={<Protected roles={["mechanic"]}><Jobs /></Protected>} />

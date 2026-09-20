@@ -294,6 +294,7 @@ export default function Navbar() {
         {user ? (
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 lg:flex">
+              <HeaderNavLink to="/workspace" icon={<LayoutDashboard size={16} />} label="Workspace" active={pathname === "/workspace"} />
               {user.role === "owner" ? (
                 <>
                   <HeaderNavLink to="/explore" icon={<Search size={16} />} label="Find service" active={pathname === "/explore" || pathname === "/search"} />
