@@ -35,6 +35,10 @@ app.openapi_version = "3.0.3"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins_list,
+    # Vercel creates immutable preview hostnames as well as the production
+    # road-assist hostname. Limit browser access to this project's HTTPS
+    # deployments instead of opening the API to arbitrary origins.
+    allow_origin_regex=r"https://road-assist(?:-[a-z0-9]+)*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
