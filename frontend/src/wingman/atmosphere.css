@@ -1,0 +1,9 @@
+.glass-atmosphere{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:-1;background:radial-gradient(ellipse at 15% 10%,#243e8450,transparent 46%),radial-gradient(ellipse at 91% 35%,#5832845e,transparent 48%),radial-gradient(ellipse at 50% 100%,#163f5d6e,transparent 48%),#080d1d}
+.glass-atmosphere:after{content:"";position:absolute;inset:0;background-image:linear-gradient(#b3baff04 1px,transparent 1px),linear-gradient(90deg,#b3baff04 1px,transparent 1px);background-size:62px 62px;mask-image:linear-gradient(black,transparent)}
+.glass-orb{position:absolute;border-radius:50%;filter:blur(75px);opacity:.32;will-change:transform;animation:aurora-drift 22s ease-in-out infinite alternate}
+.glass-orb.one{width:44vw;height:44vw;top:-25vw;left:15%;background:#5966f9}
+.glass-orb.two{width:34vw;height:34vw;right:-15vw;top:30%;background:#814dd7;animation-delay:-11s}
+.glass-orb.three{width:32vw;height:32vw;left:23%;bottom:-20vw;background:#258caf;animation-delay:-6s}
+@keyframes aurora-drift{to{transform:translate3d(4vw,5vh,0) scale(1.15)}}
+html[data-palette="pearl"] .glass-atmosphere{background:radial-gradient(ellipse at 10% 5%,#bcd4f980,transparent 48%),radial-gradient(ellipse at 95% 55%,#d4dcf580,transparent 42%),#eef2f6}
+html[data-palette="pearl"] .glass-orb{opacity:.15}

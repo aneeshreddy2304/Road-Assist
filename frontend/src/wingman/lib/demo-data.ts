@@ -1,5 +1,5 @@
 export type Role='owner'|'mechanic'|'warehouse'|'admin';
-export type Provider={id:number;name:string;category:string;address:string;lat:number;lng:number;distance:string;rating:string;reviews:number;services:string[];mode:string;available:boolean;initials:string;color:string;stock:string[]};
+export type Provider={id:string|number;name:string;category:string;address:string;lat:number;lng:number;distance:string;rating:string;reviews:number;services:string[];mode:string;available:boolean;initials:string;color:string;stock:string[];description?:string;phone?:string;email?:string;website?:string;canSchedule?:boolean};
 export const providers:Provider[]=[
 {id:1,name:'Sunset Auto Care',category:'Repair shop',address:'1250 9th Avenue, San Francisco',lat:37.765,lng:-122.466,distance:'1.2',rating:'4.9',reviews:128,services:['Oil change','Brakes','Diagnostics'],mode:'Mobile & shop',available:true,initials:'SA',color:'#ece6d9',stock:['Oil filter','Brake pads','Battery']},
 {id:2,name:'Pacific Tire & Wheel',category:'Tire shop',address:'2320 Geary Boulevard, San Francisco',lat:37.782,lng:-122.443,distance:'1.8',rating:'4.8',reviews:96,services:['Tire repair','Tire rotation','Wheel alignment'],mode:'Shop visit',available:true,initials:'PT',color:'#e2e9f2',stock:['All-season tire','Tire repair kit']},
