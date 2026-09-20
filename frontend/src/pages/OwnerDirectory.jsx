@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
 import { CalendarDays, CarFront, ChevronDown, ClipboardList, Crosshair, ExternalLink, HeartPulse, MapPin, MessageCircle, Package, Phone, Search, ShoppingBag, UserRound, Wrench, X } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import "leaflet/dist/leaflet.css";
 
 import {
@@ -29,7 +29,6 @@ function MapViewport({ center }) {
 }
 
 export default function OwnerDirectory({ previewOnly = false }) {
-  const route = useLocation();
   const [view, setView] = useState("services");
   const [providers, setProviders] = useState([]);
   const [parts, setParts] = useState([]);
@@ -78,7 +77,7 @@ export default function OwnerDirectory({ previewOnly = false }) {
     return () => window.clearTimeout(timer);
   }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const useLocation = () => {
+  const useCurrentLocation = () => {
     if (!navigator.geolocation) { setNotice("This browser does not support location. California demo locations are shown instead."); return; }
     navigator.geolocation.getCurrentPosition((position) => {
       const { latitude: lat, longitude: lng } = position.coords;
@@ -110,15 +109,15 @@ export default function OwnerDirectory({ previewOnly = false }) {
           <Link to={previewOnly ? "/login" : "/profile"}><MessageCircle size={19} /> Messages</Link>
           <Link to={previewOnly ? "/login" : "/profile"}><UserRound size={19} /> Profile</Link>
         </nav>
-        <div className="owner-pearl-account"><span>{"" + (route.pathname === "/explore" ? "JE" : "OW")}</span><div><strong>Demo account</strong><small>Owner workspace</small></div><ChevronDown size={16} /></div>
+        <div className="owner-pearl-account"><span>JE</span><div><strong>Demo account</strong><small>Owner workspace</small></div><ChevronDown size={16} /></div>
       </aside>
       <section className="owner-pearl-content">
-        <header className="owner-pearl-title"><div><p>CALIFORNIA DIRECTORY</p><h1>{heading}</h1></div>{view === "services" ? <button onClick={useLocation}><Crosshair size={17} /> Use my location</button> : null}</header>
+        <header className="owner-pearl-title"><div><p>CALIFORNIA DIRECTORY</p><h1>{heading}</h1></div>{view === "services" ? <button onClick={useCurrentLocation}><Crosshair size={17} /> Use my location</button> : null}</header>
         <div className="owner-pearl-disclaimer">{previewOnly ? "Read-only Wingman preview. " : ""}Demo directory: public business names and service details, with synthetic Wingman contact routes. No real business is contacted.</div>
 
         {notice ? <div className="owner-pearl-notice"><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice("")}><X size={16} /></button></div> : null}
 
-        <section className="owner-pearl-searchbar"><button className="owner-pearl-location"><MapPin size={18} /> California, United States <ChevronDown size={16} /></button><label><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={view === "services" ? "Search providers…" : "Search oil, battery, brakes…"} /></label><button onClick={useLocation}><Crosshair size={17} /> Use my location</button></section>
+        <section className="owner-pearl-searchbar"><button className="owner-pearl-location"><MapPin size={18} /> California, United States <ChevronDown size={16} /></button><label><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={view === "services" ? "Search providers…" : "Search oil, battery, brakes…"} /></label><button onClick={useCurrentLocation}><Crosshair size={17} /> Use my location</button></section>
         {view === "services" ? <div className="owner-pearl-chips">{categories.map(([id, label]) => <button key={id} onClick={() => setCategory(id)} className={category === id ? "selected" : ""}>{id === "all" ? "All providers" : label}</button>)}</div> : null}
 
         <div className="owner-pearl-finder">
