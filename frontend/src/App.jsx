@@ -18,6 +18,7 @@ import Landing     from "./pages/Landing";
 import WorkspaceProfile from "./pages/WorkspaceProfile";
 import Billing from "./pages/Billing";
 import WorkspaceHome from "./pages/WorkspaceHome";
+import RoleWorkspace from "./pages/RoleWorkspace";
 
 function Protected({ children, roles }) {
   const { user } = useAuth();
@@ -62,11 +63,14 @@ function AppShell() {
           <Route path="/profile" element={<Protected roles={["owner", "mechanic", "warehouse"]}><WorkspaceProfile /></Protected>} />
           <Route path="/billing" element={<Protected roles={["owner", "mechanic"]}><Billing /></Protected>} />
           <Route path="/workspace" element={<Protected roles={["owner", "mechanic", "warehouse", "admin"]}><WorkspaceHome /></Protected>} />
-          <Route path="/dashboard"   element={<Protected roles={["mechanic"]}><Dashboard /></Protected>} />
-          <Route path="/inventory"   element={<Protected roles={["mechanic"]}><Inventory /></Protected>} />
-          <Route path="/jobs"        element={<Protected roles={["mechanic"]}><Jobs /></Protected>} />
-          <Route path="/admin"       element={<Protected roles={["admin"]}><Admin /></Protected>} />
-          <Route path="/warehouse"   element={<Protected roles={["warehouse"]}><Warehouse /></Protected>} />
+          <Route path="/operations/mechanic" element={<Protected roles={["mechanic"]}><RoleWorkspace role="mechanic" /></Protected>} />
+          <Route path="/operations/warehouse" element={<Protected roles={["warehouse"]}><RoleWorkspace role="warehouse" /></Protected>} />
+          <Route path="/operations/admin" element={<Protected roles={["admin"]}><RoleWorkspace role="admin" /></Protected>} />
+          <Route path="/dashboard"   element={<Protected roles={["mechanic"]}><Navigate to="/operations/mechanic" replace /></Protected>} />
+          <Route path="/inventory"   element={<Protected roles={["mechanic"]}><Navigate to="/operations/mechanic?tab=inventory" replace /></Protected>} />
+          <Route path="/jobs"        element={<Protected roles={["mechanic"]}><Navigate to="/operations/mechanic?tab=jobs" replace /></Protected>} />
+          <Route path="/admin"       element={<Protected roles={["admin"]}><Navigate to="/operations/admin" replace /></Protected>} />
+          <Route path="/warehouse"   element={<Protected roles={["warehouse"]}><Navigate to="/operations/warehouse" replace /></Protected>} />
           <Route path="*"            element={<Navigate to="/" replace />} />
         </Routes>
     </div>

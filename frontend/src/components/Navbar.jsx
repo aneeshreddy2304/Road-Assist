@@ -69,7 +69,8 @@ const mechanicProfileDefaults = {
 export default function Navbar() {
   const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
-  const pathname = useLocation().pathname;
+  const location = useLocation();
+  const pathname = location.pathname;
   const panelRef = useRef(null);
 
   const [openPanel, setOpenPanel] = useState(null);
@@ -306,21 +307,21 @@ export default function Navbar() {
 
               {user.role === "mechanic" ? (
                 <>
-                  <HeaderNavLink to="/dashboard" icon={<LayoutDashboard size={16} />} label="Dashboard" active={pathname === "/dashboard"} />
-                  <HeaderNavLink to="/inventory" icon={<CarFront size={16} />} label="Inventory" active={pathname === "/inventory"} />
-                  <HeaderNavLink to="/jobs" icon={<ClipboardList size={16} />} label="Jobs" active={pathname === "/jobs"} />
+                  <HeaderNavLink to="/operations/mechanic" icon={<LayoutDashboard size={16} />} label="Dashboard" active={pathname === "/operations/mechanic"} />
+                  <HeaderNavLink to="/operations/mechanic?tab=inventory" icon={<CarFront size={16} />} label="Inventory" active={pathname === "/operations/mechanic" && new URLSearchParams(location.search).get("tab") === "inventory"} />
+                  <HeaderNavLink to="/operations/mechanic?tab=jobs" icon={<ClipboardList size={16} />} label="Jobs" active={pathname === "/operations/mechanic" && new URLSearchParams(location.search).get("tab") === "jobs"} />
                   <HeaderNavLink to="/billing" icon={<ReceiptText size={16} />} label="Billing" active={pathname === "/billing"} />
                   <HeaderNavLink to="/profile" icon={<UserRound size={16} />} label="Profile" active={pathname === "/profile"} />
                 </>
               ) : null}
 
               {user.role === "admin" ? (
-                <HeaderNavLink to="/admin" icon={<LayoutDashboard size={16} />} label="Admin" active={pathname === "/admin"} />
+                <HeaderNavLink to="/operations/admin" icon={<LayoutDashboard size={16} />} label="Admin" active={pathname === "/operations/admin"} />
               ) : null}
 
               {user.role === "warehouse" ? (
                 <>
-                  <HeaderNavLink to="/warehouse" icon={<ClipboardList size={16} />} label="Warehouse" active={pathname === "/warehouse"} />
+                  <HeaderNavLink to="/operations/warehouse" icon={<ClipboardList size={16} />} label="Warehouse" active={pathname === "/operations/warehouse"} />
                   <HeaderNavLink to="/profile" icon={<UserRound size={16} />} label="Profile" active={pathname === "/profile"} />
                 </>
               ) : null}
