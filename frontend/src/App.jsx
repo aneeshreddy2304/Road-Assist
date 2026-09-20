@@ -35,6 +35,12 @@ function AuthRoute({ children }) {
   return children;
 }
 
+function WorkspaceRouter() {
+  const { user } = useAuth();
+  if (user?.role === "owner") return <Navigate to="/explore" replace />;
+  return <WorkspaceHome />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -46,10 +52,11 @@ export default function App() {
 function AppShell() {
   const pathname = useLocation().pathname;
   const isPublicPage = pathname === "/" || pathname === "/login" || pathname === "/register";
+  const usesWingmanWorkspace = pathname === "/explore" || pathname === "/workspace";
 
   return (
     <div className={`min-h-screen ${isPublicPage ? "wingman-public-shell" : "wingman-workspace-shell"}`}>
-      {!isPublicPage && <Navbar />}
+      {!isPublicPage && !usesWingmanWorkspace && <Navbar />}
         <Routes>
           <Route path="/"            element={<Landing />} />
           <Route path="/login"       element={<AuthRoute><Login /></AuthRoute>} />
@@ -62,7 +69,7 @@ function AppShell() {
           <Route path="/vehicles/:vehicleId/care" element={<Protected roles={["owner"]}><VehicleCare /></Protected>} />
           <Route path="/profile" element={<Protected roles={["owner", "mechanic", "warehouse"]}><WorkspaceProfile /></Protected>} />
           <Route path="/billing" element={<Protected roles={["owner", "mechanic"]}><Billing /></Protected>} />
-          <Route path="/workspace" element={<Protected roles={["owner", "mechanic", "warehouse", "admin"]}><WorkspaceHome /></Protected>} />
+          <Route path="/workspace" element={<Protected roles={["owner", "mechanic", "warehouse", "admin"]}><WorkspaceRouter /></Protected>} />
           <Route path="/operations/mechanic" element={<Protected roles={["mechanic"]}><RoleWorkspace role="mechanic" /></Protected>} />
           <Route path="/operations/warehouse" element={<Protected roles={["warehouse"]}><RoleWorkspace role="warehouse" /></Protected>} />
           <Route path="/operations/admin" element={<Protected roles={["admin"]}><RoleWorkspace role="admin" /></Protected>} />

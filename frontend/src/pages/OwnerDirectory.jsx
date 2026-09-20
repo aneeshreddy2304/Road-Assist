@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
-import { CalendarDays, Crosshair, ExternalLink, MapPin, Package, Phone, Search, ShoppingBag, Wrench, X } from "lucide-react";
+import { CalendarDays, CarFront, ChevronDown, ClipboardList, Crosshair, ExternalLink, HeartPulse, MapPin, MessageCircle, Package, Phone, Search, ShoppingBag, UserRound, Wrench, X } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 import "leaflet/dist/leaflet.css";
 
 import {
@@ -28,6 +29,7 @@ function MapViewport({ center }) {
 }
 
 export default function OwnerDirectory() {
+  const route = useLocation();
   const [view, setView] = useState("services");
   const [providers, setProviders] = useState([]);
   const [parts, setParts] = useState([]);
@@ -90,48 +92,50 @@ export default function OwnerDirectory() {
   };
 
   const visible = view === "services" ? providers : parts;
-  const heading = view === "services" ? "Find service that fits the repair." : "Parts for the work you handle yourself.";
+  const heading = view === "services" ? "Find help" : "Parts shop";
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-[#e8e6df] px-4 py-6 text-[#252a2e] lg:px-8">
-      <section className="mx-auto max-w-[1440px]">
-        <div className="mb-6 flex flex-col justify-between gap-5 md:flex-row md:items-end">
-          <div className="max-w-3xl">
-            <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#59646a]">California demo directory</p>
-            <h1 className="mt-2 text-4xl font-black tracking-[-0.05em] md:text-6xl">{heading}</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-[#59646a]">Business names, locations, and listed services are curated for this demo. Contact routes are synthetic and no real business is contacted through Wingman.</p>
-          </div>
-          <button onClick={useLocation} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#252a2e] px-5 text-sm font-bold text-[#f4f1ea] transition hover:bg-[#3b454c]"><Crosshair size={16} /> Use current location</button>
-        </div>
+    <main className="owner-pearl-app">
+      <aside className="owner-pearl-sidebar">
+        <Link className="owner-pearl-brand" to="/explore"><span><Wrench size={19} /></span><div><small>ROAD COMPANION</small><strong>wingman</strong></div></Link>
+        <button className="owner-pearl-selector"><span><CarFront size={18} /></span><div><small>WORKSPACE</small><strong>Vehicle owner</strong></div><ChevronDown size={16} /></button>
+        <p className="owner-pearl-caption">YOUR ROAD COMPANION</p>
+        <nav className="owner-pearl-nav" aria-label="Owner workspace">
+          <button className={view === "services" ? "active" : ""} onClick={() => setView("services")}><MapPin size={19} /> Find help</button>
+          <Link to="/my-requests"><ClipboardList size={19} /> My requests</Link>
+          <Link to="/vehicles"><CarFront size={19} /> My garage</Link>
+          <Link to="/vehicles"><HeartPulse size={19} /> Vehicle Care</Link>
+          <Link to="/my-requests"><CalendarDays size={19} /> Appointments</Link>
+          <button className={view === "parts" ? "active" : ""} onClick={() => setView("parts")}><ShoppingBag size={19} /> Parts shop</button>
+          <Link to="/profile"><MessageCircle size={19} /> Messages</Link>
+          <Link to="/profile"><UserRound size={19} /> Profile</Link>
+        </nav>
+        <div className="owner-pearl-account"><span>{"" + (route.pathname === "/explore" ? "JE" : "OW")}</span><div><strong>Demo account</strong><small>Owner workspace</small></div><ChevronDown size={16} /></div>
+      </aside>
+      <section className="owner-pearl-content">
+        <header className="owner-pearl-title"><div><p>CALIFORNIA DIRECTORY</p><h1>{heading}</h1></div>{view === "services" ? <button onClick={useLocation}><Crosshair size={17} /> Use my location</button> : null}</header>
+        <div className="owner-pearl-disclaimer">Demo directory: public business names and service details, with synthetic Wingman contact routes. No real business is contacted.</div>
 
-        {notice ? <div className="mb-5 flex items-start justify-between gap-3 rounded-2xl border border-[#aeb8bc] bg-[#f4f1ea] px-4 py-3 text-sm text-[#3b454c]"><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice("")}><X size={16} /></button></div> : null}
+        {notice ? <div className="owner-pearl-notice"><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice("")}><X size={16} /></button></div> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(25rem,.95fr)]">
-          <Card className="overflow-hidden rounded-[28px] border-[#aeb8bc] bg-[#f4f1ea] p-0">
-            <div className="flex min-h-[29rem] flex-col">
-              <div className="border-b border-[#c9d0d3] p-4">
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => setView("services")} className={`min-h-10 rounded-full px-4 text-sm font-bold ${view === "services" ? "bg-[#252a2e] text-[#f4f1ea]" : "bg-[#e8e6df] text-[#59646a]"}`}><Wrench className="mr-2 inline" size={15} />Services</button>
-                  <button onClick={() => setView("parts")} className={`min-h-10 rounded-full px-4 text-sm font-bold ${view === "parts" ? "bg-[#252a2e] text-[#f4f1ea]" : "bg-[#e8e6df] text-[#59646a]"}`}><Package className="mr-2 inline" size={15} />Parts</button>
-                  {view === "services" ? categories.map(([id, label]) => <button key={id} onClick={() => setCategory(id)} className={`min-h-10 rounded-full border px-3 text-xs font-bold ${category === id ? "border-[#3b454c] bg-[#c9d0d3] text-[#252a2e]" : "border-[#c9d0d3] bg-transparent text-[#59646a]"}`}>{label}</button>) : null}
-                </div>
-                <label className="mt-4 flex min-h-12 items-center gap-2 rounded-2xl border border-[#c9d0d3] bg-white px-4"><Search size={17} className="text-[#59646a]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={view === "services" ? "Search a service or California city" : "Search oil, battery, brakes, wipers"} className="w-full bg-transparent text-sm outline-none placeholder:text-[#879299]" /></label>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                {loading ? <Spinner /> : visible.length === 0 ? <EmptyState icon="⌕" title="No matches" subtitle="Try a broader category or a different search." /> : view === "services" ? <div className="space-y-3">{providers.map((provider) => <ProviderRow key={provider.id} provider={provider} active={selected?.id === provider.id} onSelect={() => { setSelected(provider); setCenter({ lat: provider.lat, lng: provider.lng }); }} onBook={() => { loadOwnerWorkspace(); setBookingProvider(provider); }} />)}</div> : <div className="grid gap-3 sm:grid-cols-2">{parts.map((part) => <PartTile key={part.id} part={part} onOrder={() => { loadOwnerWorkspace(); setOrderPart(part); }} />)}</div>}
-              </div>
-            </div>
-          </Card>
+        <section className="owner-pearl-searchbar"><button className="owner-pearl-location"><MapPin size={18} /> California, United States <ChevronDown size={16} /></button><label><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={view === "services" ? "Search providers…" : "Search oil, battery, brakes…"} /></label><button onClick={useLocation}><Crosshair size={17} /> Use my location</button></section>
+        {view === "services" ? <div className="owner-pearl-chips">{categories.map(([id, label]) => <button key={id} onClick={() => setCategory(id)} className={category === id ? "selected" : ""}>{id === "all" ? "All providers" : label}</button>)}</div> : null}
 
-          <Card className="min-h-[32rem] overflow-hidden rounded-[28px] border-[#aeb8bc] p-0">
+        <div className="owner-pearl-finder">
+          <section className="owner-pearl-results">
+              <div className="owner-pearl-results-heading"><strong>{visible.length} {view === "services" ? "providers" : "products"} nearby</strong><span>Closest first</span></div>
+              {loading ? <Spinner /> : visible.length === 0 ? <EmptyState icon="⌕" title="No matches" subtitle="Try a broader category or a different search." /> : view === "services" ? <div className="space-y-3">{providers.map((provider) => <ProviderRow key={provider.id} provider={provider} active={selected?.id === provider.id} onSelect={() => { setSelected(provider); setCenter({ lat: provider.lat, lng: provider.lng }); }} onBook={() => { loadOwnerWorkspace(); setBookingProvider(provider); }} />)}</div> : <div className="grid gap-3 sm:grid-cols-2">{parts.map((part) => <PartTile key={part.id} part={part} onOrder={() => { loadOwnerWorkspace(); setOrderPart(part); }} />)}</div>}
+          </section>
+          <section className="owner-pearl-map">
             <MapContainer center={[CALIFORNIA.lat, CALIFORNIA.lng]} zoom={6} zoomControl={false} className="h-[32rem] w-full" scrollWheelZoom>
               <MapViewport center={center} />
               <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               {providers.map((provider) => <CircleMarker key={provider.id} center={[provider.lat, provider.lng]} radius={selected?.id === provider.id ? 11 : 8} pathOptions={{ color: "#f4f1ea", weight: 2, fillColor: provider.category === "parts" ? "#59646a" : "#252a2e", fillOpacity: 1 }} eventHandlers={{ click: () => { setSelected(provider); setCenter({ lat: provider.lat, lng: provider.lng }); } }}><Popup><strong>{provider.name}</strong><br />{provider.category} · {provider.city}<br />{provider.services.slice(0, 2).join(" · ")}</Popup></CircleMarker>)}
             </MapContainer>
-          </Card>
+            <div className="owner-pearl-map-label"><i /> California providers · demo directory</div>
+          </section>
         </div>
 
-        <section className="mt-6 grid gap-5 lg:grid-cols-2">
+        <section className="owner-pearl-orders">
           <Card className="rounded-[28px] border-[#c9d0d3] p-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#59646a]">Your service appointments</p>{bookings.length ? <div className="mt-4 space-y-3">{bookings.slice(0, 3).map((booking) => <p key={booking.id} className="border-t border-[#c9d0d3] pt-3 text-sm"><b>{booking.provider_name}</b> · {booking.service_type}<br /><span className="text-[#59646a]">{new Date(booking.requested_for).toLocaleString()}</span></p>)}</div> : <p className="mt-3 text-sm text-[#59646a]">Book a service-capable repair shop, tire centre, or dealership to see it here.</p>}</Card>
           <Card className="rounded-[28px] border-[#c9d0d3] p-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#59646a]">Your parts orders</p>{orders.length ? <div className="mt-4 space-y-3">{orders.slice(0, 3).map((order) => <p key={order.id} className="border-t border-[#c9d0d3] pt-3 text-sm"><b>{order.order_ref}</b> · {order.product_name}<br /><span className="text-[#59646a]">{order.status} · {formatCurrencyUSD(order.total_price)}</span></p>)}</div> : <p className="mt-3 text-sm text-[#59646a]">Fixed-price orders with your delivery details will appear here.</p>}</Card>
         </section>
