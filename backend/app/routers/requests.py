@@ -35,6 +35,7 @@ REQUEST_SELECT = """
         CAST(sr.estimated_cost AS FLOAT) AS estimated_cost,
         CAST(sr.total_cost AS FLOAT) AS total_cost,
         u.name AS owner_name,
+        mu.name AS mechanic_name,
         CONCAT(v.year, ' ', v.make, ' ', v.model) AS vehicle_label,
         v.license_plate,
         TRIM(BOTH ', ' FROM CONCAT_WS(', ', u.street_address, u.city, u.state, u.postal_code)) AS owner_address,
@@ -47,6 +48,8 @@ REQUEST_SELECT = """
     FROM service_requests sr
     JOIN users u ON u.id = sr.owner_id
     JOIN vehicles v ON v.id = sr.vehicle_id
+    LEFT JOIN mechanics mm ON mm.id = sr.mechanic_id
+    LEFT JOIN users mu ON mu.id = mm.user_id
 """
 
 

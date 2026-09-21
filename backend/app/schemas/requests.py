@@ -39,6 +39,7 @@ class ServiceRequestOut(BaseModel):
     estimated_cost: float | None
     total_cost: float | None
     owner_name: str | None = None
+    mechanic_name: str | None = None
     vehicle_label: str | None = None
     license_plate: str | None = None
     owner_address: str | None = None

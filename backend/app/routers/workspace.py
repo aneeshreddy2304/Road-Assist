@@ -228,7 +228,8 @@ async def list_recorded_invoices(
     condition = "i.owner_id = :uid" if current_user.role == "owner" else "i.provider_user_id = :uid"
     rows = (await db.execute(text(f"""
         SELECT i.id::TEXT, i.reference, i.owner_id::TEXT, i.provider_user_id::TEXT,
-               i.request_id::TEXT, i.appointment_id::TEXT, i.provider_name, i.status,
+               i.request_id::TEXT, CASE WHEN i.request_id IS NOT NULL THEN CONCAT('RA-', UPPER(SUBSTRING(i.request_id::TEXT, 1, 8))) END AS request_ref,
+               i.appointment_id::TEXT, i.provider_name, i.status,
                CAST(i.subtotal AS FLOAT) AS subtotal,
                CAST(i.taxes_and_fees AS FLOAT) AS taxes_and_fees,
                CAST(i.total AS FLOAT) AS total, i.payment_recorded_at,
