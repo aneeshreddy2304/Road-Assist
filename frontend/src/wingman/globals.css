@@ -10,4 +10,21 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--green)}
 .sidebar>.brand{display:flex;align-items:center;white-space:nowrap}
 .sidebar .brand-symbol{display:inline-flex;align-items:center;justify-content:center;padding:0}
 .sidebar .brand-symbol svg{display:block}
+/* Keep every WingMan action label and its icon as one compact control. */
+.workspace :is(.primary,.secondary,.text-button,.invoice-link,.viewer-open,.location-select,.workspace-selector){display:inline-flex;align-items:center;justify-content:center;flex-direction:row;gap:9px;white-space:nowrap;text-decoration:none}
+.workspace :is(.primary,.secondary,.text-button,.invoice-link,.viewer-open,.location-select,.workspace-selector)>svg{display:block;flex:0 0 auto}
+.workspace .overline{text-decoration:none}
+
+/* A consistent select treatment prevents Safari's default dark control from
+   visually breaking the pearl workspace. */
+.workspace select{appearance:none;-webkit-appearance:none;min-height:44px;padding:10px 42px 10px 14px;border:1px solid var(--border);border-radius:10px;background-color:rgba(255,255,255,.82);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%233564b3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;background-size:16px;color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.9);cursor:pointer}
+.workspace select:hover{border-color:#91ade3;background-color:rgba(255,255,255,.96)}
+.workspace select:focus-visible{border-color:#356ae6;box-shadow:0 0 0 4px rgba(53,106,230,.14);outline:0}
+.workspace select option{background:#fff;color:#213854}
+.workspace .vehicle-picker{width:min(100%,380px);font-weight:650}
+.provider-inventory{display:grid;gap:12px}
+.inventory-preview-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:13px;padding:14px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.58)}
+.inventory-preview-row>div:nth-child(2){min-width:0}.inventory-preview-row strong,.inventory-preview-row small{display:block}.inventory-preview-row small{margin-top:5px;color:var(--muted)}
+.inventory-preview-price{text-align:right}.inventory-preview-price>.badge{margin-top:6px}
+@media(max-width:620px){.inventory-preview-row{grid-template-columns:auto minmax(0,1fr)}.inventory-preview-price{grid-column:2;text-align:left}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

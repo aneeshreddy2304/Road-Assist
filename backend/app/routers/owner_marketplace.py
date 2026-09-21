@@ -57,6 +57,38 @@ def _require_owner(current_user: User) -> User:
     return current_user
 
 
+def _provider_inventory(category: str, services: list[str] | None) -> list[dict]:
+    """Return safe demo inventory matched to the provider's published work.
+
+    Business identity and services are public directory data; quantities and
+    prices are deliberately synthetic so the owner can verify likely parts
+    before creating a request without representing live business stock.
+    """
+    service_text = " ".join(services or []).lower()
+    catalog: list[tuple[str, str, float, int]] = []
+    if "oil" in service_text:
+        catalog.extend([("Synthetic 0W-20 oil", "Fluids", 39.99, 12), ("Premium oil filter", "Filters", 12.49, 8)])
+    if "brake" in service_text:
+        catalog.extend([("Ceramic brake pad set", "Brakes", 64.99, 4), ("DOT 4 brake fluid", "Fluids", 14.99, 7)])
+    if "battery" in service_text or "jump" in service_text:
+        catalog.append(("AGM replacement battery", "Electrical", 189.99, 3))
+    if "tire" in service_text or category == "tire":
+        catalog.extend([("All-season tire", "Tires", 129.99, 6), ("Tire repair kit", "Tires", 24.99, 9)])
+    if "diagnostic" in service_text:
+        catalog.append(("OBD-II diagnostic adapter", "Diagnostics", 34.99, 5))
+    if category == "parts":
+        catalog.extend([("Windshield wiper pair", "Visibility", 29.99, 14), ("Engine air filter", "Filters", 18.99, 11)])
+    if not catalog:
+        catalog = [("Emergency roadside kit", "Roadside", 42.99, 5)]
+
+    seen: set[str] = set()
+    return [
+        {"name": name, "category": part_category, "price": price, "quantity": quantity, "availability": "In stock" if quantity > 0 else "Unavailable"}
+        for name, part_category, price, quantity in catalog
+        if not (name in seen or seen.add(name))
+    ]
+
+
 @router.get("/providers")
 async def list_providers(
     lat: float | None = Query(default=None),
@@ -97,7 +129,10 @@ async def list_providers(
       ORDER BY {order}
     """
     result = await db.execute(text(sql), params)
-    return [_plain(dict(row)) for row in result.mappings().all()]
+    providers = [_plain(dict(row)) for row in result.mappings().all()]
+    for provider in providers:
+        provider["inventory"] = _provider_inventory(provider["category"], provider.get("services"))
+    return providers
 
 
 @router.get("/parts")
