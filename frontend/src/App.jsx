@@ -70,7 +70,7 @@ function AppShell() {
       {!isPublicPage && !usesWingmanWorkspace && <Navbar />}
         <Routes>
           <Route path="/"            element={<Landing />} />
-          <Route path="/login"       element={<AuthRoute><Login /></AuthRoute>} />
+          <Route path="/login"       element={<Login />} />
           <Route path="/register"    element={<AuthRoute><Register /></AuthRoute>} />
           <Route path="/search"      element={<Protected roles={["owner"]}><Navigate to="/explore" replace /></Protected>} />
           <Route path="/demo/:role"  element={<DemoWingmanRoute />} />

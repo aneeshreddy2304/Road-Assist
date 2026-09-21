@@ -25,15 +25,7 @@ export default function Landing() {
   const navigate = useNavigate();
   const heroRef = useRef(null);
   const [heroProgressed, setHeroProgressed] = useState(false);
-  const appDestination = user
-    ? user.role === "mechanic"
-      ? "/dashboard"
-      : user.role === "warehouse"
-        ? "/warehouse"
-        : user.role === "admin"
-          ? "/admin"
-          : "/search"
-    : "/login";
+  const appDestination = "/login";
 
   useScrollReveal();
 
