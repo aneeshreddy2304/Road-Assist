@@ -7,4 +7,7 @@ button,a,input,select,textarea{outline-offset:5px}
 button,a{touch-action:manipulation}
 button{cursor:pointer}
 button:focus-visible,a:focus-visible{outline:3px solid var(--green)}
+.sidebar>.brand{display:flex;align-items:center;white-space:nowrap}
+.sidebar .brand-symbol{display:inline-flex;align-items:center;justify-content:center;padding:0}
+.sidebar .brand-symbol svg{display:block}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
