@@ -1,0 +1,15 @@
+/* Find Help starts at the same visual baseline as the sidebar brand. */
+body .workspace-content:has(.finder){position:relative;padding-top:20px!important}
+body .owner-workspace .page-title:has(+ .search-toolbar){position:absolute;inset:0 0 auto;z-index:5;height:0!important;min-height:0!important;margin:0!important}
+body .owner-workspace .page-title:has(+ .search-toolbar) .page-title-actions{right:0;top:20px}
+body .owner-workspace .search-toolbar{margin-bottom:20px}
+@media(min-width:901px){body .workspace-content:has(.finder) .finder{height:calc(100vh - 195px);min-height:760px}}
+/* Parts Shop starts with its searchable catalog control, with bag at the same baseline. */
+body .retail-marketplace .retail-disclosure,body .retail-marketplace .retail-utility{display:none}
+body .retail-marketplace .page-title:has(+ .retail-disclosure){display:flex;position:absolute;height:0;min-height:0;margin:0;inset:0 0 auto;z-index:5}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) .page-title-actions{position:absolute;right:0;top:0}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary{width:52px;min-width:52px;height:52px;min-height:52px;padding:0;display:grid;place-items:center;font-size:0}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary .count-light{display:none}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary svg{width:21px;height:21px}
+body .retail-marketplace .retail-search{width:calc(100% - 72px);margin:0 0 22px!important}
+@media(max-width:650px){body .retail-marketplace .retail-search{width:calc(100% - 64px)}body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary{width:48px;min-width:48px;height:48px;min-height:48px}}

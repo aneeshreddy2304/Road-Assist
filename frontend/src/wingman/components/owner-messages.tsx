@@ -1,23 +1,401 @@
 "use client";
-import {useEffect,useMemo,useState} from 'react';
-import {ArrowLeft,Search,Send,ChevronRight,LoaderCircle} from 'lucide-react';
-import {getMessageInbox,getMessageThread,sendMessage} from '../../api/endpoints';
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  Search,
+  Send,
+  ChevronRight,
+  LoaderCircle,
+} from "lucide-react";
+import {
+  getMessageInbox,
+  getMessageThread,
+  sendMessage,
+} from "../../api/endpoints";
 
-export type MessageTarget={mechanicId?:string;ownerId?:string;requestId?:string;name?:string;store?:string;job?:string};
-type Contact={id:string;mechanicId?:string;ownerId?:string;requestId?:string;name:string;store:string;initials:string;job:string;lastText:string;lastTime:string;senderRole?:string};
-type Message={id:string;from:'me'|'them';text:string;time:string};
-const samples:Record<string,Contact[]>={owner:[{id:'sample-owner-1',name:'Alex Morgan',store:'Sunset Auto Care',initials:'AM',job:'WM-2048',lastText:'I’ll run a quick battery test first.',lastTime:'10:35 AM'}],mechanic:[{id:'sample-mechanic-1',name:'Jordan Ellis',store:'Vehicle owner',initials:'JE',job:'WM-2048',lastText:'My vehicle is parked outside.',lastTime:'10:32 AM'}],warehouse:[{id:'sample-warehouse-1',name:'Alex Morgan',store:'Sunset Auto Care',initials:'AM',job:'PO-1084',lastText:'Could you confirm when our order will be ready?',lastTime:'10:32 AM'}]};
-const sampleThread:Message[]=[{id:'s1',from:'them',text:'Hi! I’m on my way and have the replacement part with me.',time:'10:32 AM'},{id:'s2',from:'me',text:'Thanks. I’m parked outside the blue building.',time:'10:33 AM'},{id:'s3',from:'them',text:'Found you. I’ll run a quick check first.',time:'10:35 AM'}];
-const initials=(name='Wingman')=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
-const when=(value?:string)=>value?new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value)):'';
+export type MessageTarget = {
+  mechanicId?: string;
+  ownerId?: string;
+  requestId?: string;
+  name?: string;
+  store?: string;
+  job?: string;
+};
+type Contact = {
+  id: string;
+  mechanicId?: string;
+  ownerId?: string;
+  requestId?: string;
+  name: string;
+  store: string;
+  initials: string;
+  job: string;
+  lastText: string;
+  lastTime: string;
+  senderRole?: string;
+};
+type Message = { id: string; from: "me" | "them"; text: string; time: string };
+const samples: Record<string, Contact[]> = {
+  owner: [
+    {
+      id: "sample-owner-1",
+      name: "Alex Morgan",
+      store: "Sunset Auto Care",
+      initials: "AM",
+      job: "WM-2048",
+      lastText: "I’ll run a quick battery test first.",
+      lastTime: "10:35 AM",
+    },
+  ],
+  mechanic: [
+    {
+      id: "sample-mechanic-1",
+      name: "Jordan Ellis",
+      store: "Vehicle owner",
+      initials: "JE",
+      job: "WM-2048",
+      lastText: "My vehicle is parked outside.",
+      lastTime: "10:32 AM",
+    },
+  ],
+  warehouse: [
+    {
+      id: "sample-warehouse-1",
+      name: "Alex Morgan",
+      store: "Sunset Auto Care",
+      initials: "AM",
+      job: "PO-1084",
+      lastText: "Could you confirm when our order will be ready?",
+      lastTime: "10:32 AM",
+    },
+  ],
+};
+const sampleThread: Message[] = [
+  {
+    id: "s1",
+    from: "them",
+    text: "Hi! I’m on my way and have the replacement part with me.",
+    time: "10:32 AM",
+  },
+  {
+    id: "s2",
+    from: "me",
+    text: "Thanks. I’m parked outside the blue building.",
+    time: "10:33 AM",
+  },
+  {
+    id: "s3",
+    from: "them",
+    text: "Found you. I’ll run a quick check first.",
+    time: "10:35 AM",
+  },
+];
+const initials = (name = "Wingman") =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((x) => x[0])
+    .join("")
+    .toUpperCase();
+const when = (value?: string) =>
+  value
+    ? new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(value))
+    : "";
 
-export default function OwnerMessages({role="owner",target,onTargetHandled}:{role?:string;target?:MessageTarget|null;onTargetHandled?:()=>void}){
-  const [contacts,setContacts]=useState<Contact[]>([]),[selected,setSelected]=useState<string|null>(null),[query,setQuery]=useState(''),[threads,setThreads]=useState<Record<string,Message[]>>({}),[draft,setDraft]=useState(''),[loading,setLoading]=useState(true),[sending,setSending]=useState(false),[error,setError]=useState('');
-  const isDemo=!localStorage.getItem('token');
-  useEffect(()=>{let active=true;setLoading(true);setError('');if(isDemo){const list=samples[role]||samples.owner;setContacts(list);setThreads({[list[0].id]:sampleThread});setLoading(false);return;}getMessageInbox().then(({data})=>{if(!active)return;setContacts((data||[]).map((row:any)=>({id:`${row.mechanic_id||''}:${row.owner_id||''}:${row.request_id||''}`,mechanicId:row.mechanic_id||undefined,ownerId:row.owner_id||undefined,requestId:row.request_id||undefined,name:row.counterpart_name||'Wingman contact',store:row.counterpart_address||'',initials:initials(row.counterpart_name),job:row.request_ref||'',lastText:row.message||'',lastTime:when(row.created_at),senderRole:row.sender_role}))) }).catch(()=>active&&setError('Conversations could not be loaded.')).finally(()=>active&&setLoading(false));return()=>{active=false}},[role,isDemo]);
-  useEffect(()=>{if(!target)return;const id=`${target.mechanicId||''}:${target.ownerId||''}:${target.requestId||''}`;setContacts(current=>current.some(c=>c.id===id)?current:[{id,mechanicId:target.mechanicId,ownerId:target.ownerId,requestId:target.requestId,name:target.name||'Wingman provider',store:target.store||'',initials:initials(target.name),job:target.job||'',lastText:'Start a conversation',lastTime:''},...current]);setSelected(id);onTargetHandled?.()},[target,onTargetHandled]);
-  const person=contacts.find(p=>p.id===selected),messages=selected?threads[selected]||[]:[];
-  useEffect(()=>{if(!person||threads[person.id]||isDemo)return;setLoading(true);setError('');const params=role==='owner'?{mechanic_id:person.mechanicId,request_id:person.requestId}:{owner_id:person.ownerId,request_id:person.requestId};getMessageThread(params).then(({data})=>setThreads(current=>({...current,[person.id]:(data||[]).map((row:any)=>({id:row.id,from:row.sender_role===role?'me':'them',text:row.message,time:when(row.created_at)}))}))).catch(()=>setError('This conversation could not be opened.')).finally(()=>setLoading(false))},[person?.id]);
-  const visible=useMemo(()=>contacts.filter(p=>`${p.name} ${p.store} ${p.job}`.toLowerCase().includes(query.toLowerCase())),[contacts,query]);
-  async function submit(e:React.FormEvent){e.preventDefault();if(!person||!draft.trim())return;const messageText=draft.trim();setSending(true);setError('');try{if(isDemo){setThreads(current=>({...current,[person.id]:[...(current[person.id]||[]),{id:String(Date.now()),from:'me',text:messageText,time:'Just now'}]}));}else{const payload=role==='owner'?{mechanic_id:person.mechanicId,request_id:person.requestId,message:messageText}:{owner_id:person.ownerId,request_id:person.requestId,message:messageText};const {data}=await sendMessage(payload);setThreads(current=>({...current,[person.id]:[...(current[person.id]||[]),{id:data.id,from:'me',text:data.message,time:when(data.created_at)}]}));setContacts(current=>current.map(c=>c.id===person.id?{...c,lastText:messageText,lastTime:'Just now'}:c));}setDraft('')}catch(err:any){setError(err?.response?.data?.detail||'Message could not be sent.')}finally{setSending(false)}}
-  return <section className="owner-inbox panel">{!person?<><label className="inbox-search"><Search size={19}/><input aria-label="Search conversations" placeholder="Search conversations" value={query} onChange={e=>setQuery(e.target.value)}/></label>{error&&<p className="form-error">{error}</p>}<div className="inbox-people">{loading?<p className="inbox-empty"><LoaderCircle className="spin" size={20}/> Loading conversations…</p>:visible.map(p=><button className="inbox-person" key={p.id} onClick={()=>setSelected(p.id)}><span className="avatar">{p.initials}</span><span className="inbox-person-copy"><strong>{p.name}</strong><span>{p.store}</span><small>{p.senderRole===role?'You: ':''}{p.lastText}</small></span><span className="inbox-person-meta"><time>{p.lastTime}</time><ChevronRight size={17}/></span></button>)}{!loading&&!visible.length&&<p className="inbox-empty">No conversations yet. Open a request and choose Message provider to start one.</p>}</div></>:<><header className="inbox-chat-header"><button className="icon-button" aria-label="Back to conversations" onClick={()=>setSelected(null)}><ArrowLeft size={21}/></button><span className="avatar">{person.initials}</span><div><strong>{person.name}</strong><small>{person.store}</small></div><span className="inbox-job">{person.job}</span></header>{error&&<p className="form-error">{error}</p>}<div className="inbox-thread" role="log" aria-label={`Conversation with ${person.name}`}>{isDemo&&<span className="inbox-demo">Sample conversation</span>}{loading?<p className="inbox-empty">Loading messages…</p>:messages.length?messages.map(m=><div className={'inbox-bubble '+m.from} key={m.id}><p>{m.text}</p><small>{m.time}{m.from==='me'?' · Sent':''}</small></div>):<p className="inbox-empty">No messages yet. Say hello to start this request conversation.</p>}</div><form className="inbox-composer" onSubmit={submit}><input aria-label={`Message ${person.name}`} placeholder="Message…" value={draft} onChange={e=>setDraft(e.target.value)}/><button className="primary" aria-label="Send message" disabled={!draft.trim()||sending}>{sending?<LoaderCircle className="spin" size={19}/>:<Send size={19}/>}</button></form></>}</section>}
+export default function OwnerMessages({
+  role = "owner",
+  target,
+  onTargetHandled,
+}: {
+  role?: string;
+  target?: MessageTarget | null;
+  onTargetHandled?: () => void;
+}) {
+  const [contacts, setContacts] = useState<Contact[]>([]),
+    [selected, setSelected] = useState<string | null>(null),
+    [query, setQuery] = useState(""),
+    [threads, setThreads] = useState<Record<string, Message[]>>({}),
+    [draft, setDraft] = useState(""),
+    [loading, setLoading] = useState(true),
+    [sending, setSending] = useState(false),
+    [error, setError] = useState("");
+  const isDemo = !localStorage.getItem("token");
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    if (isDemo) {
+      const list = samples[role] || samples.owner;
+      setContacts(list);
+      setThreads({ [list[0].id]: sampleThread });
+      setLoading(false);
+      return;
+    }
+    getMessageInbox()
+      .then(({ data }) => {
+        if (!active) return;
+        setContacts(
+          (data || []).map((row: any) => ({
+            id: `${row.mechanic_id || ""}:${row.owner_id || ""}:${row.request_id || ""}`,
+            mechanicId: row.mechanic_id || undefined,
+            ownerId: row.owner_id || undefined,
+            requestId: row.request_id || undefined,
+            name: row.counterpart_name || "Wingman contact",
+            store: row.counterpart_address || "",
+            initials: initials(row.counterpart_name),
+            job: row.request_ref || "",
+            lastText: row.message || "",
+            lastTime: when(row.created_at),
+            senderRole: row.sender_role,
+          })),
+        );
+      })
+      .catch(() => active && setError("Conversations could not be loaded."))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [role, isDemo]);
+  useEffect(() => {
+    if (!target) return;
+    const id = `${target.mechanicId || ""}:${target.ownerId || ""}:${target.requestId || ""}`;
+    setContacts((current) =>
+      current.some((c) => c.id === id)
+        ? current
+        : [
+            {
+              id,
+              mechanicId: target.mechanicId,
+              ownerId: target.ownerId,
+              requestId: target.requestId,
+              name: target.name || "Wingman provider",
+              store: target.store || "",
+              initials: initials(target.name),
+              job: target.job || "",
+              lastText: "Start a conversation",
+              lastTime: "",
+            },
+            ...current,
+          ],
+    );
+    setSelected(id);
+    onTargetHandled?.();
+  }, [target, onTargetHandled]);
+  const person = contacts.find((p) => p.id === selected),
+    messages = selected ? threads[selected] || [] : [];
+  useEffect(() => {
+    if (!person || threads[person.id] || isDemo) return;
+    setLoading(true);
+    setError("");
+    const params =
+      role === "owner"
+        ? { mechanic_id: person.mechanicId, request_id: person.requestId }
+        : { owner_id: person.ownerId, request_id: person.requestId };
+    getMessageThread(params)
+      .then(({ data }) =>
+        setThreads((current) => ({
+          ...current,
+          [person.id]: (data || []).map((row: any) => ({
+            id: row.id,
+            from: row.sender_role === role ? "me" : "them",
+            text: row.message,
+            time: when(row.created_at),
+          })),
+        })),
+      )
+      .catch(() => setError("This conversation could not be opened."))
+      .finally(() => setLoading(false));
+  }, [person?.id]);
+  const visible = useMemo(
+    () =>
+      contacts.filter((p) =>
+        `${p.name} ${p.store} ${p.job}`
+          .toLowerCase()
+          .includes(query.toLowerCase()),
+      ),
+    [contacts, query],
+  );
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!person || !draft.trim()) return;
+    const messageText = draft.trim();
+    setSending(true);
+    setError("");
+    try {
+      if (isDemo) {
+        setThreads((current) => ({
+          ...current,
+          [person.id]: [
+            ...(current[person.id] || []),
+            {
+              id: String(Date.now()),
+              from: "me",
+              text: messageText,
+              time: "Just now",
+            },
+          ],
+        }));
+      } else {
+        const payload =
+          role === "owner"
+            ? {
+                mechanic_id: person.mechanicId,
+                request_id: person.requestId,
+                message: messageText,
+              }
+            : {
+                owner_id: person.ownerId,
+                request_id: person.requestId,
+                message: messageText,
+              };
+        const { data } = await sendMessage(payload);
+        setThreads((current) => ({
+          ...current,
+          [person.id]: [
+            ...(current[person.id] || []),
+            {
+              id: data.id,
+              from: "me",
+              text: data.message,
+              time: when(data.created_at),
+            },
+          ],
+        }));
+        setContacts((current) =>
+          current.map((c) =>
+            c.id === person.id
+              ? { ...c, lastText: messageText, lastTime: "Just now" }
+              : c,
+          ),
+        );
+      }
+      setDraft("");
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Message could not be sent.");
+    } finally {
+      setSending(false);
+    }
+  }
+  return (
+    <section className="owner-inbox panel">
+      {!person ? (
+        <>
+          <label className="inbox-search">
+            <Search size={19} />
+            <input
+              aria-label="Search conversations"
+              placeholder="Search conversations"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          {error && <p className="form-error">{error}</p>}
+          <div className="inbox-people">
+            {loading ? (
+              <p className="inbox-empty">
+                <LoaderCircle className="spin" size={20} /> Loading
+                conversations…
+              </p>
+            ) : (
+              visible.map((p) => (
+                <button
+                  className="inbox-person"
+                  key={p.id}
+                  onClick={() => setSelected(p.id)}
+                >
+                  <span className="avatar">{p.initials}</span>
+                  <span className="inbox-person-copy">
+                    <strong>{p.name}</strong>
+                    <span>{p.store}</span>
+                    <small>
+                      {p.senderRole === role ? "You: " : ""}
+                      {p.lastText}
+                    </small>
+                  </span>
+                  <span className="inbox-person-meta">
+                    <time>{p.lastTime}</time>
+                    <ChevronRight size={17} />
+                  </span>
+                </button>
+              ))
+            )}
+            {!loading && !visible.length && (
+              <p className="inbox-empty">
+                No conversations yet. Open a request and choose Message provider
+                to start one.
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <header className="inbox-chat-header">
+            <button
+              className="icon-button"
+              aria-label="Back to conversations"
+              onClick={() => setSelected(null)}
+            >
+              <ArrowLeft size={21} />
+            </button>
+            <span className="avatar">{person.initials}</span>
+            <div>
+              <strong>{person.name}</strong>
+              <small>{person.store}</small>
+            </div>
+            <span className="inbox-job">{person.job}</span>
+          </header>
+          {error && <p className="form-error">{error}</p>}
+          <div
+            className="inbox-thread"
+            role="log"
+            aria-label={`Conversation with ${person.name}`}
+          >
+            {isDemo && <span className="inbox-demo">Sample conversation</span>}
+            {loading ? (
+              <p className="inbox-empty">Loading messages…</p>
+            ) : messages.length ? (
+              messages.map((m) => (
+                <div className={"inbox-bubble " + m.from} key={m.id}>
+                  <p>{m.text}</p>
+                  <small>
+                    {m.time}
+                    {m.from === "me" ? " · Sent" : ""}
+                  </small>
+                </div>
+              ))
+            ) : (
+              <p className="inbox-empty">
+                No messages yet. Say hello to start this request conversation.
+              </p>
+            )}
+          </div>
+          <form className="inbox-composer" onSubmit={submit}>
+            <input
+              aria-label={`Message ${person.name}`}
+              placeholder="Message…"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            <button
+              className="primary"
+              aria-label="Send message"
+              disabled={!draft.trim() || sending}
+            >
+              {sending ? (
+                <LoaderCircle className="spin" size={19} />
+              ) : (
+                <Send size={19} />
+              )}
+            </button>
+          </form>
+        </>
+      )}
+    </section>
+  );
+}

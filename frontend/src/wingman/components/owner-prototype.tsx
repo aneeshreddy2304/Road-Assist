@@ -1,47 +1,2525 @@
 "use client";
-import {useState,useMemo,useEffect} from 'react';import {ArrowUpRight,ArrowRight,MapPin,Navigation,Search,SlidersHorizontal,Star,Wrench,Truck,Check,Plus,CarFront,CalendarDays,Clock,MessageCircle,ChevronRight,FileText,Upload,Download,Trash2,ShoppingBag,Package,Minus,CheckCircle2,Leaf,Battery,AlertCircle,Send,Pencil,X} from 'lucide-react';
-import {providers,initialVehicles,initialRequests,initialCheckins,initialServices,initialAppointments,products,type Provider} from '@/lib/demo-data';import {Modal,PageTitle,Badge,Empty,CarArt,ProductArt} from './prototype-shared';import ProviderMap from './provider-map';
-import PartsMarketplace from './parts-marketplace';
-import OwnerMessages from './owner-messages';
-import {AppointmentHistory,Billing,OwnerProfile} from './owner-records';
-import {addServiceRecord,addVehicle,addVehicleCheckin,createProviderBooking,createRequest,deleteVehicle,getMyVehicles,getOwnerDirectoryProviders,getProviderBookings,getRecordedInvoices,getVehicleCare,listRequests,updateVehicle} from '../../api/endpoints';
-type Props={tab:string;setTab:(s:string)=>void;notify:(s:string)=>void};
-export default function Owner({tab,setTab,notify}:Props){const[requestView,setRequestView]=useState('All');const[vehicles,setVehicles]=useState(initialVehicles);const[requests,setRequests]=useState(initialRequests);const[checkins,setCheckins]=useState([...initialCheckins.map(c=>({...c,vehicleId:1})),{date:"Sep 1, 2026",mileage:67200,note:"Ready for our next weekend trip.",vehicleId:2}]);const[services,setServices]=useState(initialServices.map((s,i)=>({...s,vehicleId:i===0?1:2})));const[appointments,setAppointments]=useState(initialAppointments);const[category,setCategory]=useState('All providers');const[service,setService]=useState('All services');const[mode,setMode]=useState('Any service mode');const[part,setPart]=useState('Any part');const[selected,setSelected]=useState<Provider|null>(null);const[modal,setModal]=useState('');const[center,setCenter]=useState<[number,number]>([37.7749,-122.447]);const[location,setLocation]=useState('San Francisco, CA');const[outside,setOutside]=useState(false);const[search,setSearch]=useState('');const[activeRequest,setActiveRequest]=useState(requests[0]);const[activeVehicle,setActiveVehicle]=useState(1);const[cart,setCart]=useState<Record<number,number>>({});const[productCategory,setProductCategory]=useState('All parts');const[serviceItems,setServiceItems]=useState(['Oil change']);const[invoice,setInvoice]=useState<File|null>(null);const[invoiceUrls,setInvoiceUrls]=useState<Record<number,string>>({});const[retailOrders,setRetailOrders]=useState<{id:string;total:number;status:string}[]>([]);const[due,setDue]=useState(true);const[extraPlans,setExtraPlans]=useState<{name:string;date:string;mileage:string;vehicleId:number}[]>([]);const[messages,setMessages]=useState([{from:'them',text:'Hi Jordan! I’m on my way. I have a replacement battery with me.',time:'10:32 AM'},{from:'me',text:'Thanks Alex! I’m parked outside the blue building on 9th Avenue.',time:'10:33 AM'},{from:'them',text:'Found you. I’ll run a quick battery test first, then we’ll get you back on the road.',time:'10:35 AM'}]);const[draft,setDraft]=useState('');const [editing,setEditing]=useState<number|null>(null);
-const[liveProviders,setLiveProviders]=useState<Provider[]>(providers);const[providerLoading,setProviderLoading]=useState(true);const[providerError,setProviderError]=useState('');
-const[recordedInvoices,setRecordedInvoices]=useState<any[]>(()=>{try{return JSON.parse(localStorage.getItem('wingman-recorded-invoices')||'[]')}catch{return[]}});
-useEffect(()=>{if(!localStorage.getItem('token'))return;getProviderBookings().then(({data})=>setAppointments((data||[]).map((item:any)=>{const date=new Date(item.requested_for);return{id:item.id,day:String(date.getDate()).padStart(2,'0'),month:date.toLocaleString(undefined,{month:'short'}).toUpperCase(),date:date.toLocaleDateString(),time:date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}),service:item.service_type,provider:item.provider_name,vehicle:item.vehicle_label||'Vehicle',status:item.status==='requested'?'Requested':item.status}}))).catch(()=>notify('Appointments could not be refreshed.'))},[notify,tab]);
-useEffect(()=>{if(!localStorage.getItem('token'))return;let active=true;getMyVehicles().then(async({data})=>{if(!active||!Array.isArray(data))return;const care=await Promise.all(data.map((item:any)=>getVehicleCare(item.id).then(response=>response.data).catch(()=>null)));if(!active)return;const mapped=data.map((item:any,index:number)=>({id:index+1,backendId:item.id,name:item.nickname||'My vehicle',make:item.make,model:item.model,year:item.year,mileage:Number(care[index]?.summary?.current_odometer_miles||0),plate:item.license_plate,color:item.color||'SILVER',status:care[index]?.summary?.state==='service_overdue'?'Service overdue':care[index]?.summary?.state==='due_soon'?'Service coming up':'All caught up'}));if(mapped.length)setVehicles(mapped as any)}).catch(()=>notify('Your garage could not be refreshed.'));return()=>{active=false}},[notify]);
-useEffect(()=>{if(!localStorage.getItem('token'))return;const current:any=vehicles.find(v=>v.id===activeVehicle);if(!current?.backendId)return;let active=true;getVehicleCare(current.backendId).then(({data})=>{if(!active)return;setCheckins((data.checkins||[]).map((item:any)=>({id:item.id,vehicleId:activeVehicle,date:new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric'}).format(new Date(item.recorded_on+'T12:00:00')),mileage:Number(item.odometer_miles),note:item.note||'No issues noticed.'})));setServices((data.service_records||[]).map((item:any)=>({id:item.id,vehicleId:activeVehicle,date:new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric'}).format(new Date(item.service_date+'T12:00:00')),mileage:Number(item.odometer_miles),provider:item.provider_name,items:item.completed_items||[],cost:Number(item.total_cost||0),invoice:item.invoice_filename||'No invoice attached'})));setDue((data.active_reminders||[]).some((item:any)=>item.reminder_type==='service_due'))}).catch(()=>notify('Vehicle Care could not be refreshed.'));return()=>{active=false}},[activeVehicle,vehicles.length,notify]);
-useEffect(()=>{if(!localStorage.getItem('token'))return;getRecordedInvoices().then(({data})=>setRecordedInvoices((data||[]).map((invoice:any)=>({reference:invoice.reference,requestId:invoice.request_ref||invoice.request_id,description:invoice.items?.[0]?.description||'Completed service',labor:Number(invoice.items?.[0]?.line_total||0),parts:Number(invoice.items?.[1]?.line_total||0),fees:Number(invoice.taxes_and_fees||0),note:invoice.provider_note||'',createdAt:invoice.created_at})))).catch(()=>{})},[tab]);
-useEffect(()=>{if(!localStorage.getItem('token'))return;let active=true;listRequests().then(({data})=>{if(!active||!Array.isArray(data))return;setRequests(data.map((item:any)=>({id:item.request_ref||item.id,backendId:item.id,mechanicId:item.mechanic_id,ownerId:item.owner_id,provider:item.mechanic_name||'Awaiting provider',issue:item.problem_desc,vehicle:item.vehicle_label||'Vehicle',status:String(item.status||'requested').split('_').map((part:string)=>part[0].toUpperCase()+part.slice(1)).join(' '),date:new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(item.created_at)),mode:'Service request',mechanic:item.mechanic_name||'Awaiting assignment',notes:item.status==='completed'?'The provider marked this work complete.':item.status==='in_progress'?'Your provider is working on the vehicle now.':item.status==='accepted'?'Your provider accepted this request.':'Waiting for a provider to accept this request.'}))) }).catch(()=>notify('Your live requests could not be refreshed.')).finally(()=>{});return()=>{active=false}},[notify,tab]);
-useEffect(()=>{if(!recordedInvoices.length)return;setRequests(current=>current.map(request=>{const saved=recordedInvoices.find(invoice=>invoice.requestId===request.id);return saved?{...request,status:'Completed',notes:`${saved.description}. Final recorded bill: $${(Number(saved.labor)+Number(saved.parts)+Number(saved.fees||0)).toFixed(2)}.`}:request}))},[recordedInvoices]);
-useEffect(()=>{let active=true;setProviderLoading(true);setProviderError('');getOwnerDirectoryProviders({lat:center[0],lng:center[1]}).then(response=>{if(!active)return;const categoryNames:Record<string,string>={repair:'Repair shop',dealership:'Service dealership',tire:'Tire shop',towing:'Towing',parts:'Auto-parts store'};const colors=['#ece6d9','#e2e9f2','#f3e3d7','#e5e1ee','#e8ebd6','#dfebe5'];const mapped:Provider[]=(response.data||[]).map((item:any,index:number)=>{const modes=Array.isArray(item.service_modes)?item.service_modes:[];const mobile=modes.includes('mobile'),shop=modes.includes('shop');const inventory=Array.isArray(item.inventory)?item.inventory:[];return{id:item.id,name:item.name,category:categoryNames[item.category]||item.category,address:item.address||`${item.city}, ${item.state}`,lat:Number(item.lat),lng:Number(item.lng),distance:item.distance_km==null?'—':(Number(item.distance_km)*0.621371).toFixed(1),rating:'4.8',reviews:0,services:Array.isArray(item.services)?item.services:[],mode:mobile&&shop?'Mobile & shop':mobile?'Mobile service':item.category==='parts'?'Parts pickup & delivery':'Shop visit',available:true,initials:String(item.name).split(/\s+/).slice(0,2).map((word:string)=>word[0]).join('').toUpperCase(),color:colors[index%colors.length],inventory,stock:inventory.map((part:any)=>part.name),description:item.description||'',phone:item.synthetic_phone||'',email:item.synthetic_email||'',website:item.website_url||'',canSchedule:Boolean(item.can_schedule)}});setLiveProviders(mapped.length?mapped:providers)}).catch(()=>{if(active)setProviderError('The California directory could not be refreshed. Showing the built-in preview providers.')}).finally(()=>{if(active)setProviderLoading(false)});return()=>{active=false}},[center]);
-const filtered=useMemo(()=>liveProviders.filter(p=>(category==='All providers'||p.category===category)&&(service==='All services'||p.services.includes(service))&&(mode==='Any service mode'||(mode==='Mobile service'?p.mode.includes('Mobile'):p.mode.includes('shop')||p.mode==='Shop visit'))&&(part==='Any part'||p.stock.includes(part))&&(search===''||p.name.toLowerCase().includes(search.toLowerCase())||p.services.some(s=>s.toLowerCase().includes(search.toLowerCase())))),[liveProviders,category,service,mode,part,search]);const cartCount=Object.values(cart).reduce((a,b)=>a+b,0);const total=products.reduce((a,p)=>a+p.price*(cart[p.id]||0),0);const vehicle=vehicles.find(v=>v.id===activeVehicle)||vehicles[0];
-function field(form:HTMLFormElement,name:string){return String(new FormData(form).get(name)||'')}
-function locate(){if(!navigator.geolocation){notify('Location isn’t supported. Try a manual location.');return;}navigator.geolocation.getCurrentPosition(p=>{setCenter([p.coords.latitude,p.coords.longitude]);setLocation(`${p.coords.latitude.toFixed(3)}, ${p.coords.longitude.toFixed(3)}`);setOutside(p.coords.latitude<32.5||p.coords.latitude>42||p.coords.longitude< -124.5||p.coords.longitude> -114.1);notify('Your location is set. Provider pins are sample data.')},()=>notify('Location permission unavailable. You can search manually.'));}
-return <>
-{tab==='Find help'&&<><PageTitle title="Find help" action={<button className="primary" onClick={()=>{setSelected(providers[2]);setModal('request')}}><Truck size={17}/> Get roadside help <ArrowUpRight size={17}/></button>}/><div className="search-toolbar"><button className="location-select" onClick={()=>setModal('location')}><MapPin size={18}/><span>{location}</span><ChevronRight size={15}/></button><div className="search-input"><Search size={17}/><input aria-label="Search providers" placeholder="Search providers…" value={search} onChange={e=>setSearch(e.target.value)}/></div><button className="secondary" onClick={locate}><Navigation size={16}/> Use my location</button></div><div className="filter-row">{['All providers','Repair shop','Service dealership','Tire shop','Towing','Auto-parts store'].map(c=><button className={'chip '+(category===c?'selected':'')} key={c} onClick={()=>setCategory(c)}>{c}</button>)}</div><details className="finder-filters"><summary><SlidersHorizontal size={16}/> Service, travel & parts filters <ChevronRight size={15}/></summary><div className="filter-selects"><SlidersHorizontal size={16}/><select aria-label="Service filter" value={service} onChange={e=>setService(e.target.value)}>{['All services','Oil change','Brakes','Diagnostics','Tire repair','Tire rotation','Towing','Jump start','Parts'].map(x=><option key={x}>{x}</option>)}</select><select aria-label="Service mode filter" value={mode} onChange={e=>setMode(e.target.value)}>{['Any service mode','Mobile service','Shop visit'].map(x=><option key={x}>{x}</option>)}</select><select aria-label="Part availability filter" value={part} onChange={e=>setPart(e.target.value)}>{['Any part','Oil filter','Brake pads','Battery','Tire repair kit'].map(x=><option key={x}>{x}</option>)}</select><span>Sample availability</span></div></details>{outside&&<div className="notice"><MapPin size={18}/>You’re outside California. We’ve kept your location; this prototype only has sample California coverage. <button onClick={()=>{setCenter([37.7749,-122.447]);setOutside(false);setLocation('San Francisco, CA')}}>Explore San Francisco</button></div>}<div className="finder"><div className="provider-results"><div className="results-heading"><strong>{outside?0:filtered.length} providers nearby</strong><span>Closest first</span></div>{outside?<Empty title="California is our starting line" text="Explore our San Francisco sample directory to try the experience."/>:filtered.length===0?<Empty title="No matching providers" text="Try a different service, part, or provider category."/>:filtered.map(p=><button key={p.id} className={'provider-card '+(selected?.id===p.id?'active':'')} onClick={()=>setSelected(p)}><div className="provider-top"><span className="provider-avatar" style={{background:p.color}}>{p.initials}</span><div><span className="provider-type">{p.category}</span><h3>{p.name}</h3><span className="rating"><Star size={12} fill="currentColor"/>{p.rating}<small>({p.reviews})</small><span>· {p.distance} mi</span></span></div><ArrowUpRight size={18}/></div><div className="service-tags">{p.services.slice(0,3).map(s=><span key={s}>{s}</span>)}</div><div className="provider-bottom"><span className={p.available?'available':'muted'}><i/>{p.available?'Available today':'Next opening tomorrow'}</span><span>{p.mode.includes('Mobile')?<Truck size={13}/>:<Wrench size={13}/>} {p.mode}</span></div></button>)}</div><div className="map-wrap"><ProviderMap providers={outside?[]:filtered} selected={selected?.id||0} onSelect={setSelected} center={center}/><div className="map-legend"><span className="status-dot"/>Sample providers · San Francisco</div>{selected&&!outside&&<div className="map-provider"><button className="map-close" aria-label="Close provider" onClick={()=>setSelected(null)}><X size={17}/></button><Badge>{selected.mode}</Badge><h3>{selected.name}</h3><p><MapPin size={14}/>{selected.address}</p><div className="detail-stock"><Check size={15}/> Demo stock: {selected.stock.slice(0,2).join(', ')}</div><div className="button-row"><button className="primary" onClick={()=>setModal('provider')}>View provider <ArrowRight size={16}/></button><button className="secondary" onClick={()=>setModal(selected.category==='Auto-parts store'?'parts-redirect':'request')}>Request help</button></div></div>}</div></div></>}
-{tab==='My requests'&&<><PageTitle title="My requests" action={<button className="primary" onClick={()=>setTab('Find help')}><Plus size={17}/> New request</button>}/><div className="segmented">{['All','Active','Past'].map(view=><button key={view} className={requestView===view?'active':''} onClick={()=>setRequestView(view)}>{view} requests</button>)}</div><div className="request-grid">{requests.filter(r=>requestView==='All'||(requestView==='Past'?r.status==='Completed':r.status!=='Completed')).map(r=><article className="panel request-card" key={r.id}><div className="between"><span className="overline">{r.id}</span><Badge tone={r.status==='Completed'?'gray':'green'}>{r.status}</Badge></div><h2>{r.issue}</h2><p className="muted">{r.vehicle}</p><div className="request-provider"><span className="provider-avatar">{r.provider.slice(0,2).toUpperCase()}</span><div><strong>{r.provider}</strong><small>{r.mode} · {r.date}</small></div></div><div className="progress-track">{['Requested','Accepted','In progress','Completed'].map((s,i)=><div key={s} className={i<=(r.status==='Completed'?3:r.status==='In progress'?2:r.status==='Accepted'?1:0)?'done':''}><span>{i<2||r.status==='Completed'?<Check size={12}/>:i+1}</span><small>{s}</small></div>)}</div><div className="request-update"><span className="status-dot"/><p>{r.notes}</p></div><div className="button-row"><button className="secondary" onClick={()=>{setActiveRequest(r);setModal('tracking')}}>{r.status==='Completed'?'Details & billing':'View details'} <ArrowUpRight size={15}/></button><button className="text-button" onClick={()=>{setActiveRequest(r);r.status==='Completed'?setModal('review'):setTab('Messages')}}>{r.status==='Completed'?'Leave a review':'Message provider'} <MessageCircle size={16}/></button></div></article>)}</div></>}
-{tab==='My garage'&&<><PageTitle title="My garage" action={<button className="primary" onClick={()=>{setEditing(null);setModal('vehicle')}}><Plus size={18}/> Add a vehicle</button>}/><div className="vehicle-grid">{vehicles.map((v,i)=><article className="panel vehicle-card" key={v.id}><div className="between"><Badge tone={i===0?'amber':'green'}>{i===0?'Service coming up':'All caught up'}</Badge><button className="icon-button" aria-label={`Edit ${v.name}`} onClick={()=>{setEditing(v.id);setModal('vehicle')}}><Pencil size={16}/></button></div><CarArt dark={i%2===1}/><span className="overline">{v.name}</span><h2>{v.year} {v.make} {v.model}</h2><div className="vehicle-details"><div><small>Odometer</small><strong>{v.mileage.toLocaleString()} <span>mi</span></strong></div><div><small>License plate</small><strong>{v.plate}</strong></div></div><div className="button-row"><button className="secondary" onClick={()=>{setActiveVehicle(v.id);setTab('Vehicle Care')}}>View vehicle care <ArrowUpRight size={16}/></button><button className="icon-button danger" aria-label={`Delete ${v.name}`} onClick={()=>{setEditing(v.id);setModal('delete-vehicle')}}><Trash2 size={16}/></button></div></article>)}<button className="add-vehicle" onClick={()=>{setEditing(null);setModal('vehicle')}}><span><Plus size={28}/></span><h3>Room for one more?</h3><p>Add another vehicle to your garage.</p></button></div><div className="care-banner"><Leaf size={32}/><div><h3>Good care goes a long way.</h3><p>Track mileage, save service records, and stay one step ahead.</p></div><button className="secondary" onClick={()=>setTab('Vehicle Care')}>Explore Vehicle Care <ArrowRight size={16}/></button></div></>}
-{tab==='Vehicle Care'&&<><PageTitle title="Vehicle Care" action={<button className="primary" onClick={()=>setModal('checkin')}><Plus size={17}/> Log a check-in</button>}/><div className="care-layout"><section><div className="care-vehicle panel"><div><span className="overline">Your vehicle</span><select className="vehicle-picker" value={activeVehicle} onChange={e=>setActiveVehicle(Number(e.target.value))}>{vehicles.map(v=><option key={v.id} value={v.id}>{v.year} {v.make} {v.model}</option>)}</select><span className="muted">{vehicle?.name}</span><div className="mileage-number">{vehicle?.mileage.toLocaleString()}<span> miles</span></div><small className="muted">Manually updated · Last check-in September 1</small></div><CarArt dark={activeVehicle===2}/></div><div className="panel section-panel"><div className="section-heading"><div><h2>Monthly check-ins</h2><p>A few notes now. Useful context later.</p></div><span className="icon-disc"><CalendarDays size={20}/></span></div><div className="table-wrap"><table><thead><tr><th>Date</th><th>Mileage</th><th>Your notes</th></tr></thead><tbody>{checkins.filter(c=>c.vehicleId===activeVehicle).map((c,i)=><tr key={i}><td>{c.date}</td><td className="nowrap">{c.mileage.toLocaleString()} mi</td><td className="muted">{c.note}</td></tr>)}</tbody></table></div></div><div className="panel section-panel"><div className="section-heading"><div><h2>Service history</h2><p>Every little thing that keeps you moving.</p></div><button className="secondary" onClick={()=>{setServiceItems(['Oil change']);setModal('service')}}><Plus size={16}/> Add record</button></div>{services.filter(s=>s.vehicleId===activeVehicle).map(s=><div className="service-record" key={s.id}><div className="record-icon"><Wrench size={19}/></div><div className="record-content"><div className="between"><h3>{s.items.join(' + ')}</h3><strong>${s.cost.toFixed(2)}</strong></div><p>{s.date} <span>·</span> {s.mileage.toLocaleString()} mi <span>·</span> {s.provider}</p><button className="invoice-link" onClick={()=>{if(invoiceUrls[s.id])window.open(invoiceUrls[s.id],'_blank');else setModal('invoice')}}><FileText size={14}/>{s.invoice}<ArrowUpRight size={13}/></button></div></div>)}</div></section><aside className="care-aside"><div className="next-checkin"><span className="icon-disc"><CalendarDays size={23}/></span><span className="overline">Your next check-in</span><h2>October 1</h2><p>Just your mileage and anything you’ve noticed. We’ll remind you here at 9:00 AM Pacific.</p><button className="secondary full" onClick={()=>setModal('checkin')}>Check in early <ArrowRight size={16}/></button></div><div className="panel due-card"><div className="between"><h3>On the horizon</h3><Clock size={18}/></div>{due?<><Badge tone="amber">Coming up soon</Badge><h3>Oil change</h3><p>By October 1 or 45,000 miles</p><div className="mileage-progress"><span/></div><small>2,150 miles to go</small><button className="text-button" onClick={()=>setModal('service')}>Record completed service <ArrowRight size={15}/></button></>:<div className="all-good"><CheckCircle2 size={26}/><p>You’re all caught up.</p></div>}<button className="text-button" onClick={()=>setModal('plan')}><Plus size={14}/> Add a service reminder</button></div>{extraPlans.filter(p=>p.vehicleId===activeVehicle).map((p,i)=><div className="panel due-card" key={i}><Badge>Service reminder</Badge><h3>{p.name}</h3><p>{p.date?`Due ${p.date}`:""}{p.date&&p.mileage?" or ":""}{p.mileage?`${Number(p.mileage).toLocaleString()} miles`:""}</p><button className="text-button" onClick={()=>setModal("service")}>Record completed service <ArrowRight size={15}/></button></div>)}<div className="subtle-note"><Leaf size={20}/><p>A small habit with a big payoff.<br/>Your future self will thank you.</p></div></aside></div></>}
-<div hidden={tab!=='Parts shop'}><PartsMarketplace notify={notify}/></div>
-{tab==='Appointments'&&<><PageTitle title="Appointments" action={<button className="primary" onClick={()=>{setSelected(providers[0]);setModal('appointment')}}><Plus size={18}/> Book a service</button>}/><div className="appointment-layout"><div><h3 className="list-heading">Upcoming appointments</h3>{appointments.map(a=><article className="panel appointment-card" key={a.id}><div className="date-tile"><small>{a.month}</small><strong>{a.day}</strong></div><div><div className="between"><h2>{a.service}</h2><Badge>{a.status}</Badge></div><p>{a.provider} · {a.vehicle}</p><span className="appointment-time"><Clock size={15}/>{a.date} at {a.time}</span><div className="button-row"><button className="text-button" onClick={()=>{setSelected(providers.find(p=>p.name===a.provider)||providers[0]);setModal('appointment')}}>Reschedule</button><button className="text-button muted" onClick={()=>{setAppointments(appointments.filter(x=>x.id!==a.id));notify('Appointment cancelled in this prototype')}}>Cancel appointment</button></div></div></article>)}<AppointmentHistory/></div><div className="panel calendar-panel"><div className="between"><h3>September 2026</h3><CalendarDays size={19}/></div><div className="calendar-grid">{['M','T','W','T','F','S','S'].map((x,i)=><small key={'d'+i}>{x}</small>)}{Array.from({length:35},(_,i)=>i===0||i>30?<span key={i}/>:<button key={i} className={i===17?'today':i===22||i===28?'booked':''} onClick={()=>{setSelected(providers[0]);setModal('appointment')}}>{i}</button>)}</div><p className="muted"><span className="status-dot"/> Your scheduled services</p></div></div></>}
-<div hidden={tab!=='Profile'}><PageTitle title="Profile"/><OwnerProfile vehicles={vehicles} onGarage={()=>setTab('My garage')} notify={notify}/></div>
-<div hidden={tab!=='Messages'}><PageTitle title="Messages"/><OwnerMessages target={(activeRequest as any)?.mechanicId?{mechanicId:(activeRequest as any).mechanicId,requestId:(activeRequest as any).backendId,name:(activeRequest as any).mechanic,store:(activeRequest as any).provider,job:(activeRequest as any).id}:null}/></div>
-{modal==='provider'&&selected&&<Modal title={selected.name} subtitle={selected.category+' · Sample provider'} onClose={()=>setModal('')}><div className="provider-detail"><div className="between"><span className="rating"><Star size={16}/>{selected.rating} · {selected.reviews} sample reviews</span><Badge>{selected.available?'Available today':'Next opening tomorrow'}</Badge></div><p><MapPin size={16}/>{selected.address}</p><h3>How we can help</h3><div className="service-tags">{selected.services.map(s=><span key={s}>{s}</span>)}</div><div className="detail-box"><Truck size={23}/><div><strong>{selected.mode}</strong><p>{selected.mode.includes('Mobile')?'We can come to your vehicle. Shop visits are also available where shown.':'Bring your vehicle to the shop for service.'}</p></div></div><p className="muted">Supported vehicles: cars, SUVs, and light trucks. Part fitment must be confirmed.</p><p className="muted">Contact: {selected.email||selected.initials.toLowerCase()+'@wingman.example'}</p><div className="button-row"><button className="secondary" onClick={()=>setModal('inventory')}><ShoppingBag size={16}/> View inventory</button><button className="primary" onClick={()=>selected.category==='Auto-parts store'?(setModal(''),setTab('Parts shop')):setModal('request')}>Request help <ArrowRight size={16}/></button><button className="secondary" onClick={()=>setModal('appointment')}>Schedule service</button></div><a className="text-button" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/directions?to=${selected.lat},${selected.lng}`}>View sample location on map <ArrowUpRight size={15}/></a></div></Modal>}
-{modal==='inventory'&&selected&&<Modal title={`${selected.name} inventory`} subtitle="Check likely parts before you send a request." onClose={()=>setModal('provider')}><div className="provider-inventory"><p className="muted">Inventory, prices, and quantities are synthetic demonstration data. Confirm fitment with the provider.</p>{(selected.inventory?.length?selected.inventory:selected.stock.map((name,index)=>({name,category:'Service part',price:[12.49,64.99,189.99][index%3],quantity:[8,4,3][index%3],availability:'In stock'}))).map(part=><div className="inventory-preview-row" key={part.name}><span className="icon-disc"><Package size={18}/></span><div><strong>{part.name}</strong><small>{part.category} · {part.quantity} available</small></div><div className="inventory-preview-price"><strong>${Number(part.price).toFixed(2)}</strong><Badge>{part.availability}</Badge></div></div>)}{!selected.stock.length&&<Empty title="No inventory listed" text="Message this provider to confirm the part you need."/>}<div className="button-row"><button className="secondary" onClick={()=>setModal('provider')}>Back to profile</button><button className="primary" onClick={()=>setModal('request')}>Request help <ArrowRight size={16}/></button></div></div></Modal>}
-{modal==='parts-redirect'&&<Modal title="Find your maintenance essentials" onClose={()=>setModal('')}><p>This provider sells parts. Explore the owner parts shop to build a sample order.</p><button className="primary" onClick={()=>{setModal('');setTab('Parts shop')}}>Browse parts <ArrowRight size={17}/></button></Modal>}
-{modal==='request'&&<Modal title="Let’s get you some help." subtitle={`Create a request for ${selected?.name||'a nearby provider'}.`} onClose={()=>setModal('')}><form className="form-grid" onSubmit={async e=>{e.preventDefault();const f=e.currentTarget;const button=f.querySelector('button[type="submit"]') as HTMLButtonElement|null;if(button)button.disabled=true;try{if(!localStorage.getItem('token')){const v=vehicles.find(v=>v.id===Number(field(f,'vehicle')))||vehicles[0];setRequests([{id:'WM-'+(2050+requests.length),provider:selected?.name||providers[0].name,issue:field(f,'issue'),vehicle:`${v.year} ${v.make} ${v.model}`,status:'Requested',date:'Just now',mode:field(f,'mode'),mechanic:'Awaiting assignment',notes:'Your sample request has been created.'},...requests]);notify('Sample request created.')}else{const live=await getMyVehicles();const chosenIndex=Math.max(0,vehicles.findIndex(v=>String(v.id)===field(f,'vehicle')));const backendVehicle=live.data?.[chosenIndex]||live.data?.[0];if(!backendVehicle)throw new Error('Add a vehicle before creating a request.');const created=await createRequest({vehicle_id:backendVehicle.id,problem_desc:field(f,'issue'),lat:center[0],lng:center[1]});const item=created.data;setRequests(current=>[{id:item.request_ref||item.id,backendId:item.id,mechanicId:item.mechanic_id,ownerId:item.owner_id,provider:item.mechanic_name||selected?.name||'Awaiting provider',issue:item.problem_desc,vehicle:item.vehicle_label||`${backendVehicle.year} ${backendVehicle.make} ${backendVehicle.model}`,status:'Requested',date:'Just now',mode:field(f,'mode'),mechanic:item.mechanic_name||'Awaiting assignment',notes:'Waiting for a provider to accept this request.'},...current]);notify('Your request is live and available to Wingman mechanics.')}setModal('');setTab('My requests')}catch(error:any){notify(error?.response?.data?.detail||error?.message||'The request could not be created.')}finally{if(button)button.disabled=false}}}><label>Your vehicle<select name="vehicle">{vehicles.map(v=><option key={v.id} value={v.id}>{v.year} {v.make} {v.model}</option>)}</select></label><label>What’s happening?<textarea name="issue" placeholder="Tell us what you noticed…" required minLength={5}/></label><label>Service mode<select name="mode">{selected?.mode!=='Shop visit'&&<option>Mobile service</option>}{selected?.mode!=='Mobile service'&&<option>Shop visit</option>}</select></label><div className="detail-box"><MapPin size={20}/><div><strong>{location}</strong><p>Your location is shared with available Wingman mechanics.</p></div></div><button type="submit" className="primary full">Create request <ArrowRight size={17}/></button></form></Modal>}
-{modal==='location'&&<Modal title="Where’s the road taking you?" subtitle="Choose a sample location or use your current location." onClose={()=>setModal('')}><form className="form-grid" onSubmit={e=>{e.preventDefault();const text=field(e.currentTarget,'location');setLocation(text);const sf=/san francisco|sf|california/i.test(text);setOutside(!sf);setCenter(sf?[37.7749,-122.447]:[40.7128,-74.006]);setModal('');if(!sf)notify('Prototype location search: showing the outside-coverage example.')}}><label>City or ZIP code<input name="location" placeholder="San Francisco, CA" required/></label><button className="primary">Use this location <ArrowRight size={16}/></button></form><button className="text-button" onClick={()=>{locate();setModal('')}}><Navigation size={16}/>Use my current location</button><p className="muted">Prototype: San Francisco is the sample coverage area. Other searches demonstrate the outside-coverage state.</p></Modal>}
-{modal==='vehicle'&&<Modal title={editing?'A few updated details.':'Meet your next companion.'} subtitle="Keep the essentials handy for your next service." onClose={()=>setModal('')}><form className="form-grid" onSubmit={async e=>{e.preventDefault();const f=e.currentTarget,current:any=vehicles.find(v=>v.id===editing),payload={nickname:field(f,'name'),make:field(f,'make'),model:field(f,'model'),year:Number(field(f,'year')),license_plate:field(f,'plate'),vehicle_type:'car',color:'SILVER'},mileage=Number(field(f,'mileage'));try{let backendId=current?.backendId;if(localStorage.getItem('token')){if(backendId)await updateVehicle(backendId,payload);else{const created=await addVehicle(payload);backendId=created.data.id;if(mileage>0)await addVehicleCheckin(backendId,{odometer_miles:mileage,note:'Initial odometer reading'})}}const v={id:editing||Date.now(),backendId,name:payload.nickname,make:payload.make,model:payload.model,year:payload.year,mileage,plate:payload.license_plate,color:'SILVER',status:'All caught up'};setVehicles(editing?vehicles.map(x=>x.id===editing?v:x):[...vehicles,v] as any);setModal('');notify('Vehicle saved to your garage.')}catch(error:any){notify(error?.response?.data?.detail||'The vehicle could not be saved.')}}}>{[['name','Nickname','The daily driver'],['make','Make','Toyota'],['model','Model','RAV4'],['year','Year','2021'],['mileage','Current mileage (miles)','42850'],['plate','License plate','8WGM214']].map(([name,label,placeholder])=><label key={name}>{label}<input name={name} required type={name==='year'||name==='mileage'?'number':'text'} min={name==='year'?1900:0} max={name==='year'?new Date().getFullYear()+1:undefined} defaultValue={editing?String(vehicles.find(v=>v.id===editing)?.[name as keyof typeof vehicles[0]]||''):''} placeholder={placeholder}/></label>)}<button type="submit" className="primary full">Save vehicle <Check size={17}/></button></form></Modal>}
-{modal==='delete-vehicle'&&<Modal title="Remove this vehicle?" subtitle="This removes the vehicle and its connected records from your account." onClose={()=>setModal('')}><div className="button-row"><button className="secondary" onClick={()=>setModal('')}>Keep vehicle</button><button className="primary" onClick={async()=>{if(vehicles.length===1){notify('Keep at least one vehicle in your garage.');setModal('');return;}try{const current:any=vehicles.find(v=>v.id===editing);if(localStorage.getItem('token')&&current?.backendId)await deleteVehicle(current.backendId);setVehicles(vehicles.filter(v=>v.id!==editing));setModal('');notify('Vehicle removed.')}catch(error:any){notify(error?.response?.data?.detail||'The vehicle could not be removed.')}}}>Remove vehicle</button></div></Modal>}
-{modal==='checkin'&&<Modal title="How’s your car feeling?" subtitle={`${vehicle?.year} ${vehicle?.make} ${vehicle?.model} · A quick monthly check-in.`} onClose={()=>setModal('')}><form className="form-grid" onSubmit={async e=>{e.preventDefault();const f=e.currentTarget,mileage=Number(field(f,'mileage')),note=field(f,'note')||'No issues noticed.',backendId=(vehicle as any)?.backendId;try{if(localStorage.getItem('token')&&backendId){const {data}=await addVehicleCheckin(backendId,{odometer_miles:mileage,note});setCheckins([{id:data.id,vehicleId:activeVehicle,date:new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric'}).format(new Date(data.recorded_on+'T12:00:00')),mileage,note},...checkins])}else setCheckins([{vehicleId:activeVehicle,date:new Date().toLocaleDateString(),mileage,note},...checkins]);setVehicles(vehicles.map(v=>v.id===activeVehicle?{...v,mileage}:v));setModal('');notify('Check-in recorded. A little care goes a long way.')}catch(error:any){notify(error?.response?.data?.detail||'The check-in could not be saved.')}}}><label>Current odometer reading (miles)<input name="mileage" type="number" min={vehicle?.mileage||0} required defaultValue={vehicle?.mileage}/><small className="muted">Last recorded: {vehicle?.mileage.toLocaleString()} mi. Mileage is entered manually.</small></label><label>Anything you’ve noticed?<textarea name="note" placeholder="A sound, a feeling, or simply ‘all good.’"/></label><button type="submit" className="primary full">Save check-in <Check size={18}/></button></form></Modal>}
-{modal==='service'&&<Modal title="Another good mile behind you." subtitle="Add the details of a completed service." wide onClose={()=>setModal('')}><form className="form-grid" onSubmit={async e=>{e.preventDefault();const f=e.currentTarget,backendId=(vehicle as any)?.backendId,id=Date.now(),date=field(f,'date'),mileage=Number(field(f,'mileage')),provider=field(f,'provider'),cost=Number(field(f,'cost')),notes=field(f,'notes'),nextDate=field(f,'next-date'),nextMileage=field(f,'next-mileage');try{let recordId:any=id;if(localStorage.getItem('token')&&backendId){const payload=new FormData();payload.append('service_date',date);payload.append('odometer_miles',String(mileage));payload.append('provider_name',provider);payload.append('completed_items',JSON.stringify(serviceItems.filter(Boolean)));payload.append('total_cost',String(cost));if(notes)payload.append('notes',notes);if(nextDate)payload.append('next_due_date',nextDate);if(nextMileage)payload.append('next_due_miles',nextMileage);if(invoice)payload.append('invoice',invoice);const response=await addServiceRecord(backendId,payload);recordId=response.data.id}setServices([{id:recordId,vehicleId:activeVehicle,date:new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric'}).format(new Date(date+'T12:00:00')),mileage,provider,items:serviceItems.filter(Boolean),cost,invoice:invoice?.name||'No invoice attached'},...services]);if(nextDate||nextMileage)setExtraPlans([...extraPlans,{name:serviceItems.filter(Boolean).join(' + '),date:nextDate,mileage:nextMileage,vehicleId:activeVehicle}]);if(invoice)setInvoiceUrls({...invoiceUrls,[recordId]:URL.createObjectURL(invoice)});setDue(false);setInvoice(null);setModal('');notify('Service record added to your vehicle’s history.')}catch(error:any){notify(error?.response?.data?.detail||'The service record could not be saved.')}}}><div className="form-columns"><label>Service date<input name="date" type="date" defaultValue={new Date().toISOString().slice(0,10)} required/></label><label>Mileage (miles)<input name="mileage" type="number" defaultValue={vehicle?.mileage} min={0} required/></label></div><label>Workshop or provider<input name="provider" placeholder="Where was the work completed?" required/></label><label>Completed service items</label>{serviceItems.map((s,i)=><div className="input-row" key={i}><input aria-label={`Service item ${i+1}`} value={s} required onChange={e=>setServiceItems(serviceItems.map((x,j)=>i===j?e.target.value:x))}/><button type="button" className="icon-button" aria-label="Remove service item" onClick={()=>setServiceItems(serviceItems.filter((_,j)=>j!==i))} disabled={serviceItems.length===1}><X size={17}/></button></div>)}<button type="button" className="text-button" onClick={()=>setServiceItems([...serviceItems,''])}><Plus size={16}/>Add another service item</button><div className="form-columns"><label>Total cost ($)<input name="cost" type="number" min={0} step="0.01" required/></label><label>Next service date (optional)<input name="next-date" type="date"/></label></div><label>Next mileage target (optional)<input name="next-mileage" type="number" min={0} placeholder="e.g. 45000"/></label><label>Notes<textarea name="notes" placeholder="Anything useful for next time…"/></label><label className="upload-box"><Upload size={23}/><strong>{invoice?invoice.name:'Attach one invoice'}</strong><small>PDF, JPG, or PNG · up to 10 MB</small><input type="file" accept="application/pdf,image/jpeg,image/png" onChange={e=>setInvoice(e.target.files?.[0]||null)}/></label><button type="submit" className="primary full">Save service record <Check size={17}/></button></form></Modal>}
-{modal==='plan'&&<Modal title="A small reminder for the road ahead." onClose={()=>setModal('')}><form className="form-grid" onSubmit={e=>{e.preventDefault();const f=e.currentTarget;const date=field(f,'date'),mileage=field(f,'mileage');if(!date&&!mileage){notify('Add a date, a mileage target, or both.');return;}setExtraPlans([...extraPlans,{name:field(f,'service'),date,mileage,vehicleId:activeVehicle}]);setModal('');notify('Sample service reminder added')}}><label>Service<input name="service" required placeholder="e.g. Oil change"/></label><label>Due date<input name="date" type="date"/></label><label>Or mileage target (miles)<input name="mileage" type="number" min={0} placeholder="45000"/></label><p className="muted">In the full app, reminders stay active until you record the relevant completed service.</p><button className="primary">Add reminder <Check size={17}/></button></form></Modal>}
-{modal==='invoice'&&<Modal title="Service invoice" subtitle="Sample document preview · July 12, 2026" onClose={()=>setModal('')}><div className="invoice-preview"><span className="overline">Sunset auto care</span><h2>Thanks for trusting us.</h2><p>2021 Toyota RAV4 · 41,600 miles</p><hr/>{[['Oil change','$89.00'],['Tire rotation','$35.00'],['Brake inspection','$25.00']].map(([a,b])=><div className="between" key={a}><span>{a}</span><span>{b}</span></div>)}<hr/><div className="between"><strong>Total</strong><strong>$149.00</strong></div><p className="muted">Illustrative invoice. Not a receipt for an actual service.</p></div></Modal>}
-{modal==='appointment'&&<Modal title="Make time for your vehicle." subtitle={`Schedule a visit with ${selected?.name||providers[0].name}.`} onClose={()=>setModal('')}><form className="form-grid" onSubmit={async e=>{e.preventDefault();const f=e.currentTarget,date=field(f,'date'),time=field(f,'time'),vehicleId=Number(field(f,'vehicle')),current:any=vehicles.find(v=>v.id===vehicleId),requestedFor=new Date(`${date} ${time}`);try{if(localStorage.getItem('token')&&selected?.id){const {data}=await createProviderBooking({provider_id:selected.id,vehicle_id:current?.backendId||null,requested_for:requestedFor.toISOString(),service_type:field(f,'service'),notes:''});setAppointments([...appointments,{id:data.id,day:date.slice(-2),month:requestedFor.toLocaleString(undefined,{month:'short'}).toUpperCase(),date:requestedFor.toLocaleDateString(),time,service:field(f,'service'),provider:data.provider_name,vehicle:`${current.year} ${current.make} ${current.model}`,status:'Requested'}])}else setAppointments([...appointments,{id:Date.now(),day:date.slice(-2),month:requestedFor.toLocaleString(undefined,{month:'short'}).toUpperCase(),date:requestedFor.toLocaleDateString(),time,service:field(f,'service'),provider:selected?.name||providers[0].name,vehicle:`${current.year} ${current.make} ${current.model}`,status:'Scheduled'}]);setModal('');setTab('Appointments');notify('Appointment request saved.')}catch(error:any){notify(error?.response?.data?.detail||'The appointment could not be scheduled.')}}}><label>Vehicle<select name="vehicle">{vehicles.map(v=><option key={v.id} value={v.id}>{v.year} {v.make} {v.model}</option>)}</select></label><label>Service<select name="service">{['Oil change & inspection','Wheel alignment','Brake inspection','Scheduled maintenance','Battery replacement'].map(s=><option key={s}>{s}</option>)}</select></label><div className="form-columns"><label>Date<input type="date" name="date" min={new Date().toISOString().slice(0,10)} required/></label><label>Time<select name="time">{['9:30 AM','11:00 AM','1:30 PM','3:00 PM'].map(x=><option key={x}>{x}</option>)}</select></label></div><button type="submit" className="primary full">Request appointment <ArrowRight size={17}/></button></form></Modal>}
-{modal==='tracking'&&<Modal title="Request details" subtitle={activeRequest.id} wide onClose={()=>setModal('')}><dl className="history-details">{[['Issue',activeRequest.issue],['Vehicle',activeRequest.vehicle],['Provider',activeRequest.provider],['Mechanic',activeRequest.mechanic],['Date',activeRequest.date],['Service mode',activeRequest.mode],['Status',activeRequest.status]].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl><h3>{activeRequest.status==='Completed'?'Work completed':'Latest update'}</h3><p>{activeRequest.notes}</p>{activeRequest.status==='Completed'?(()=>{const saved=recordedInvoices.find(invoice=>invoice.requestId===activeRequest.id);return <Billing reference={saved?.reference||'INV-'+activeRequest.id} items={saved?[[saved.description+' · labor',saved.labor],['Parts',saved.parts],['Taxes and fees',saved.fees]]:activeRequest.id==='WM-2031'?[['Tire rotation labor',35],['Wheel balancing',30],['Tire pressure check',0]]:[]}/>})():<p className="muted">Final billing will appear after completion. No charges have been processed in this demo.</p>}<div className="button-row"><button className="secondary" onClick={()=>{setModal('');setTab('Messages')}}>Message provider</button>{activeRequest.status==='Completed'&&<button className="primary" onClick={()=>setModal('review')}>Leave a review</button>}</div></Modal>}
-{modal==='review'&&<Modal title="How was your experience?" subtitle={activeRequest.provider} onClose={()=>setModal('')}><form className="form-grid" onSubmit={e=>{e.preventDefault();setModal('');notify('Thanks! Your sample review has been submitted.')}}><label>Rating<select defaultValue="5"><option value="5">★★★★★ — Excellent</option><option value="4">★★★★ — Good</option><option value="3">★★★ — Okay</option><option value="2">★★ — Could be better</option><option value="1">★ — Poor</option></select></label><label>Your review<textarea required placeholder="What went well?"/></label><button className="primary">Share review <Star size={17}/></button></form></Modal>}
-
-</>}
-function ShieldCheckIcon(){return <span className="icon-disc"><CheckCircle2 size={23}/></span>}
+import { useState, useMemo, useEffect } from "react";
+import {
+  ArrowUpRight,
+  ArrowRight,
+  MapPin,
+  Navigation,
+  Search,
+  SlidersHorizontal,
+  Star,
+  Wrench,
+  Truck,
+  Check,
+  Plus,
+  CarFront,
+  CalendarDays,
+  Clock,
+  MessageCircle,
+  ChevronRight,
+  FileText,
+  Upload,
+  Download,
+  Trash2,
+  ShoppingBag,
+  Package,
+  Minus,
+  CheckCircle2,
+  Leaf,
+  Battery,
+  AlertCircle,
+  Send,
+  Pencil,
+  X,
+} from "lucide-react";
+import {
+  providers,
+  initialVehicles,
+  initialRequests,
+  initialCheckins,
+  initialServices,
+  initialAppointments,
+  products,
+  type Provider,
+} from "@/lib/demo-data";
+import {
+  Modal,
+  PageTitle,
+  Badge,
+  Empty,
+  CarArt,
+  ProductArt,
+} from "./prototype-shared";
+import ProviderMap from "./provider-map";
+import PartsMarketplace from "./parts-marketplace";
+import OwnerMessages from "./owner-messages";
+import { AppointmentHistory, Billing, OwnerProfile } from "./owner-records";
+import {
+  addServiceRecord,
+  addVehicle,
+  addVehicleCheckin,
+  createProviderBooking,
+  createRequest,
+  deleteVehicle,
+  getMyVehicles,
+  getOwnerDirectoryProviders,
+  getProviderBookings,
+  getRecordedInvoices,
+  getVehicleCare,
+  listRequests,
+  submitReview,
+  updateProviderBooking,
+  updateVehicle,
+} from "../../api/endpoints";
+type Props = {
+  tab: string;
+  setTab: (s: string) => void;
+  notify: (s: string) => void;
+};
+export default function Owner({ tab, setTab, notify }: Props) {
+  const [requestView, setRequestView] = useState("All");
+  const [vehicles, setVehicles] = useState(initialVehicles);
+  const [requests, setRequests] = useState(initialRequests);
+  const [checkins, setCheckins] = useState([
+    ...initialCheckins.map((c) => ({ ...c, vehicleId: 1 })),
+    {
+      date: "Sep 1, 2026",
+      mileage: 67200,
+      note: "Ready for our next weekend trip.",
+      vehicleId: 2,
+    },
+  ]);
+  const [services, setServices] = useState(
+    initialServices.map((s, i) => ({ ...s, vehicleId: i === 0 ? 1 : 2 })),
+  );
+  const [appointments, setAppointments] = useState(initialAppointments);
+  const [category, setCategory] = useState("All providers");
+  const [service, setService] = useState("All services");
+  const [mode, setMode] = useState("Any service mode");
+  const [part, setPart] = useState("Any part");
+  const [selected, setSelected] = useState<Provider | null>(null);
+  const [modal, setModal] = useState("");
+  const [reschedulingId, setReschedulingId] = useState<string | number | null>(
+    null,
+  );
+  const [center, setCenter] = useState<[number, number]>([37.7749, -122.447]);
+  const [location, setLocation] = useState("San Francisco, CA");
+  const [outside, setOutside] = useState(false);
+  const [search, setSearch] = useState("");
+  const [activeRequest, setActiveRequest] = useState(requests[0]);
+  const [messageTarget, setMessageTarget] = useState<any>(null);
+  const [activeVehicle, setActiveVehicle] = useState(1);
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [productCategory, setProductCategory] = useState("All parts");
+  const [serviceItems, setServiceItems] = useState(["Oil change"]);
+  const [invoice, setInvoice] = useState<File | null>(null);
+  const [invoiceUrls, setInvoiceUrls] = useState<Record<number, string>>({});
+  const [retailOrders, setRetailOrders] = useState<
+    { id: string; total: number; status: string }[]
+  >([]);
+  const [due, setDue] = useState(true);
+  const [careSnapshot, setCareSnapshot] = useState<any>(null);
+  const [extraPlans, setExtraPlans] = useState<
+    { name: string; date: string; mileage: string; vehicleId: number }[]
+  >([]);
+  const [messages, setMessages] = useState([
+    {
+      from: "them",
+      text: "Hi Jordan! I’m on my way. I have a replacement battery with me.",
+      time: "10:32 AM",
+    },
+    {
+      from: "me",
+      text: "Thanks Alex! I’m parked outside the blue building on 9th Avenue.",
+      time: "10:33 AM",
+    },
+    {
+      from: "them",
+      text: "Found you. I’ll run a quick battery test first, then we’ll get you back on the road.",
+      time: "10:35 AM",
+    },
+  ]);
+  const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const [liveProviders, setLiveProviders] = useState<Provider[]>(providers);
+  const [providerLoading, setProviderLoading] = useState(true);
+  const [providerError, setProviderError] = useState("");
+  const [recordedInvoices, setRecordedInvoices] = useState<any[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("wingman-recorded-invoices") || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    getProviderBookings()
+      .then(({ data }) =>
+        setAppointments(
+          (data || []).map((item: any) => {
+            const date = new Date(item.requested_for);
+            return {
+              id: item.id,
+              day: String(date.getDate()).padStart(2, "0"),
+              month: date
+                .toLocaleString(undefined, { month: "short" })
+                .toUpperCase(),
+              date: date.toLocaleDateString(),
+              time: date.toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+              }),
+              service: item.service_type,
+              provider: item.provider_name,
+              vehicle: item.vehicle_label || "Vehicle",
+              status: item.status === "requested" ? "Requested" : item.status,
+            };
+          }),
+        ),
+      )
+      .catch(() => notify("Appointments could not be refreshed."));
+  }, [notify, tab]);
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    let active = true;
+    getMyVehicles()
+      .then(async ({ data }) => {
+        if (!active || !Array.isArray(data)) return;
+        const care = await Promise.all(
+          data.map((item: any) =>
+            getVehicleCare(item.id)
+              .then((response) => response.data)
+              .catch(() => null),
+          ),
+        );
+        if (!active) return;
+        const mapped = data.map((item: any, index: number) => ({
+          id: index + 1,
+          backendId: item.id,
+          name: item.nickname || "My vehicle",
+          make: item.make,
+          model: item.model,
+          year: item.year,
+          mileage: Number(care[index]?.summary?.current_odometer_miles || 0),
+          plate: item.license_plate,
+          color: item.color || "SILVER",
+          status:
+            care[index]?.summary?.state === "service_overdue"
+              ? "Service overdue"
+              : care[index]?.summary?.state === "due_soon"
+                ? "Service coming up"
+                : "All caught up",
+        }));
+        if (mapped.length) setVehicles(mapped as any);
+      })
+      .catch(() => notify("Your garage could not be refreshed."));
+    return () => {
+      active = false;
+    };
+  }, [notify]);
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    const current: any = vehicles.find((v) => v.id === activeVehicle);
+    if (!current?.backendId) return;
+    let active = true;
+    getVehicleCare(current.backendId)
+      .then(({ data }) => {
+        if (!active) return;
+        setCareSnapshot(data);
+        setCheckins(
+          (data.checkins || []).map((item: any) => ({
+            id: item.id,
+            vehicleId: activeVehicle,
+            date: new Intl.DateTimeFormat(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }).format(new Date(item.recorded_on + "T12:00:00")),
+            mileage: Number(item.odometer_miles),
+            note: item.note || "No issues noticed.",
+          })),
+        );
+        setServices(
+          (data.service_records || []).map((item: any) => ({
+            id: item.id,
+            vehicleId: activeVehicle,
+            date: new Intl.DateTimeFormat(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }).format(new Date(item.service_date + "T12:00:00")),
+            mileage: Number(item.odometer_miles),
+            provider: item.provider_name,
+            items: item.completed_items || [],
+            cost: Number(item.total_cost || 0),
+            invoice: item.invoice_filename || "No invoice attached",
+          })),
+        );
+        setDue(
+          (data.active_reminders || []).some(
+            (item: any) => item.reminder_type === "service_due",
+          ),
+        );
+      })
+      .catch(() => notify("Vehicle Care could not be refreshed."));
+    return () => {
+      active = false;
+    };
+  }, [activeVehicle, vehicles.length, notify]);
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    getRecordedInvoices()
+      .then(({ data }) =>
+        setRecordedInvoices(
+          (data || []).map((invoice: any) => ({
+            reference: invoice.reference,
+            requestId: invoice.request_ref || invoice.request_id,
+            description: invoice.items?.[0]?.description || "Completed service",
+            labor: Number(invoice.items?.[0]?.line_total || 0),
+            parts: Number(invoice.items?.[1]?.line_total || 0),
+            fees: Number(invoice.taxes_and_fees || 0),
+            note: invoice.provider_note || "",
+            createdAt: invoice.created_at,
+          })),
+        ),
+      )
+      .catch(() => {});
+  }, [tab]);
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    let active = true;
+    listRequests()
+      .then(({ data }) => {
+        if (!active || !Array.isArray(data)) return;
+        setRequests(
+          data.map((item: any) => ({
+            id: item.request_ref || item.id,
+            backendId: item.id,
+            mechanicId: item.mechanic_id,
+            ownerId: item.owner_id,
+            provider: item.mechanic_name || "Awaiting provider",
+            issue: item.problem_desc,
+            vehicle: item.vehicle_label || "Vehicle",
+            status: String(item.status || "requested")
+              .split("_")
+              .map((part: string) => part[0].toUpperCase() + part.slice(1))
+              .join(" "),
+            date: new Intl.DateTimeFormat(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            }).format(new Date(item.created_at)),
+            mode: "Service request",
+            mechanic: item.mechanic_name || "Awaiting assignment",
+            notes:
+              item.status === "completed"
+                ? "The provider marked this work complete."
+                : item.status === "in_progress"
+                  ? "Your provider is working on the vehicle now."
+                  : item.status === "accepted"
+                    ? "Your provider accepted this request."
+                    : "Waiting for a provider to accept this request.",
+          })),
+        );
+      })
+      .catch(() => notify("Your live requests could not be refreshed."))
+      .finally(() => {});
+    return () => {
+      active = false;
+    };
+  }, [notify, tab]);
+  useEffect(() => {
+    if (!recordedInvoices.length) return;
+    setRequests((current) =>
+      current.map((request) => {
+        const saved = recordedInvoices.find(
+          (invoice) => invoice.requestId === request.id,
+        );
+        return saved
+          ? {
+              ...request,
+              status: "Completed",
+              notes: `${saved.description}. Final recorded bill: $${(Number(saved.labor) + Number(saved.parts) + Number(saved.fees || 0)).toFixed(2)}.`,
+            }
+          : request;
+      }),
+    );
+  }, [recordedInvoices]);
+  useEffect(() => {
+    let active = true;
+    setProviderLoading(true);
+    setProviderError("");
+    getOwnerDirectoryProviders({ lat: center[0], lng: center[1] })
+      .then((response) => {
+        if (!active) return;
+        const categoryNames: Record<string, string> = {
+          repair: "Repair shop",
+          dealership: "Service dealership",
+          tire: "Tire shop",
+          towing: "Towing",
+          parts: "Auto-parts store",
+        };
+        const colors = [
+          "#ece6d9",
+          "#e2e9f2",
+          "#f3e3d7",
+          "#e5e1ee",
+          "#e8ebd6",
+          "#dfebe5",
+        ];
+        const mapped: Provider[] = (response.data || []).map(
+          (item: any, index: number) => {
+            const modes = Array.isArray(item.service_modes)
+              ? item.service_modes
+              : [];
+            const mobile = modes.includes("mobile"),
+              shop = modes.includes("shop");
+            const inventory = Array.isArray(item.inventory)
+              ? item.inventory
+              : [];
+            return {
+              id: item.id,
+              name: item.name,
+              category: categoryNames[item.category] || item.category,
+              address: item.address || `${item.city}, ${item.state}`,
+              lat: Number(item.lat),
+              lng: Number(item.lng),
+              distance:
+                item.distance_km == null
+                  ? "—"
+                  : (Number(item.distance_km) * 0.621371).toFixed(1),
+              rating: "4.8",
+              reviews: 0,
+              services: Array.isArray(item.services) ? item.services : [],
+              mode:
+                mobile && shop
+                  ? "Mobile & shop"
+                  : mobile
+                    ? "Mobile service"
+                    : item.category === "parts"
+                      ? "Parts pickup & delivery"
+                      : "Shop visit",
+              available: true,
+              initials: String(item.name)
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((word: string) => word[0])
+                .join("")
+                .toUpperCase(),
+              color: colors[index % colors.length],
+              inventory,
+              stock: inventory.map((part: any) => part.name),
+              description: item.description || "",
+              phone: item.synthetic_phone || "",
+              email: item.synthetic_email || "",
+              website: item.website_url || "",
+              canSchedule: Boolean(item.can_schedule),
+            };
+          },
+        );
+        setLiveProviders(mapped.length ? mapped : providers);
+      })
+      .catch(() => {
+        if (active)
+          setProviderError(
+            "The California directory could not be refreshed. Showing the built-in preview providers.",
+          );
+      })
+      .finally(() => {
+        if (active) setProviderLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [center]);
+  const filtered = useMemo(
+    () =>
+      liveProviders.filter(
+        (p) =>
+          (category === "All providers" || p.category === category) &&
+          (service === "All services" || p.services.includes(service)) &&
+          (mode === "Any service mode" ||
+            (mode === "Mobile service"
+              ? p.mode.includes("Mobile")
+              : p.mode.includes("shop") || p.mode === "Shop visit")) &&
+          (part === "Any part" || p.stock.includes(part)) &&
+          (search === "" ||
+            p.name.toLowerCase().includes(search.toLowerCase()) ||
+            p.services.some((s) =>
+              s.toLowerCase().includes(search.toLowerCase()),
+            )),
+      ),
+    [liveProviders, category, service, mode, part, search],
+  );
+  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  const total = products.reduce((a, p) => a + p.price * (cart[p.id] || 0), 0);
+  const vehicle = vehicles.find((v) => v.id === activeVehicle) || vehicles[0];
+  const vehicleCheckins = checkins.filter(
+    (item) => item.vehicleId === activeVehicle,
+  );
+  const latestCheckin = vehicleCheckins[0];
+  const nextCheckinDate = (() => {
+    const base = latestCheckin?.date
+      ? new Date(latestCheckin.date)
+      : new Date();
+    const next = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+    return next.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+    });
+  })();
+  const dueDate = careSnapshot?.summary?.next_due_date;
+  const dueMiles = careSnapshot?.summary?.next_due_miles;
+  const dueItems =
+    careSnapshot?.summary?.last_service?.completed_items ||
+    services.find((item) => item.vehicleId === activeVehicle)?.items ||
+    [];
+  const dueLabel = dueItems.length ? dueItems.join(" + ") : "Scheduled service";
+  const milesToGo =
+    dueMiles == null
+      ? null
+      : Math.max(0, Number(dueMiles) - Number(vehicle?.mileage || 0));
+  const calendarBase =
+    appointments.length && appointments[0]?.date
+      ? new Date(appointments[0].date)
+      : new Date();
+  const calendarYear = calendarBase.getFullYear();
+  const calendarMonth = calendarBase.getMonth();
+  const calendarDays = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const calendarOffset =
+    (new Date(calendarYear, calendarMonth, 1).getDay() + 6) % 7;
+  const bookedDays = new Set(
+    appointments
+      .filter(
+        (appointment) =>
+          String(appointment.status).toLowerCase() !== "cancelled",
+      )
+      .map((appointment) => Number(appointment.day)),
+  );
+  function field(form: HTMLFormElement, name: string) {
+    return String(new FormData(form).get(name) || "");
+  }
+  function locate() {
+    if (!navigator.geolocation) {
+      notify("Location isn’t supported. Try a manual location.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setCenter([p.coords.latitude, p.coords.longitude]);
+        setLocation(
+          `${p.coords.latitude.toFixed(3)}, ${p.coords.longitude.toFixed(3)}`,
+        );
+        setOutside(
+          p.coords.latitude < 32.5 ||
+            p.coords.latitude > 42 ||
+            p.coords.longitude < -124.5 ||
+            p.coords.longitude > -114.1,
+        );
+        notify("Your location is set. Provider pins are sample data.");
+      },
+      () => notify("Location permission unavailable. You can search manually."),
+    );
+  }
+  return (
+    <>
+      {tab === "Find help" && (
+        <>
+          <PageTitle
+            title="Find help"
+            action={
+              <button
+                className="primary"
+                onClick={() => {
+                  setSelected(providers[2]);
+                  setModal("request");
+                }}
+              >
+                <Truck size={17} /> Get roadside help <ArrowUpRight size={17} />
+              </button>
+            }
+          />
+          <div className="search-toolbar">
+            <button
+              className="location-select"
+              onClick={() => setModal("location")}
+            >
+              <MapPin size={18} />
+              <span>{location}</span>
+              <ChevronRight size={15} />
+            </button>
+            <div className="search-input">
+              <Search size={17} />
+              <input
+                aria-label="Search providers"
+                placeholder="Search providers…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button className="secondary" onClick={locate}>
+              <Navigation size={16} /> Use my location
+            </button>
+          </div>
+          <div className="filter-row">
+            {[
+              "All providers",
+              "Repair shop",
+              "Service dealership",
+              "Tire shop",
+              "Towing",
+              "Auto-parts store",
+            ].map((c) => (
+              <button
+                className={"chip " + (category === c ? "selected" : "")}
+                key={c}
+                onClick={() => setCategory(c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <details className="finder-filters">
+            <summary>
+              <SlidersHorizontal size={16} /> Service, travel & parts filters{" "}
+              <ChevronRight size={15} />
+            </summary>
+            <div className="filter-selects">
+              <SlidersHorizontal size={16} />
+              <select
+                aria-label="Service filter"
+                value={service}
+                onChange={(e) => setService(e.target.value)}
+              >
+                {[
+                  "All services",
+                  "Oil change",
+                  "Brakes",
+                  "Diagnostics",
+                  "Tire repair",
+                  "Tire rotation",
+                  "Towing",
+                  "Jump start",
+                  "Parts",
+                ].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Service mode filter"
+                value={mode}
+                onChange={(e) => setMode(e.target.value)}
+              >
+                {["Any service mode", "Mobile service", "Shop visit"].map(
+                  (x) => (
+                    <option key={x}>{x}</option>
+                  ),
+                )}
+              </select>
+              <select
+                aria-label="Part availability filter"
+                value={part}
+                onChange={(e) => setPart(e.target.value)}
+              >
+                {[
+                  "Any part",
+                  "Oil filter",
+                  "Brake pads",
+                  "Battery",
+                  "Tire repair kit",
+                ].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+              <span>Sample availability</span>
+            </div>
+          </details>
+          {outside && (
+            <div className="notice">
+              <MapPin size={18} />
+              You’re outside California. We’ve kept your location; this
+              prototype only has sample California coverage.{" "}
+              <button
+                onClick={() => {
+                  setCenter([37.7749, -122.447]);
+                  setOutside(false);
+                  setLocation("San Francisco, CA");
+                }}
+              >
+                Explore San Francisco
+              </button>
+            </div>
+          )}
+          <div className="finder">
+            <div className="provider-results">
+              <div className="results-heading">
+                <strong>
+                  {outside ? 0 : filtered.length} providers nearby
+                </strong>
+                <span>Closest first</span>
+              </div>
+              {outside ? (
+                <Empty
+                  title="California is our starting line"
+                  text="Explore our San Francisco sample directory to try the experience."
+                />
+              ) : filtered.length === 0 ? (
+                <Empty
+                  title="No matching providers"
+                  text="Try a different service, part, or provider category."
+                />
+              ) : (
+                filtered.map((p) => (
+                  <button
+                    key={p.id}
+                    className={
+                      "provider-card " + (selected?.id === p.id ? "active" : "")
+                    }
+                    onClick={() => setSelected(p)}
+                  >
+                    <div className="provider-top">
+                      <span
+                        className="provider-avatar"
+                        style={{ background: p.color }}
+                      >
+                        {p.initials}
+                      </span>
+                      <div>
+                        <span className="provider-type">{p.category}</span>
+                        <h3>{p.name}</h3>
+                        <span className="rating">
+                          <Star size={12} fill="currentColor" />
+                          {p.rating}
+                          <small>({p.reviews})</small>
+                          <span>· {p.distance} mi</span>
+                        </span>
+                      </div>
+                      <ArrowUpRight size={18} />
+                    </div>
+                    <div className="service-tags">
+                      {p.services.slice(0, 3).map((s) => (
+                        <span key={s}>{s}</span>
+                      ))}
+                    </div>
+                    <div className="provider-bottom">
+                      <span className={p.available ? "available" : "muted"}>
+                        <i />
+                        {p.available
+                          ? "Available today"
+                          : "Next opening tomorrow"}
+                      </span>
+                      <span>
+                        {p.mode.includes("Mobile") ? (
+                          <Truck size={13} />
+                        ) : (
+                          <Wrench size={13} />
+                        )}{" "}
+                        {p.mode}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="map-wrap">
+              <ProviderMap
+                providers={outside ? [] : filtered}
+                selected={selected?.id || 0}
+                onSelect={setSelected}
+                center={center}
+              />
+              <div className="map-legend">
+                <span className="status-dot" />
+                Sample providers · San Francisco
+              </div>
+              {selected && !outside && (
+                <div className="map-provider">
+                  <button
+                    className="map-close"
+                    aria-label="Close provider"
+                    onClick={() => setSelected(null)}
+                  >
+                    <X size={17} />
+                  </button>
+                  <Badge>{selected.mode}</Badge>
+                  <h3>{selected.name}</h3>
+                  <p>
+                    <MapPin size={14} />
+                    {selected.address}
+                  </p>
+                  <div className="detail-stock">
+                    <Check size={15} /> Demo stock:{" "}
+                    {selected.stock.slice(0, 2).join(", ")}
+                  </div>
+                  <div className="button-row">
+                    <button
+                      className="primary"
+                      onClick={() => setModal("provider")}
+                    >
+                      View provider <ArrowRight size={16} />
+                    </button>
+                    <button
+                      className="secondary"
+                      onClick={() =>
+                        setModal(
+                          selected.category === "Auto-parts store"
+                            ? "parts-redirect"
+                            : "request",
+                        )
+                      }
+                    >
+                      Request help
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+      {tab === "My requests" && (
+        <>
+          <PageTitle
+            title="My requests"
+            action={
+              <button className="primary" onClick={() => setTab("Find help")}>
+                <Plus size={17} /> New request
+              </button>
+            }
+          />
+          <div className="segmented">
+            {["All", "Active", "Past"].map((view) => (
+              <button
+                key={view}
+                className={requestView === view ? "active" : ""}
+                onClick={() => setRequestView(view)}
+              >
+                {view} requests
+              </button>
+            ))}
+          </div>
+          <div className="request-grid">
+            {requests
+              .filter(
+                (r) =>
+                  requestView === "All" ||
+                  (requestView === "Past"
+                    ? r.status === "Completed"
+                    : r.status !== "Completed"),
+              )
+              .map((r) => (
+                <article className="panel request-card" key={r.id}>
+                  <div className="between">
+                    <span className="overline">{r.id}</span>
+                    <Badge tone={r.status === "Completed" ? "gray" : "green"}>
+                      {r.status}
+                    </Badge>
+                  </div>
+                  <h2>{r.issue}</h2>
+                  <p className="muted">{r.vehicle}</p>
+                  <div className="request-provider">
+                    <span className="provider-avatar">
+                      {r.provider.slice(0, 2).toUpperCase()}
+                    </span>
+                    <div>
+                      <strong>{r.provider}</strong>
+                      <small>
+                        {r.mode} · {r.date}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="progress-track">
+                    {["Requested", "Accepted", "In progress", "Completed"].map(
+                      (s, i) => (
+                        <div
+                          key={s}
+                          className={
+                            i <=
+                            (r.status === "Completed"
+                              ? 3
+                              : r.status === "In progress"
+                                ? 2
+                                : r.status === "Accepted"
+                                  ? 1
+                                  : 0)
+                              ? "done"
+                              : ""
+                          }
+                        >
+                          <span>
+                            {i < 2 || r.status === "Completed" ? (
+                              <Check size={12} />
+                            ) : (
+                              i + 1
+                            )}
+                          </span>
+                          <small>{s}</small>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                  <div className="request-update">
+                    <span className="status-dot" />
+                    <p>{r.notes}</p>
+                  </div>
+                  <div className="button-row">
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setActiveRequest(r);
+                        setModal("tracking");
+                      }}
+                    >
+                      {r.status === "Completed"
+                        ? "Details & billing"
+                        : "View details"}{" "}
+                      <ArrowUpRight size={15} />
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setActiveRequest(r);
+                        r.status === "Completed"
+                          ? setModal("review")
+                          : (setMessageTarget({
+                              mechanicId: (r as any).mechanicId,
+                              requestId: (r as any).backendId,
+                              name: (r as any).mechanic,
+                              store: (r as any).provider,
+                              job: (r as any).id,
+                            }),
+                            setTab("Messages"));
+                      }}
+                    >
+                      {r.status === "Completed"
+                        ? "Leave a review"
+                        : "Message provider"}{" "}
+                      <MessageCircle size={16} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+          </div>
+        </>
+      )}
+      {tab === "My garage" && (
+        <>
+          <PageTitle
+            title="My garage"
+            action={
+              <button
+                className="primary"
+                onClick={() => {
+                  setEditing(null);
+                  setModal("vehicle");
+                }}
+              >
+                <Plus size={18} /> Add a vehicle
+              </button>
+            }
+          />
+          <div className="vehicle-grid">
+            {vehicles.map((v, i) => (
+              <article className="panel vehicle-card" key={v.id}>
+                <div className="between">
+                  <Badge tone={i === 0 ? "amber" : "green"}>
+                    {i === 0 ? "Service coming up" : "All caught up"}
+                  </Badge>
+                  <button
+                    className="icon-button"
+                    aria-label={`Edit ${v.name}`}
+                    onClick={() => {
+                      setEditing(v.id);
+                      setModal("vehicle");
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                </div>
+                <CarArt dark={i % 2 === 1} />
+                <span className="overline">{v.name}</span>
+                <h2>
+                  {v.year} {v.make} {v.model}
+                </h2>
+                <div className="vehicle-details">
+                  <div>
+                    <small>Odometer</small>
+                    <strong>
+                      {v.mileage.toLocaleString()} <span>mi</span>
+                    </strong>
+                  </div>
+                  <div>
+                    <small>License plate</small>
+                    <strong>{v.plate}</strong>
+                  </div>
+                </div>
+                <div className="button-row">
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setActiveVehicle(v.id);
+                      setTab("Vehicle Care");
+                    }}
+                  >
+                    View vehicle care <ArrowUpRight size={16} />
+                  </button>
+                  <button
+                    className="icon-button danger"
+                    aria-label={`Delete ${v.name}`}
+                    onClick={() => {
+                      setEditing(v.id);
+                      setModal("delete-vehicle");
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </article>
+            ))}
+            <button
+              className="add-vehicle"
+              onClick={() => {
+                setEditing(null);
+                setModal("vehicle");
+              }}
+            >
+              <span>
+                <Plus size={28} />
+              </span>
+              <h3>Room for one more?</h3>
+              <p>Add another vehicle to your garage.</p>
+            </button>
+          </div>
+          <div className="care-banner">
+            <Leaf size={32} />
+            <div>
+              <h3>Good care goes a long way.</h3>
+              <p>
+                Track mileage, save service records, and stay one step ahead.
+              </p>
+            </div>
+            <button
+              className="secondary"
+              onClick={() => setTab("Vehicle Care")}
+            >
+              Explore Vehicle Care <ArrowRight size={16} />
+            </button>
+          </div>
+        </>
+      )}
+      {tab === "Vehicle Care" && (
+        <>
+          <PageTitle
+            title="Vehicle Care"
+            action={
+              <button className="primary" onClick={() => setModal("checkin")}>
+                <Plus size={17} /> Log a check-in
+              </button>
+            }
+          />
+          <div className="care-layout">
+            <section>
+              <div className="care-vehicle panel">
+                <div>
+                  <span className="overline">Your vehicle</span>
+                  <select
+                    className="vehicle-picker"
+                    value={activeVehicle}
+                    onChange={(e) => setActiveVehicle(Number(e.target.value))}
+                  >
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.year} {v.make} {v.model}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="muted">{vehicle?.name}</span>
+                  <div className="mileage-number">
+                    {vehicle?.mileage.toLocaleString()}
+                    <span> miles</span>
+                  </div>
+                  <small className="muted">
+                    Manually updated ·{" "}
+                    {latestCheckin
+                      ? `Last check-in ${latestCheckin.date}`
+                      : "No check-ins yet"}
+                  </small>
+                </div>
+                <CarArt dark={activeVehicle === 2} />
+              </div>
+              <div className="panel section-panel">
+                <div className="section-heading">
+                  <div>
+                    <h2>Monthly check-ins</h2>
+                    <p>A few notes now. Useful context later.</p>
+                  </div>
+                  <span className="icon-disc">
+                    <CalendarDays size={20} />
+                  </span>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Mileage</th>
+                        <th>Your notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {checkins
+                        .filter((c) => c.vehicleId === activeVehicle)
+                        .map((c, i) => (
+                          <tr key={i}>
+                            <td>{c.date}</td>
+                            <td className="nowrap">
+                              {c.mileage.toLocaleString()} mi
+                            </td>
+                            <td className="muted">{c.note}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="panel section-panel">
+                <div className="section-heading">
+                  <div>
+                    <h2>Service history</h2>
+                    <p>Every little thing that keeps you moving.</p>
+                  </div>
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setServiceItems(["Oil change"]);
+                      setModal("service");
+                    }}
+                  >
+                    <Plus size={16} /> Add record
+                  </button>
+                </div>
+                {services
+                  .filter((s) => s.vehicleId === activeVehicle)
+                  .map((s) => (
+                    <div className="service-record" key={s.id}>
+                      <div className="record-icon">
+                        <Wrench size={19} />
+                      </div>
+                      <div className="record-content">
+                        <div className="between">
+                          <h3>{s.items.join(" + ")}</h3>
+                          <strong>${s.cost.toFixed(2)}</strong>
+                        </div>
+                        <p>
+                          {s.date} <span>·</span> {s.mileage.toLocaleString()}{" "}
+                          mi <span>·</span> {s.provider}
+                        </p>
+                        <button
+                          className="invoice-link"
+                          onClick={() => {
+                            if (invoiceUrls[s.id])
+                              window.open(invoiceUrls[s.id], "_blank");
+                            else setModal("invoice");
+                          }}
+                        >
+                          <FileText size={14} />
+                          {s.invoice}
+                          <ArrowUpRight size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </section>
+            <aside className="care-aside">
+              <div className="next-checkin">
+                <span className="icon-disc">
+                  <CalendarDays size={23} />
+                </span>
+                <span className="overline">Your next check-in</span>
+                <h2>{nextCheckinDate}</h2>
+                <p>
+                  Just your mileage and anything you’ve noticed. We’ll remind
+                  you here at 9:00 AM Pacific.
+                </p>
+                <button
+                  className="secondary full"
+                  onClick={() => setModal("checkin")}
+                >
+                  Check in early <ArrowRight size={16} />
+                </button>
+              </div>
+              <div className="panel due-card">
+                <div className="between">
+                  <h3>On the horizon</h3>
+                  <Clock size={18} />
+                </div>
+                {due ? (
+                  <>
+                    <Badge tone="amber">Coming up soon</Badge>
+                    <h3>{dueLabel}</h3>
+                    <p>
+                      {dueDate
+                        ? `By ${new Date(`${dueDate}T12:00:00`).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}`
+                        : "Service reminder"}
+                      {dueDate && dueMiles ? " or " : ""}
+                      {dueMiles
+                        ? `${Number(dueMiles).toLocaleString()} miles`
+                        : ""}
+                    </p>
+                    <div className="mileage-progress">
+                      <span />
+                    </div>
+                    {milesToGo !== null && (
+                      <small>{milesToGo.toLocaleString()} miles to go</small>
+                    )}
+                    <button
+                      className="text-button"
+                      onClick={() => setModal("service")}
+                    >
+                      Record completed service <ArrowRight size={15} />
+                    </button>
+                  </>
+                ) : (
+                  <div className="all-good">
+                    <CheckCircle2 size={26} />
+                    <p>You’re all caught up.</p>
+                  </div>
+                )}
+                <button
+                  className="text-button"
+                  onClick={() => setModal("plan")}
+                >
+                  <Plus size={14} /> Add a service reminder
+                </button>
+              </div>
+              {extraPlans
+                .filter((p) => p.vehicleId === activeVehicle)
+                .map((p, i) => (
+                  <div className="panel due-card" key={i}>
+                    <Badge>Service reminder</Badge>
+                    <h3>{p.name}</h3>
+                    <p>
+                      {p.date ? `Due ${p.date}` : ""}
+                      {p.date && p.mileage ? " or " : ""}
+                      {p.mileage
+                        ? `${Number(p.mileage).toLocaleString()} miles`
+                        : ""}
+                    </p>
+                    <button
+                      className="text-button"
+                      onClick={() => setModal("service")}
+                    >
+                      Record completed service <ArrowRight size={15} />
+                    </button>
+                  </div>
+                ))}
+              <div className="subtle-note">
+                <Leaf size={20} />
+                <p>
+                  A small habit with a big payoff.
+                  <br />
+                  Your future self will thank you.
+                </p>
+              </div>
+            </aside>
+          </div>
+        </>
+      )}
+      <div hidden={tab !== "Parts shop"}>
+        <PartsMarketplace notify={notify} />
+      </div>
+      {tab === "Appointments" && (
+        <>
+          <PageTitle
+            title="Appointments"
+            action={
+              <button
+                className="primary"
+                onClick={() => {
+                  setReschedulingId(null);
+                  setSelected(providers[0]);
+                  setModal("appointment");
+                }}
+              >
+                <Plus size={18} /> Book a service
+              </button>
+            }
+          />
+          <div className="appointment-layout">
+            <div>
+              <h3 className="list-heading">Upcoming appointments</h3>
+              {appointments
+                .filter((a) => String(a.status).toLowerCase() !== "cancelled")
+                .map((a) => (
+                  <article className="panel appointment-card" key={a.id}>
+                    <div className="date-tile">
+                      <small>{a.month}</small>
+                      <strong>{a.day}</strong>
+                    </div>
+                    <div>
+                      <div className="between">
+                        <h2>{a.service}</h2>
+                        <Badge>{a.status}</Badge>
+                      </div>
+                      <p>
+                        {a.provider} · {a.vehicle}
+                      </p>
+                      <span className="appointment-time">
+                        <Clock size={15} />
+                        {a.date} at {a.time}
+                      </span>
+                      <div className="button-row">
+                        <button
+                          className="text-button"
+                          onClick={() => {
+                            setReschedulingId(a.id);
+                            setSelected(
+                              providers.find((p) => p.name === a.provider) ||
+                                providers[0],
+                            );
+                            setModal("appointment");
+                          }}
+                        >
+                          Reschedule
+                        </button>
+                        <button
+                          className="text-button muted"
+                          onClick={async () => {
+                            try {
+                              if (localStorage.getItem("token"))
+                                await updateProviderBooking(String(a.id), {
+                                  status: "cancelled",
+                                });
+                              setAppointments(
+                                appointments.map((x) =>
+                                  x.id === a.id
+                                    ? { ...x, status: "Cancelled" }
+                                    : x,
+                                ),
+                              );
+                              notify("Appointment cancelled.");
+                            } catch (error: any) {
+                              notify(
+                                error?.response?.data?.detail ||
+                                  "Appointment could not be cancelled.",
+                              );
+                            }
+                          }}
+                        >
+                          Cancel appointment
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              <AppointmentHistory />
+            </div>
+            <div className="panel calendar-panel">
+              <div className="between">
+                <h3>
+                  {calendarBase.toLocaleDateString(undefined, {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </h3>
+                <CalendarDays size={19} />
+              </div>
+              <div className="calendar-grid">
+                {["M", "T", "W", "T", "F", "S", "S"].map((x, i) => (
+                  <small key={"d" + i}>{x}</small>
+                ))}
+                {Array.from(
+                  { length: calendarOffset + calendarDays },
+                  (_, i) => {
+                    const day = i - calendarOffset + 1;
+                    return day < 1 ? (
+                      <span key={i} />
+                    ) : (
+                      <button
+                        key={i}
+                        className={
+                          day === new Date().getDate() &&
+                          calendarMonth === new Date().getMonth() &&
+                          calendarYear === new Date().getFullYear()
+                            ? "today"
+                            : bookedDays.has(day)
+                              ? "booked"
+                              : ""
+                        }
+                        onClick={() => {
+                          setSelected(providers[0]);
+                          setModal("appointment");
+                        }}
+                      >
+                        {day}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+              <p className="muted">
+                <span className="status-dot" /> Your scheduled services
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+      <div hidden={tab !== "Profile"}>
+        <PageTitle title="Profile" />
+        <OwnerProfile
+          vehicles={vehicles}
+          onGarage={() => setTab("My garage")}
+          notify={notify}
+        />
+      </div>
+      <div hidden={tab !== "Messages"}>
+        <PageTitle title="Messages" />
+        <OwnerMessages
+          target={messageTarget}
+          onTargetHandled={() => setMessageTarget(null)}
+        />
+      </div>
+      {modal === "provider" && selected && (
+        <Modal
+          title={selected.name}
+          subtitle={selected.category + " · Sample provider"}
+          onClose={() => setModal("")}
+        >
+          <div className="provider-detail">
+            <div className="between">
+              <span className="rating">
+                <Star size={16} />
+                {selected.rating} · {selected.reviews} sample reviews
+              </span>
+              <Badge>
+                {selected.available
+                  ? "Available today"
+                  : "Next opening tomorrow"}
+              </Badge>
+            </div>
+            <p>
+              <MapPin size={16} />
+              {selected.address}
+            </p>
+            <h3>How we can help</h3>
+            <div className="service-tags">
+              {selected.services.map((s) => (
+                <span key={s}>{s}</span>
+              ))}
+            </div>
+            <div className="detail-box">
+              <Truck size={23} />
+              <div>
+                <strong>{selected.mode}</strong>
+                <p>
+                  {selected.mode.includes("Mobile")
+                    ? "We can come to your vehicle. Shop visits are also available where shown."
+                    : "Bring your vehicle to the shop for service."}
+                </p>
+              </div>
+            </div>
+            <p className="muted">
+              Supported vehicles: cars, SUVs, and light trucks. Part fitment
+              must be confirmed.
+            </p>
+            <p className="muted">
+              Contact:{" "}
+              {selected.email ||
+                selected.initials.toLowerCase() + "@wingman.example"}
+            </p>
+            <div className="button-row">
+              <button
+                className="secondary"
+                onClick={() => setModal("inventory")}
+              >
+                <ShoppingBag size={16} /> View inventory
+              </button>
+              <button
+                className="primary"
+                onClick={() =>
+                  selected.category === "Auto-parts store"
+                    ? (setModal(""), setTab("Parts shop"))
+                    : setModal("request")
+                }
+              >
+                Request help <ArrowRight size={16} />
+              </button>
+              <button
+                className="secondary"
+                onClick={() => setModal("appointment")}
+              >
+                Schedule service
+              </button>
+            </div>
+            <a
+              className="text-button"
+              target="_blank"
+              rel="noreferrer"
+              href={`https://www.openstreetmap.org/directions?to=${selected.lat},${selected.lng}`}
+            >
+              View sample location on map <ArrowUpRight size={15} />
+            </a>
+          </div>
+        </Modal>
+      )}
+      {modal === "inventory" && selected && (
+        <Modal
+          title={`${selected.name} inventory`}
+          subtitle="Check likely parts before you send a request."
+          onClose={() => setModal("provider")}
+        >
+          <div className="provider-inventory">
+            <p className="muted">
+              Inventory, prices, and quantities are synthetic demonstration
+              data. Confirm fitment with the provider.
+            </p>
+            {(selected.inventory?.length
+              ? selected.inventory
+              : selected.stock.map((name, index) => ({
+                  name,
+                  category: "Service part",
+                  price: [12.49, 64.99, 189.99][index % 3],
+                  quantity: [8, 4, 3][index % 3],
+                  availability: "In stock",
+                }))
+            ).map((part) => (
+              <div className="inventory-preview-row" key={part.name}>
+                <span className="icon-disc">
+                  <Package size={18} />
+                </span>
+                <div>
+                  <strong>{part.name}</strong>
+                  <small>
+                    {part.category} · {part.quantity} available
+                  </small>
+                </div>
+                <div className="inventory-preview-price">
+                  <strong>${Number(part.price).toFixed(2)}</strong>
+                  <Badge>{part.availability}</Badge>
+                </div>
+              </div>
+            ))}
+            {!selected.stock.length && (
+              <Empty
+                title="No inventory listed"
+                text="Message this provider to confirm the part you need."
+              />
+            )}
+            <div className="button-row">
+              <button
+                className="secondary"
+                onClick={() => setModal("provider")}
+              >
+                Back to profile
+              </button>
+              <button className="primary" onClick={() => setModal("request")}>
+                Request help <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {modal === "parts-redirect" && (
+        <Modal
+          title="Find your maintenance essentials"
+          onClose={() => setModal("")}
+        >
+          <p>
+            This provider sells parts. Explore the owner parts shop to build a
+            sample order.
+          </p>
+          <button
+            className="primary"
+            onClick={() => {
+              setModal("");
+              setTab("Parts shop");
+            }}
+          >
+            Browse parts <ArrowRight size={17} />
+          </button>
+        </Modal>
+      )}
+      {modal === "request" && (
+        <Modal
+          title="Let’s get you some help."
+          subtitle={`Create a request for ${selected?.name || "a nearby provider"}.`}
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = e.currentTarget;
+              const button = f.querySelector(
+                'button[type="submit"]',
+              ) as HTMLButtonElement | null;
+              if (button) button.disabled = true;
+              try {
+                if (!localStorage.getItem("token")) {
+                  const v =
+                    vehicles.find(
+                      (v) => v.id === Number(field(f, "vehicle")),
+                    ) || vehicles[0];
+                  setRequests([
+                    {
+                      id: "WM-" + (2050 + requests.length),
+                      provider: selected?.name || providers[0].name,
+                      issue: field(f, "issue"),
+                      vehicle: `${v.year} ${v.make} ${v.model}`,
+                      status: "Requested",
+                      date: "Just now",
+                      mode: field(f, "mode"),
+                      mechanic: "Awaiting assignment",
+                      notes: "Your sample request has been created.",
+                    },
+                    ...requests,
+                  ]);
+                  notify("Sample request created.");
+                } else {
+                  const live = await getMyVehicles();
+                  const chosenIndex = Math.max(
+                    0,
+                    vehicles.findIndex(
+                      (v) => String(v.id) === field(f, "vehicle"),
+                    ),
+                  );
+                  const backendVehicle =
+                    live.data?.[chosenIndex] || live.data?.[0];
+                  if (!backendVehicle)
+                    throw new Error("Add a vehicle before creating a request.");
+                  const created = await createRequest({
+                    vehicle_id: backendVehicle.id,
+                    problem_desc: field(f, "issue"),
+                    lat: center[0],
+                    lng: center[1],
+                  });
+                  const item = created.data;
+                  setRequests((current) => [
+                    {
+                      id: item.request_ref || item.id,
+                      backendId: item.id,
+                      mechanicId: item.mechanic_id,
+                      ownerId: item.owner_id,
+                      provider:
+                        item.mechanic_name ||
+                        selected?.name ||
+                        "Awaiting provider",
+                      issue: item.problem_desc,
+                      vehicle:
+                        item.vehicle_label ||
+                        `${backendVehicle.year} ${backendVehicle.make} ${backendVehicle.model}`,
+                      status: "Requested",
+                      date: "Just now",
+                      mode: field(f, "mode"),
+                      mechanic: item.mechanic_name || "Awaiting assignment",
+                      notes: "Waiting for a provider to accept this request.",
+                    },
+                    ...current,
+                  ]);
+                  notify(
+                    "Your request is live and available to Wingman mechanics.",
+                  );
+                }
+                setModal("");
+                setTab("My requests");
+              } catch (error: any) {
+                notify(
+                  error?.response?.data?.detail ||
+                    error?.message ||
+                    "The request could not be created.",
+                );
+              } finally {
+                if (button) button.disabled = false;
+              }
+            }}
+          >
+            <label>
+              Your vehicle
+              <select name="vehicle">
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.year} {v.make} {v.model}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              What’s happening?
+              <textarea
+                name="issue"
+                placeholder="Tell us what you noticed…"
+                required
+                minLength={5}
+              />
+            </label>
+            <label>
+              Service mode
+              <select name="mode">
+                {selected?.mode !== "Shop visit" && (
+                  <option>Mobile service</option>
+                )}
+                {selected?.mode !== "Mobile service" && (
+                  <option>Shop visit</option>
+                )}
+              </select>
+            </label>
+            <div className="detail-box">
+              <MapPin size={20} />
+              <div>
+                <strong>{location}</strong>
+                <p>Your location is shared with available Wingman mechanics.</p>
+              </div>
+            </div>
+            <button type="submit" className="primary full">
+              Create request <ArrowRight size={17} />
+            </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "location" && (
+        <Modal
+          title="Where’s the road taking you?"
+          subtitle="Choose a sample location or use your current location."
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const text = field(e.currentTarget, "location");
+              setLocation(text);
+              const sf = /san francisco|sf|california/i.test(text);
+              setOutside(!sf);
+              setCenter(sf ? [37.7749, -122.447] : [40.7128, -74.006]);
+              setModal("");
+              if (!sf)
+                notify(
+                  "Prototype location search: showing the outside-coverage example.",
+                );
+            }}
+          >
+            <label>
+              City or ZIP code
+              <input name="location" placeholder="San Francisco, CA" required />
+            </label>
+            <button className="primary">
+              Use this location <ArrowRight size={16} />
+            </button>
+          </form>
+          <button
+            className="text-button"
+            onClick={() => {
+              locate();
+              setModal("");
+            }}
+          >
+            <Navigation size={16} />
+            Use my current location
+          </button>
+          <p className="muted">
+            Prototype: San Francisco is the sample coverage area. Other searches
+            demonstrate the outside-coverage state.
+          </p>
+        </Modal>
+      )}
+      {modal === "vehicle" && (
+        <Modal
+          title={
+            editing ? "A few updated details." : "Meet your next companion."
+          }
+          subtitle="Keep the essentials handy for your next service."
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = e.currentTarget,
+                current: any = vehicles.find((v) => v.id === editing),
+                payload = {
+                  nickname: field(f, "name"),
+                  make: field(f, "make"),
+                  model: field(f, "model"),
+                  year: Number(field(f, "year")),
+                  license_plate: field(f, "plate"),
+                  vehicle_type: "car",
+                  color: "SILVER",
+                },
+                mileage = Number(field(f, "mileage"));
+              try {
+                let backendId = current?.backendId;
+                if (localStorage.getItem("token")) {
+                  if (backendId) await updateVehicle(backendId, payload);
+                  else {
+                    const created = await addVehicle(payload);
+                    backendId = created.data.id;
+                    if (mileage > 0)
+                      await addVehicleCheckin(backendId, {
+                        odometer_miles: mileage,
+                        note: "Initial odometer reading",
+                      });
+                  }
+                }
+                const v = {
+                  id: editing || Date.now(),
+                  backendId,
+                  name: payload.nickname,
+                  make: payload.make,
+                  model: payload.model,
+                  year: payload.year,
+                  mileage,
+                  plate: payload.license_plate,
+                  color: "SILVER",
+                  status: "All caught up",
+                };
+                setVehicles(
+                  editing
+                    ? vehicles.map((x) => (x.id === editing ? v : x))
+                    : ([...vehicles, v] as any),
+                );
+                setModal("");
+                notify("Vehicle saved to your garage.");
+              } catch (error: any) {
+                notify(
+                  error?.response?.data?.detail ||
+                    "The vehicle could not be saved.",
+                );
+              }
+            }}
+          >
+            {[
+              ["name", "Nickname", "The daily driver"],
+              ["make", "Make", "Toyota"],
+              ["model", "Model", "RAV4"],
+              ["year", "Year", "2021"],
+              ["mileage", "Current mileage (miles)", "42850"],
+              ["plate", "License plate", "8WGM214"],
+            ].map(([name, label, placeholder]) => (
+              <label key={name}>
+                {label}
+                <input
+                  name={name}
+                  required
+                  type={
+                    name === "year" || name === "mileage" ? "number" : "text"
+                  }
+                  min={name === "year" ? 1900 : 0}
+                  max={
+                    name === "year" ? new Date().getFullYear() + 1 : undefined
+                  }
+                  defaultValue={
+                    editing
+                      ? String(
+                          vehicles.find((v) => v.id === editing)?.[
+                            name as keyof (typeof vehicles)[0]
+                          ] || "",
+                        )
+                      : ""
+                  }
+                  placeholder={placeholder}
+                />
+              </label>
+            ))}
+            <button type="submit" className="primary full">
+              Save vehicle <Check size={17} />
+            </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "delete-vehicle" && (
+        <Modal
+          title="Remove this vehicle?"
+          subtitle="This removes the vehicle and its connected records from your account."
+          onClose={() => setModal("")}
+        >
+          <div className="button-row">
+            <button className="secondary" onClick={() => setModal("")}>
+              Keep vehicle
+            </button>
+            <button
+              className="primary"
+              onClick={async () => {
+                if (vehicles.length === 1) {
+                  notify("Keep at least one vehicle in your garage.");
+                  setModal("");
+                  return;
+                }
+                try {
+                  const current: any = vehicles.find((v) => v.id === editing);
+                  if (localStorage.getItem("token") && current?.backendId)
+                    await deleteVehicle(current.backendId);
+                  setVehicles(vehicles.filter((v) => v.id !== editing));
+                  setModal("");
+                  notify("Vehicle removed.");
+                } catch (error: any) {
+                  notify(
+                    error?.response?.data?.detail ||
+                      "The vehicle could not be removed.",
+                  );
+                }
+              }}
+            >
+              Remove vehicle
+            </button>
+          </div>
+        </Modal>
+      )}
+      {modal === "checkin" && (
+        <Modal
+          title="How’s your car feeling?"
+          subtitle={`${vehicle?.year} ${vehicle?.make} ${vehicle?.model} · A quick monthly check-in.`}
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = e.currentTarget,
+                mileage = Number(field(f, "mileage")),
+                note = field(f, "note") || "No issues noticed.",
+                backendId = (vehicle as any)?.backendId;
+              try {
+                if (localStorage.getItem("token") && backendId) {
+                  const { data } = await addVehicleCheckin(backendId, {
+                    odometer_miles: mileage,
+                    note,
+                  });
+                  setCheckins([
+                    {
+                      id: data.id,
+                      vehicleId: activeVehicle,
+                      date: new Intl.DateTimeFormat(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      }).format(new Date(data.recorded_on + "T12:00:00")),
+                      mileage,
+                      note,
+                    },
+                    ...checkins,
+                  ]);
+                } else
+                  setCheckins([
+                    {
+                      vehicleId: activeVehicle,
+                      date: new Date().toLocaleDateString(),
+                      mileage,
+                      note,
+                    },
+                    ...checkins,
+                  ]);
+                setVehicles(
+                  vehicles.map((v) =>
+                    v.id === activeVehicle ? { ...v, mileage } : v,
+                  ),
+                );
+                setModal("");
+                notify("Check-in recorded. A little care goes a long way.");
+              } catch (error: any) {
+                notify(
+                  error?.response?.data?.detail ||
+                    "The check-in could not be saved.",
+                );
+              }
+            }}
+          >
+            <label>
+              Current odometer reading (miles)
+              <input
+                name="mileage"
+                type="number"
+                min={vehicle?.mileage || 0}
+                required
+                defaultValue={vehicle?.mileage}
+              />
+              <small className="muted">
+                Last recorded: {vehicle?.mileage.toLocaleString()} mi. Mileage
+                is entered manually.
+              </small>
+            </label>
+            <label>
+              Anything you’ve noticed?
+              <textarea
+                name="note"
+                placeholder="A sound, a feeling, or simply ‘all good.’"
+              />
+            </label>
+            <button type="submit" className="primary full">
+              Save check-in <Check size={18} />
+            </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "service" && (
+        <Modal
+          title="Another good mile behind you."
+          subtitle="Add the details of a completed service."
+          wide
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = e.currentTarget,
+                backendId = (vehicle as any)?.backendId,
+                id = Date.now(),
+                date = field(f, "date"),
+                mileage = Number(field(f, "mileage")),
+                provider = field(f, "provider"),
+                cost = Number(field(f, "cost")),
+                notes = field(f, "notes"),
+                nextDate = field(f, "next-date"),
+                nextMileage = field(f, "next-mileage");
+              try {
+                let recordId: any = id;
+                if (localStorage.getItem("token") && backendId) {
+                  const payload = new FormData();
+                  payload.append("service_date", date);
+                  payload.append("odometer_miles", String(mileage));
+                  payload.append("provider_name", provider);
+                  payload.append(
+                    "completed_items",
+                    JSON.stringify(serviceItems.filter(Boolean)),
+                  );
+                  payload.append("total_cost", String(cost));
+                  if (notes) payload.append("notes", notes);
+                  if (nextDate) payload.append("next_due_date", nextDate);
+                  if (nextMileage)
+                    payload.append("next_due_miles", nextMileage);
+                  if (invoice) payload.append("invoice", invoice);
+                  const response = await addServiceRecord(backendId, payload);
+                  recordId = response.data.id;
+                }
+                setServices([
+                  {
+                    id: recordId,
+                    vehicleId: activeVehicle,
+                    date: new Intl.DateTimeFormat(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    }).format(new Date(date + "T12:00:00")),
+                    mileage,
+                    provider,
+                    items: serviceItems.filter(Boolean),
+                    cost,
+                    invoice: invoice?.name || "No invoice attached",
+                  },
+                  ...services,
+                ]);
+                if (nextDate || nextMileage)
+                  setExtraPlans([
+                    ...extraPlans,
+                    {
+                      name: serviceItems.filter(Boolean).join(" + "),
+                      date: nextDate,
+                      mileage: nextMileage,
+                      vehicleId: activeVehicle,
+                    },
+                  ]);
+                if (invoice)
+                  setInvoiceUrls({
+                    ...invoiceUrls,
+                    [recordId]: URL.createObjectURL(invoice),
+                  });
+                setDue(false);
+                setInvoice(null);
+                setModal("");
+                notify("Service record added to your vehicle’s history.");
+              } catch (error: any) {
+                notify(
+                  error?.response?.data?.detail ||
+                    "The service record could not be saved.",
+                );
+              }
+            }}
+          >
+            <div className="form-columns">
+              <label>
+                Service date
+                <input
+                  name="date"
+                  type="date"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  required
+                />
+              </label>
+              <label>
+                Mileage (miles)
+                <input
+                  name="mileage"
+                  type="number"
+                  defaultValue={vehicle?.mileage}
+                  min={0}
+                  required
+                />
+              </label>
+            </div>
+            <label>
+              Workshop or provider
+              <input
+                name="provider"
+                placeholder="Where was the work completed?"
+                required
+              />
+            </label>
+            <label>Completed service items</label>
+            {serviceItems.map((s, i) => (
+              <div className="input-row" key={i}>
+                <input
+                  aria-label={`Service item ${i + 1}`}
+                  value={s}
+                  required
+                  onChange={(e) =>
+                    setServiceItems(
+                      serviceItems.map((x, j) =>
+                        i === j ? e.target.value : x,
+                      ),
+                    )
+                  }
+                />
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Remove service item"
+                  onClick={() =>
+                    setServiceItems(serviceItems.filter((_, j) => j !== i))
+                  }
+                  disabled={serviceItems.length === 1}
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setServiceItems([...serviceItems, ""])}
+            >
+              <Plus size={16} />
+              Add another service item
+            </button>
+            <div className="form-columns">
+              <label>
+                Total cost ($)
+                <input name="cost" type="number" min={0} step="0.01" required />
+              </label>
+              <label>
+                Next service date (optional)
+                <input name="next-date" type="date" />
+              </label>
+            </div>
+            <label>
+              Next mileage target (optional)
+              <input
+                name="next-mileage"
+                type="number"
+                min={0}
+                placeholder="e.g. 45000"
+              />
+            </label>
+            <label>
+              Notes
+              <textarea
+                name="notes"
+                placeholder="Anything useful for next time…"
+              />
+            </label>
+            <label className="upload-box">
+              <Upload size={23} />
+              <strong>{invoice ? invoice.name : "Attach one invoice"}</strong>
+              <small>PDF, JPG, or PNG · up to 10 MB</small>
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                onChange={(e) => setInvoice(e.target.files?.[0] || null)}
+              />
+            </label>
+            <button type="submit" className="primary full">
+              Save service record <Check size={17} />
+            </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "plan" && (
+        <Modal
+          title="A small reminder for the road ahead."
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = e.currentTarget;
+              const date = field(f, "date"),
+                mileage = field(f, "mileage");
+              if (!date && !mileage) {
+                notify("Add a date, a mileage target, or both.");
+                return;
+              }
+              setExtraPlans([
+                ...extraPlans,
+                {
+                  name: field(f, "service"),
+                  date,
+                  mileage,
+                  vehicleId: activeVehicle,
+                },
+              ]);
+              setModal("");
+              notify("Sample service reminder added");
+            }}
+          >
+            <label>
+              Service
+              <input name="service" required placeholder="e.g. Oil change" />
+            </label>
+            <label>
+              Due date
+              <input name="date" type="date" />
+            </label>
+            <label>
+              Or mileage target (miles)
+              <input name="mileage" type="number" min={0} placeholder="45000" />
+            </label>
+            <p className="muted">
+              In the full app, reminders stay active until you record the
+              relevant completed service.
+            </p>
+            <button className="primary">
+              Add reminder <Check size={17} />
+            </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "invoice" && (
+        <Modal
+          title="Service invoice"
+          subtitle="Sample document preview · July 12, 2026"
+          onClose={() => setModal("")}
+        >
+          <div className="invoice-preview">
+            <span className="overline">Sunset auto care</span>
+            <h2>Thanks for trusting us.</h2>
+            <p>2021 Toyota RAV4 · 41,600 miles</p>
+            <hr />
+            {[
+              ["Oil change", "$89.00"],
+              ["Tire rotation", "$35.00"],
+              ["Brake inspection", "$25.00"],
+            ].map(([a, b]) => (
+              <div className="between" key={a}>
+                <span>{a}</span>
+                <span>{b}</span>
+              </div>
+            ))}
+            <hr />
+            <div className="between">
+              <strong>Total</strong>
+              <strong>$149.00</strong>
+            </div>
+            <p className="muted">
+              Illustrative invoice. Not a receipt for an actual service.
+            </p>
+          </div>
+        </Modal>
+      )}
+      {modal === "appointment" && (
+        <Modal
+          title="Make time for your vehicle."
+          subtitle={`Schedule a visit with ${selected?.name || providers[0].name}.`}
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = e.currentTarget,
+                date = field(f, "date"),
+                time = field(f, "time"),
+                vehicleId = Number(field(f, "vehicle")),
+                current: any = vehicles.find((v) => v.id === vehicleId),
+                requestedFor = new Date(`${date} ${time}`);
+              try {
+                if (reschedulingId) {
+                  if (localStorage.getItem("token"))
+                    await updateProviderBooking(String(reschedulingId), {
+                      scheduled_for: requestedFor.toISOString(),
+                      service_type: field(f, "service"),
+                    });
+                  setAppointments(
+                    appointments.map((appointment) =>
+                      appointment.id === reschedulingId
+                        ? {
+                            ...appointment,
+                            day: date.slice(-2),
+                            month: requestedFor
+                              .toLocaleString(undefined, { month: "short" })
+                              .toUpperCase(),
+                            date: requestedFor.toLocaleDateString(),
+                            time,
+                            service: field(f, "service"),
+                            vehicle: `${current.year} ${current.make} ${current.model}`,
+                          }
+                        : appointment,
+                    ),
+                  );
+                } else if (localStorage.getItem("token") && selected?.id) {
+                  const { data } = await createProviderBooking({
+                    provider_id: selected.id,
+                    vehicle_id: current?.backendId || null,
+                    requested_for: requestedFor.toISOString(),
+                    service_type: field(f, "service"),
+                    notes: "",
+                  });
+                  setAppointments([
+                    ...appointments,
+                    {
+                      id: data.id,
+                      day: date.slice(-2),
+                      month: requestedFor
+                        .toLocaleString(undefined, { month: "short" })
+                        .toUpperCase(),
+                      date: requestedFor.toLocaleDateString(),
+                      time,
+                      service: field(f, "service"),
+                      provider: data.provider_name,
+                      vehicle: `${current.year} ${current.make} ${current.model}`,
+                      status: "Requested",
+                    },
+                  ]);
+                } else
+                  setAppointments([
+                    ...appointments,
+                    {
+                      id: Date.now(),
+                      day: date.slice(-2),
+                      month: requestedFor
+                        .toLocaleString(undefined, { month: "short" })
+                        .toUpperCase(),
+                      date: requestedFor.toLocaleDateString(),
+                      time,
+                      service: field(f, "service"),
+                      provider: selected?.name || providers[0].name,
+                      vehicle: `${current.year} ${current.make} ${current.model}`,
+                      status: "Scheduled",
+                    },
+                  ]);
+                setModal("");
+                setReschedulingId(null);
+                setTab("Appointments");
+                notify(
+                  reschedulingId
+                    ? "Appointment rescheduled."
+                    : "Appointment request saved.",
+                );
+              } catch (error: any) {
+                notify(
+                  error?.response?.data?.detail ||
+                    "The appointment could not be scheduled.",
+                );
+              }
+            }}
+          >
+            <label>
+              Vehicle
+              <select name="vehicle">
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.year} {v.make} {v.model}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Service
+              <select name="service">
+                {[
+                  "Oil change & inspection",
+                  "Wheel alignment",
+                  "Brake inspection",
+                  "Scheduled maintenance",
+                  "Battery replacement",
+                ].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            <div className="form-columns">
+              <label>
+                Date
+                <input
+                  type="date"
+                  name="date"
+                  min={new Date().toISOString().slice(0, 10)}
+                  required
+                />
+              </label>
+              <label>
+                Time
+                <select name="time">
+                  {["9:30 AM", "11:00 AM", "1:30 PM", "3:00 PM"].map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button type="submit" className="primary full">
+              {reschedulingId ? "Save new time" : "Request appointment"}{" "}
+              <ArrowRight size={17} />
+            </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "tracking" && (
+        <Modal
+          title="Request details"
+          subtitle={activeRequest.id}
+          wide
+          onClose={() => setModal("")}
+        >
+          <dl className="history-details">
+            {[
+              ["Issue", activeRequest.issue],
+              ["Vehicle", activeRequest.vehicle],
+              ["Provider", activeRequest.provider],
+              ["Mechanic", activeRequest.mechanic],
+              ["Date", activeRequest.date],
+              ["Service mode", activeRequest.mode],
+              ["Status", activeRequest.status],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <h3>
+            {activeRequest.status === "Completed"
+              ? "Work completed"
+              : "Latest update"}
+          </h3>
+          <p>{activeRequest.notes}</p>
+          {activeRequest.status === "Completed" ? (
+            (() => {
+              const saved = recordedInvoices.find(
+                (invoice) => invoice.requestId === activeRequest.id,
+              );
+              return (
+                <Billing
+                  reference={saved?.reference || "INV-" + activeRequest.id}
+                  items={
+                    saved
+                      ? [
+                          [saved.description + " · labor", saved.labor],
+                          ["Parts", saved.parts],
+                          ["Taxes and fees", saved.fees],
+                        ]
+                      : activeRequest.id === "WM-2031"
+                        ? [
+                            ["Tire rotation labor", 35],
+                            ["Wheel balancing", 30],
+                            ["Tire pressure check", 0],
+                          ]
+                        : []
+                  }
+                />
+              );
+            })()
+          ) : (
+            <p className="muted">
+              Final billing will appear after completion. No charges have been
+              processed in this demo.
+            </p>
+          )}
+          <div className="button-row">
+            <button
+              className="secondary"
+              onClick={() => {
+                setModal("");
+                setMessageTarget({
+                  mechanicId: (activeRequest as any).mechanicId,
+                  requestId: (activeRequest as any).backendId,
+                  name: (activeRequest as any).mechanic,
+                  store: (activeRequest as any).provider,
+                  job: (activeRequest as any).id,
+                });
+                setTab("Messages");
+              }}
+            >
+              Message provider
+            </button>
+            {activeRequest.status === "Completed" && (
+              <button className="primary" onClick={() => setModal("review")}>
+                Leave a review
+              </button>
+            )}
+          </div>
+        </Modal>
+      )}
+      {modal === "review" && (
+        <Modal
+          title="How was your experience?"
+          subtitle={activeRequest.provider}
+          onClose={() => setModal("")}
+        >
+          <form
+            className="form-grid"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = e.currentTarget;
+              try {
+                if (
+                  localStorage.getItem("token") &&
+                  (activeRequest as any).backendId
+                )
+                  await submitReview({
+                    request_id: (activeRequest as any).backendId,
+                    rating: Number(field(f, "rating")),
+                    comment: field(f, "comment"),
+                  });
+                setModal("");
+                notify("Thanks! Your review has been submitted.");
+              } catch (error: any) {
+                notify(
+                  error?.response?.data?.detail ||
+                    "Your review could not be submitted.",
+                );
+              }
+            }}
+          >
+            <label>
+              Rating
+              <select name="rating" defaultValue="5">
+                <option value="5">★★★★★ — Excellent</option>
+                <option value="4">★★★★ — Good</option>
+                <option value="3">★★★ — Okay</option>
+                <option value="2">★★ — Could be better</option>
+                <option value="1">★ — Poor</option>
+              </select>
+            </label>
+            <label>
+              Your review
+              <textarea name="comment" required placeholder="What went well?" />
+            </label>
+            <button className="primary">
+              Share review <Star size={17} />
+            </button>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
+}
+function ShieldCheckIcon() {
+  return (
+    <span className="icon-disc">
+      <CheckCircle2 size={23} />
+    </span>
+  );
+}

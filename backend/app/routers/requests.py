@@ -520,8 +520,23 @@ async def submit_review(
 @router.get("/alerts", response_model=list[dict])
 async def get_alerts(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("mechanic")),
+    current_user: User = Depends(require_role("mechanic", "admin")),
 ):
+    if current_user.role == "admin":
+        result = await db.execute(
+            select(Alert).where(Alert.is_resolved == False).order_by(Alert.created_at.desc())
+        )
+        alerts = result.scalars().all()
+        return [
+            {
+                "id": a.id,
+                "alert_type": a.alert_type,
+                "message": a.message,
+                "part_id": a.part_id,
+                "created_at": a.created_at,
+            }
+            for a in alerts
+        ]
     mech_result = await db.execute(
         select(Mechanic).where(Mechanic.user_id == current_user.id)
     )
@@ -554,16 +569,18 @@ async def get_alerts(
 async def resolve_alert(
     alert_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("mechanic")),
+    current_user: User = Depends(require_role("mechanic", "admin")),
 ):
-    mech_result = await db.execute(
-        select(Mechanic).where(Mechanic.user_id == current_user.id)
-    )
-    mechanic = mech_result.scalar_one_or_none()
-
-    result = await db.execute(
-        select(Alert).where(Alert.id == alert_id, Alert.mechanic_id == mechanic.id)
-    )
+    if current_user.role == "admin":
+        result = await db.execute(select(Alert).where(Alert.id == alert_id))
+    else:
+        mech_result = await db.execute(
+            select(Mechanic).where(Mechanic.user_id == current_user.id)
+        )
+        mechanic = mech_result.scalar_one_or_none()
+        result = await db.execute(
+            select(Alert).where(Alert.id == alert_id, Alert.mechanic_id == mechanic.id)
+        )
     alert = result.scalar_one_or_none()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")

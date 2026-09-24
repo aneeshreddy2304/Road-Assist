@@ -24,6 +24,10 @@ router = APIRouter(prefix="/workspace", tags=["Workspace"])
 
 class OwnerWorkspaceProfileUpdate(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
+    street_address: str | None = Field(default=None, max_length=240)
+    city: str | None = Field(default=None, max_length=100)
+    state: str | None = Field(default=None, max_length=100)
+    postal_code: str | None = Field(default=None, max_length=20)
     preferred_language: str | None = Field(default=None, max_length=40)
     emergency_contact_name: str | None = Field(default=None, max_length=120)
     emergency_contact_relationship: str | None = Field(default=None, max_length=80)
@@ -126,12 +130,24 @@ async def update_owner_workspace_profile(
     current_user: User = Depends(require_role("owner")),
 ):
     values = payload.model_dump(exclude_unset=True)
+    user_fields = {
+        key: values.pop(key)
+        for key in ("street_address", "city", "state", "postal_code")
+        if key in values
+    }
     if "default_vehicle_id" in values and values["default_vehicle_id"]:
         owned = (await db.execute(text("SELECT 1 FROM vehicles WHERE id = CAST(:id AS UUID) AND owner_id = :owner"), {
             "id": values["default_vehicle_id"], "owner": current_user.id,
         })).first()
         if not owned:
             raise HTTPException(status_code=422, detail="Default vehicle must belong to this owner")
+
+    if user_fields:
+        assignments = ", ".join(f"{key} = :{key}" for key in user_fields)
+        await db.execute(
+            text(f"UPDATE users SET {assignments} WHERE id = :user_id"),
+            {"user_id": current_user.id, **user_fields},
+        )
 
     columns = ["user_id"] + list(values)
     placeholders = [":user_id"] + [f":{key}" for key in values]
@@ -143,6 +159,8 @@ async def update_owner_workspace_profile(
             VALUES ({', '.join(placeholders)})
             ON CONFLICT (user_id) DO UPDATE SET {', '.join(update_fields)}
         """), {"user_id": current_user.id, **values})
+        await db.commit()
+    elif user_fields:
         await db.commit()
     return await _owner_profile(db, current_user.id)
 

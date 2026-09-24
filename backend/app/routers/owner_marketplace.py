@@ -39,6 +39,11 @@ class ProviderBookingCreate(BaseModel):
     notes: str | None = Field(default=None, max_length=1000)
 
 
+class ProviderBookingUpdate(BaseModel):
+    requested_for: datetime | None = None
+    status: str | None = None
+
+
 def _plain(value):
     if isinstance(value, Decimal):
         return float(value)
@@ -279,6 +284,46 @@ async def list_provider_bookings(
       ORDER BY a.requested_for ASC
     """), {"owner_id": current_user.id})
     return [_plain(dict(row)) for row in result.mappings().all()]
+
+
+@router.patch("/bookings/{booking_id}")
+async def update_provider_booking(
+    booking_id: str,
+    payload: ProviderBookingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_owner(current_user)
+    if payload.status not in {None, "requested", "cancelled"}:
+        raise HTTPException(status_code=400, detail="Owners can only request or cancel an appointment")
+    current = await db.execute(
+        text("""
+          SELECT id::text, requested_for, status
+          FROM owner_provider_appointments
+          WHERE id = CAST(:booking_id AS UUID) AND owner_id = CAST(:owner_id AS UUID)
+        """),
+        {"booking_id": booking_id, "owner_id": current_user.id},
+    )
+    current = current.mappings().first()
+    if not current:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    requested_for = payload.requested_for or current["requested_for"]
+    status = payload.status or ("requested" if payload.requested_for else current["status"])
+    await db.execute(
+        text("""
+          UPDATE owner_provider_appointments
+          SET requested_for = :requested_for, status = :status
+          WHERE id = CAST(:booking_id AS UUID) AND owner_id = CAST(:owner_id AS UUID)
+        """),
+        {
+            "booking_id": booking_id,
+            "owner_id": current_user.id,
+            "requested_for": requested_for,
+            "status": status,
+        },
+    )
+    await db.commit()
+    return {"id": booking_id, "requested_for": requested_for.isoformat(), "status": status}
 
 
 @router.get("/orders")
