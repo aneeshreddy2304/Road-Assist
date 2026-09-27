@@ -1,27 +1,493 @@
 "use client";
-import {useEffect,useState} from 'react';
-import {getBusinessWorkspaceProfile,updateBusinessWorkspaceProfile} from '../../api/endpoints';
+import { useEffect, useState } from "react";
+import {
+  getBusinessWorkspaceProfile,
+  updateBusinessWorkspaceProfile,
+} from "../../api/endpoints";
 
-const mechanicServices=['Oil change','Brake repair','Diagnostics','Tire services','Battery replacement','Air conditioning','Transmission','Roadside assistance'];
-const warehouseServices=['Oil & fluids','Filters','Batteries','Brakes','Tires','Wipers','Trade accounts','Local delivery'];
-const facilities=['Accessible entrance','Customer parking','Waiting area','Wi-Fi','After-hours drop-off','Shuttle service'];
-const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-const value=(form:FormData,name:string)=>String(form.get(name)||'').trim();
+const mechanicServices = [
+  "Oil change",
+  "Brake repair",
+  "Diagnostics",
+  "Tire services",
+  "Battery replacement",
+  "Air conditioning",
+  "Transmission",
+  "Roadside assistance",
+];
+const warehouseServices = [
+  "Oil & fluids",
+  "Filters",
+  "Batteries",
+  "Brakes",
+  "Tires",
+  "Wipers",
+  "Trade accounts",
+  "Local delivery",
+];
+const facilities = [
+  "Accessible entrance",
+  "Customer parking",
+  "Waiting area",
+  "Wi-Fi",
+  "After-hours drop-off",
+  "Shuttle service",
+];
+const days = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+const value = (form: FormData, name: string) =>
+  String(form.get(name) || "").trim();
 
-export default function BusinessProfile({warehouse,notify}:{warehouse:boolean;notify:(s:string)=>void}){
- const [profile,setProfile]=useState<any>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
- useEffect(()=>{if(!localStorage.getItem('token')){setLoading(false);return}getBusinessWorkspaceProfile().then(r=>setProfile(r.data)).catch((e:any)=>notify(e?.response?.data?.detail||'Business profile could not be loaded.')).finally(()=>setLoading(false))},[]);
- async function save(event:React.FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);setSaving(true);try{const business_hours=Object.fromEntries(days.map(day=>[day,{closed:form.get(`${day}-closed`)==='on',opens:value(form,`${day}-opens`),closes:value(form,`${day}-closes`)}]));const payload={business_name:value(form,'business_name'),business_category:value(form,'business_category'),contact_person:value(form,'contact_person'),website_url:value(form,'website_url')||null,description:value(form,'description'),street_address:value(form,'street_address'),city:value(form,'city'),state:value(form,'state'),postal_code:value(form,'postal_code'),service_modes:[value(form,'service_mode')].filter(Boolean),service_radius_miles:Number(value(form,'service_radius_miles')||0),areas_served:value(form,'areas_served'),business_hours,holiday_hours:value(form,'holiday_hours'),offered_services:(warehouse?warehouseServices:mechanicServices).filter(item=>form.get(`service-${item}`)==='on'),makes_serviced:value(form,'makes_serviced'),vehicle_types_supported:value(form,'vehicle_types_supported'),powertrains_supported:value(form,'powertrains_supported'),languages_spoken:value(form,'languages_spoken'),facilities:facilities.filter(item=>form.get(`facility-${item}`)==='on'),accepts_new_work:form.get('accepts_new_work')==='on',appointments_required:form.get('appointments_required')==='on',walk_ins_accepted:form.get('walk_ins_accepted')==='on',warranty_or_returns_policy:value(form,'policy'),arrival_or_pickup_instructions:value(form,'instructions'),accepted_payment_methods:value(form,'payment_methods'),fulfillment_minimum_order:warehouse?Number(value(form,'minimum_order')||0):null,fulfillment_cutoff_time:warehouse?value(form,'cutoff_time'):null,fulfillment_processing_time:warehouse?value(form,'processing_time'):null};const result=await updateBusinessWorkspaceProfile(payload);setProfile(result.data);notify('Business profile saved.')}catch(e:any){notify(e?.response?.data?.detail||'Business profile could not be saved.')}finally{setSaving(false)}}
- if(loading)return <div className="panel empty-state"><p>Loading business profile…</p></div>;
- const p=profile||{};
- return <form className="panel business-profile form-grid" onSubmit={save}>
-  <p className="muted">This information shapes how your business appears and works across Wingman.</p>
-  <fieldset><legend>Business information</legend><div className="form-columns"><label>Business name<input name="business_name" required defaultValue={p.business_name||p.name||''}/></label><label>Business category<select name="business_category" defaultValue={p.business_category||(warehouse?'Parts warehouse':'Auto repair shop')}>{['Auto repair shop','Mobile mechanic','Tire shop','Service dealership','Parts warehouse'].map(x=><option key={x}>{x}</option>)}</select></label><label>Contact person<input name="contact_person" defaultValue={p.contact_person||p.name||''}/></label><label>Account phone<input disabled value={p.phone||''}/></label><label>Account email<input disabled value={p.email||''}/></label><label>Website<input name="website_url" type="url" defaultValue={p.website_url||''} placeholder="https://example.com"/></label></div><label>Business description<textarea name="description" defaultValue={p.description||''}/></label></fieldset>
-  <fieldset><legend>Location and service area</legend><div className="form-columns"><label>Street address<input name="street_address" defaultValue={p.street_address||''}/></label><label>City<input name="city" defaultValue={p.city||''}/></label><label>State<input name="state" defaultValue={p.state||'California'}/></label><label>ZIP code<input name="postal_code" defaultValue={p.postal_code||''}/></label><label>{warehouse?'Fulfillment':'Service mode'}<select name="service_mode" defaultValue={p.service_modes?.[0]||(warehouse?'Pickup & delivery':'Mobile & shop')}>{(warehouse?['Pickup & delivery','Pickup only','Delivery only']:['Mobile & shop','Shop visit','Mobile service']).map(x=><option key={x}>{x}</option>)}</select></label><label>Service radius (miles)<input name="service_radius_miles" type="number" min="0" max="500" defaultValue={p.service_radius_miles??15}/></label></div><label>Areas served<input name="areas_served" defaultValue={p.areas_served||''}/></label></fieldset>
-  <fieldset><legend>Business hours</legend><div className="profile-hours">{days.map((day,i)=>{const hours=p.business_hours?.[day]||{};return <div key={day}><strong>{day}</strong><label className="checkbox-label"><input name={`${day}-closed`} type="checkbox" defaultChecked={hours.closed??i===6}/> Closed</label><label><span className="sr-only">{day} opening time</span><input name={`${day}-opens`} type="time" defaultValue={hours.opens||'08:00'}/></label><span>to</span><label><span className="sr-only">{day} closing time</span><input name={`${day}-closes`} type="time" defaultValue={hours.closes||'17:00'}/></label></div>})}</div><label>Holiday hours / exceptions<textarea name="holiday_hours" defaultValue={p.holiday_hours||''}/></label></fieldset>
-  <fieldset><legend>{warehouse?'Products and fulfillment':'Services and vehicles'}</legend><div className="profile-checks">{(warehouse?warehouseServices:mechanicServices).map(item=><label className="checkbox-label" key={item}><input name={`service-${item}`} type="checkbox" defaultChecked={p.offered_services?.includes(item)}/>{item}</label>)}</div><div className="form-columns"><label>{warehouse?'Brands stocked':'Makes serviced'}<input name="makes_serviced" defaultValue={p.makes_serviced||''}/></label><label>{warehouse?'Minimum order ($)':'Vehicle types'}<input name={warehouse?'minimum_order':'vehicle_types_supported'} type={warehouse?'number':'text'} min={warehouse?0:undefined} defaultValue={warehouse?p.fulfillment_minimum_order??0:p.vehicle_types_supported||''}/></label><label>{warehouse?'Order cutoff time':'Powertrains supported'}<input name={warehouse?'cutoff_time':'powertrains_supported'} type={warehouse?'time':'text'} defaultValue={warehouse?p.fulfillment_cutoff_time||'14:00':p.powertrains_supported||''}/></label><label>{warehouse?'Typical processing time':'Languages spoken'}<input name={warehouse?'processing_time':'languages_spoken'} defaultValue={warehouse?p.fulfillment_processing_time||'1–2 business days':p.languages_spoken||''}/></label></div></fieldset>
-  {!warehouse&&<fieldset><legend>Facilities</legend><div className="profile-checks">{facilities.map(item=><label className="checkbox-label" key={item}><input name={`facility-${item}`} type="checkbox" defaultChecked={p.facilities?.includes(item)}/>{item}</label>)}</div></fieldset>}
-  <fieldset><legend>Booking and policies</legend><div className="profile-checks"><label className="checkbox-label"><input name="accepts_new_work" type="checkbox" defaultChecked={p.accepts_new_work??true}/>Accepting new {warehouse?'orders':'requests'}</label>{!warehouse&&<><label className="checkbox-label"><input name="appointments_required" type="checkbox" defaultChecked={p.appointments_required}/>Appointments required</label><label className="checkbox-label"><input name="walk_ins_accepted" type="checkbox" defaultChecked={p.walk_ins_accepted}/>Walk-ins accepted</label></>}</div><label>{warehouse?'Returns policy':'Warranty policy'}<textarea name="policy" defaultValue={p.warranty_or_returns_policy||''}/></label><label>{warehouse?'Pickup instructions':'Arrival / drop-off instructions'}<textarea name="instructions" defaultValue={p.arrival_or_pickup_instructions||''}/></label><label>Accepted payment methods<input name="payment_methods" defaultValue={p.accepted_payment_methods||''}/></label></fieldset>
-  <div className="button-row"><button className="primary" disabled={saving}>{saving?'Saving…':'Save profile'}</button></div>
- </form>
+export default function BusinessProfile({
+  warehouse,
+  notify,
+}: {
+  warehouse: boolean;
+  notify: (s: string) => void;
+}) {
+  const [profile, setProfile] = useState<any>(null),
+    [loading, setLoading] = useState(true),
+    [saving, setSaving] = useState(false),
+    [editing, setEditing] = useState(false),
+    [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (!localStorage.getItem("token")) {
+      setLoading(false);
+      return;
+    }
+    getBusinessWorkspaceProfile()
+      .then((r) => setProfile(r.data))
+      .catch((e: any) =>
+        notify(
+          e?.response?.data?.detail || "Business profile could not be loaded.",
+        ),
+      )
+      .finally(() => setLoading(false));
+  }, []);
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editing) return;
+    const form = new FormData(event.currentTarget);
+    setSaving(true);
+    try {
+      const business_hours = Object.fromEntries(
+        days.map((day) => [
+          day,
+          {
+            closed: form.get(`${day}-closed`) === "on",
+            opens: value(form, `${day}-opens`),
+            closes: value(form, `${day}-closes`),
+          },
+        ]),
+      );
+      const payload = {
+        business_name: value(form, "business_name"),
+        business_category: value(form, "business_category"),
+        contact_person: value(form, "contact_person"),
+        website_url: value(form, "website_url") || null,
+        description: value(form, "description"),
+        street_address: value(form, "street_address"),
+        city: value(form, "city"),
+        state: value(form, "state"),
+        postal_code: value(form, "postal_code"),
+        service_modes: [value(form, "service_mode")].filter(Boolean),
+        service_radius_miles: Number(value(form, "service_radius_miles") || 0),
+        areas_served: value(form, "areas_served"),
+        business_hours,
+        holiday_hours: value(form, "holiday_hours"),
+        offered_services: (warehouse
+          ? warehouseServices
+          : mechanicServices
+        ).filter((item) => form.get(`service-${item}`) === "on"),
+        makes_serviced: value(form, "makes_serviced"),
+        vehicle_types_supported: value(form, "vehicle_types_supported"),
+        powertrains_supported: value(form, "powertrains_supported"),
+        languages_spoken: value(form, "languages_spoken"),
+        facilities: facilities.filter(
+          (item) => form.get(`facility-${item}`) === "on",
+        ),
+        accepts_new_work: form.get("accepts_new_work") === "on",
+        appointments_required: form.get("appointments_required") === "on",
+        walk_ins_accepted: form.get("walk_ins_accepted") === "on",
+        warranty_or_returns_policy: value(form, "policy"),
+        arrival_or_pickup_instructions: value(form, "instructions"),
+        accepted_payment_methods: value(form, "payment_methods"),
+        fulfillment_minimum_order: warehouse
+          ? Number(value(form, "minimum_order") || 0)
+          : null,
+        fulfillment_cutoff_time: warehouse ? value(form, "cutoff_time") : null,
+        fulfillment_processing_time: warehouse
+          ? value(form, "processing_time")
+          : null,
+      };
+      const result = await updateBusinessWorkspaceProfile(payload);
+      setProfile(result.data);
+      setEditing(false);
+      setSaved(true);
+      notify("Business profile saved.");
+    } catch (e: any) {
+      notify(
+        e?.response?.data?.detail || "Business profile could not be saved.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (loading)
+    return (
+      <div className="panel empty-state">
+        <p>Loading business profile…</p>
+      </div>
+    );
+  const p = profile || {};
+  return (
+    <form
+      key={`${p.id || p.user_id || "business"}-${editing}`}
+      className={`panel business-profile form-grid ${editing ? "profile-editing" : ""}`}
+      onSubmit={save}
+      onChange={() => setSaved(false)}
+    >
+      <div className="between profile-heading">
+        <div>
+          <span className="overline">Your business</span>
+          <h2>Profile details</h2>
+        </div>
+        {!editing && (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setSaved(false);
+              setEditing(true);
+            }}
+          >
+            Edit profile
+          </button>
+        )}
+      </div>
+      <p className="muted">
+        This information shapes how your business appears and works across
+        Wingman.
+      </p>
+      <fieldset disabled={!editing}>
+        <legend>Business information</legend>
+        <div className="form-columns">
+          <label>
+            Business name
+            <input
+              name="business_name"
+              required
+              defaultValue={p.business_name || p.name || ""}
+            />
+          </label>
+          <label>
+            Business category
+            <select
+              name="business_category"
+              defaultValue={
+                p.business_category ||
+                (warehouse ? "Parts warehouse" : "Auto repair shop")
+              }
+            >
+              {[
+                "Auto repair shop",
+                "Mobile mechanic",
+                "Tire shop",
+                "Service dealership",
+                "Parts warehouse",
+              ].map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Contact person
+            <input
+              name="contact_person"
+              defaultValue={p.contact_person || p.name || ""}
+            />
+          </label>
+          <label>
+            Account phone
+            <input disabled value={p.phone || ""} />
+          </label>
+          <label>
+            Account email
+            <input disabled value={p.email || ""} />
+          </label>
+          <label>
+            Website
+            <input
+              name="website_url"
+              type="url"
+              defaultValue={p.website_url || ""}
+              placeholder="https://example.com"
+            />
+          </label>
+        </div>
+        <label>
+          Business description
+          <textarea name="description" defaultValue={p.description || ""} />
+        </label>
+      </fieldset>
+      <fieldset disabled={!editing}>
+        <legend>Location and service area</legend>
+        <div className="form-columns">
+          <label>
+            Street address
+            <input
+              name="street_address"
+              defaultValue={p.street_address || ""}
+            />
+          </label>
+          <label>
+            City
+            <input name="city" defaultValue={p.city || ""} />
+          </label>
+          <label>
+            State
+            <input name="state" defaultValue={p.state || "California"} />
+          </label>
+          <label>
+            ZIP code
+            <input name="postal_code" defaultValue={p.postal_code || ""} />
+          </label>
+          <label>
+            {warehouse ? "Fulfillment" : "Service mode"}
+            <select
+              name="service_mode"
+              defaultValue={
+                p.service_modes?.[0] ||
+                (warehouse ? "Pickup & delivery" : "Mobile & shop")
+              }
+            >
+              {(warehouse
+                ? ["Pickup & delivery", "Pickup only", "Delivery only"]
+                : ["Mobile & shop", "Shop visit", "Mobile service"]
+              ).map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Service radius (miles)
+            <input
+              name="service_radius_miles"
+              type="number"
+              min="0"
+              max="500"
+              defaultValue={p.service_radius_miles ?? 15}
+            />
+          </label>
+        </div>
+        <label>
+          Areas served
+          <input name="areas_served" defaultValue={p.areas_served || ""} />
+        </label>
+      </fieldset>
+      <fieldset disabled={!editing}>
+        <legend>Business hours</legend>
+        <div className="profile-hours">
+          {days.map((day, i) => {
+            const hours = p.business_hours?.[day] || {};
+            return (
+              <div key={day}>
+                <strong>{day}</strong>
+                <label className="checkbox-label">
+                  <input
+                    name={`${day}-closed`}
+                    type="checkbox"
+                    defaultChecked={hours.closed ?? i === 6}
+                  />{" "}
+                  Closed
+                </label>
+                <label>
+                  <span className="sr-only">{day} opening time</span>
+                  <input
+                    name={`${day}-opens`}
+                    type="time"
+                    defaultValue={hours.opens || "08:00"}
+                  />
+                </label>
+                <span>to</span>
+                <label>
+                  <span className="sr-only">{day} closing time</span>
+                  <input
+                    name={`${day}-closes`}
+                    type="time"
+                    defaultValue={hours.closes || "17:00"}
+                  />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+        <label>
+          Holiday hours / exceptions
+          <textarea name="holiday_hours" defaultValue={p.holiday_hours || ""} />
+        </label>
+      </fieldset>
+      <fieldset disabled={!editing}>
+        <legend>
+          {warehouse ? "Products and fulfillment" : "Services and vehicles"}
+        </legend>
+        <div className="profile-checks">
+          {(warehouse ? warehouseServices : mechanicServices).map((item) => (
+            <label className="checkbox-label" key={item}>
+              <input
+                name={`service-${item}`}
+                type="checkbox"
+                defaultChecked={p.offered_services?.includes(item)}
+              />
+              {item}
+            </label>
+          ))}
+        </div>
+        <div className="form-columns">
+          <label>
+            {warehouse ? "Brands stocked" : "Makes serviced"}
+            <input
+              name="makes_serviced"
+              defaultValue={p.makes_serviced || ""}
+            />
+          </label>
+          <label>
+            {warehouse ? "Minimum order ($)" : "Vehicle types"}
+            <input
+              name={warehouse ? "minimum_order" : "vehicle_types_supported"}
+              type={warehouse ? "number" : "text"}
+              min={warehouse ? 0 : undefined}
+              defaultValue={
+                warehouse
+                  ? (p.fulfillment_minimum_order ?? 0)
+                  : p.vehicle_types_supported || ""
+              }
+            />
+          </label>
+          <label>
+            {warehouse ? "Order cutoff time" : "Powertrains supported"}
+            <input
+              name={warehouse ? "cutoff_time" : "powertrains_supported"}
+              type={warehouse ? "time" : "text"}
+              defaultValue={
+                warehouse
+                  ? p.fulfillment_cutoff_time || "14:00"
+                  : p.powertrains_supported || ""
+              }
+            />
+          </label>
+          <label>
+            {warehouse ? "Typical processing time" : "Languages spoken"}
+            <input
+              name={warehouse ? "processing_time" : "languages_spoken"}
+              defaultValue={
+                warehouse
+                  ? p.fulfillment_processing_time || "1–2 business days"
+                  : p.languages_spoken || ""
+              }
+            />
+          </label>
+        </div>
+      </fieldset>
+      {!warehouse && (
+        <fieldset disabled={!editing}>
+          <legend>Facilities</legend>
+          <div className="profile-checks">
+            {facilities.map((item) => (
+              <label className="checkbox-label" key={item}>
+                <input
+                  name={`facility-${item}`}
+                  type="checkbox"
+                  defaultChecked={p.facilities?.includes(item)}
+                />
+                {item}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <fieldset disabled={!editing}>
+        <legend>Booking and policies</legend>
+        <div className="profile-checks">
+          <label className="checkbox-label">
+            <input
+              name="accepts_new_work"
+              type="checkbox"
+              defaultChecked={p.accepts_new_work ?? true}
+            />
+            Accepting new {warehouse ? "orders" : "requests"}
+          </label>
+          {!warehouse && (
+            <>
+              <label className="checkbox-label">
+                <input
+                  name="appointments_required"
+                  type="checkbox"
+                  defaultChecked={p.appointments_required}
+                />
+                Appointments required
+              </label>
+              <label className="checkbox-label">
+                <input
+                  name="walk_ins_accepted"
+                  type="checkbox"
+                  defaultChecked={p.walk_ins_accepted}
+                />
+                Walk-ins accepted
+              </label>
+            </>
+          )}
+        </div>
+        <label>
+          {warehouse ? "Returns policy" : "Warranty policy"}
+          <textarea
+            name="policy"
+            defaultValue={p.warranty_or_returns_policy || ""}
+          />
+        </label>
+        <label>
+          {warehouse
+            ? "Pickup instructions"
+            : "Arrival / drop-off instructions"}
+          <textarea
+            name="instructions"
+            defaultValue={p.arrival_or_pickup_instructions || ""}
+          />
+        </label>
+        <label>
+          Accepted payment methods
+          <input
+            name="payment_methods"
+            defaultValue={p.accepted_payment_methods || ""}
+          />
+        </label>
+      </fieldset>
+      {editing && (
+        <div className="button-row">
+          <button className="primary" disabled={saving}>
+            {saving ? "Saving…" : "Save profile"}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setEditing(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {saved && (
+        <span role="status" className="saved-state">
+          Saved
+        </span>
+      )}
+    </form>
+  );
 }

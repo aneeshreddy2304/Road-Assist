@@ -1,30 +1,239 @@
 /* Find Help starts at the same visual baseline as the sidebar brand. */
-body .workspace-content:has(.finder){position:relative;padding-top:20px!important}
-body .owner-workspace .page-title:has(+ .search-toolbar){position:absolute;inset:0 0 auto;z-index:5;height:0!important;min-height:0!important;margin:0!important}
-body .owner-workspace .page-title:has(+ .search-toolbar) .page-title-actions{right:0;top:20px}
-body .owner-workspace .search-toolbar{margin-bottom:20px}
-@media(min-width:901px){body .workspace-content:has(.finder) .finder{height:calc(100vh - 195px);min-height:760px}}
+body .workspace-content:has(.finder) {
+  position: relative;
+  padding-top: 20px !important;
+}
+body .owner-workspace .page-title:has(+ .search-toolbar) {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 5;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+}
+body .owner-workspace .page-title:has(+ .search-toolbar) .page-title-actions {
+  right: 0;
+  top: 20px;
+}
+body .owner-workspace .search-toolbar {
+  margin-bottom: 20px;
+}
+@media (min-width: 901px) {
+  body .workspace-content:has(.finder) .finder {
+    height: calc(100vh - 195px);
+    min-height: 760px;
+  }
+}
 /* Parts Shop starts with its searchable catalog control, with bag at the same baseline. */
-body .retail-marketplace .retail-disclosure,body .retail-marketplace .retail-utility{display:none}
-body .retail-marketplace .page-title:has(+ .retail-disclosure){display:flex;position:absolute;height:0;min-height:0;margin:0;inset:0 0 auto;z-index:5}
-body .retail-marketplace .page-title:has(+ .retail-disclosure) .page-title-actions{position:absolute;right:0;top:0}
-body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary{width:52px;min-width:52px;height:52px;min-height:52px;padding:0;display:grid;place-items:center;font-size:0}
-body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary .count-light{display:none}
-body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary svg{width:21px;height:21px}
-body .retail-marketplace .retail-search{width:calc(100% - 72px);margin:0 0 22px!important}
-@media(max-width:650px){body .retail-marketplace .retail-search{width:calc(100% - 64px)}body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary{width:48px;min-width:48px;height:48px;min-height:48px}}
+body .retail-marketplace .retail-disclosure,
+body .retail-marketplace .retail-utility {
+  display: none;
+}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) {
+  display: flex;
+  position: absolute;
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  inset: 0 0 auto;
+  z-index: 5;
+}
+body
+  .retail-marketplace
+  .page-title:has(+ .retail-disclosure)
+  .page-title-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  min-height: 52px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0;
+}
+body
+  .retail-marketplace
+  .page-title:has(+ .retail-disclosure)
+  .primary
+  .count-light {
+  display: none;
+}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary svg {
+  width: 21px;
+  height: 21px;
+}
+body .retail-marketplace .retail-search {
+  width: calc(100% - 72px);
+  margin: 0 0 22px !important;
+}
+@media (max-width: 650px) {
+  body .retail-marketplace .retail-search {
+    width: calc(100% - 64px);
+  }
+  body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    min-height: 48px;
+  }
+}
 /* Owner interaction alignment: centered provider detail and visible request chips. */
-.map-provider{left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;width:min(390px,calc(100% - 32px));max-width:390px!important;transform:translate(-50%,-50%);box-shadow:0 18px 54px #23391e35!important}
-.request-filters{margin-bottom:22px}
-.request-filters .chip{border-color:#b8c9e8;background:#ffffff70;box-shadow:inset 0 1px 0 #fff;min-height:42px}
-.request-filters .chip.selected{background:#356ae614;border-color:#6690e8;color:#2454bd}
-@media(max-width:650px){.map-provider{left:50%!important;top:50%!important;bottom:auto!important;width:calc(100% - 24px)}}
+.map-provider {
+  left: 50% !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(390px, calc(100% - 32px));
+  max-width: 390px !important;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 18px 54px #23391e35 !important;
+}
+.request-filters {
+  margin-bottom: 22px;
+}
+.request-filters .chip {
+  border-color: #b8c9e8;
+  background: #ffffff70;
+  box-shadow: inset 0 1px 0 #fff;
+  min-height: 42px;
+}
+.request-filters .chip.selected {
+  background: #356ae614;
+  border-color: #6690e8;
+  color: #2454bd;
+}
+@media (max-width: 650px) {
+  .map-provider {
+    left: 50% !important;
+    top: 50% !important;
+    bottom: auto !important;
+    width: calc(100% - 24px);
+  }
+}
 /* Keep the complete WingMan parts-shop hierarchy visible: title, bag count, notice, and back/order utility. */
-body .retail-marketplace .retail-disclosure{display:flex}
-body .retail-marketplace .retail-utility{display:flex}
-body .retail-marketplace .page-title:has(+ .retail-disclosure){display:flex;position:static;height:auto;min-height:0;margin:0 0 27px;inset:auto}
-body .retail-marketplace .page-title:has(+ .retail-disclosure) .page-title-actions{position:static}
-body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary{width:auto;min-width:0;height:auto;min-height:44px;padding:13px 17px;display:inline-flex;place-items:initial;font-size:14px;white-space:nowrap}
-body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary .count-light{display:inline-flex}
-body .retail-marketplace .retail-search{width:100%;margin:0 0 22px!important}
-@media(max-width:650px){body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary{width:auto;min-width:44px;height:44px;padding:0 13px;font-size:0}body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary .count-light{display:inline-flex;font-size:11px}}
+body .retail-marketplace .retail-disclosure {
+  display: flex;
+}
+body .retail-marketplace .retail-utility {
+  display: flex;
+}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) {
+  display: flex;
+  position: static;
+  height: auto;
+  min-height: 0;
+  margin: 0 0 27px;
+  inset: auto;
+}
+body
+  .retail-marketplace
+  .page-title:has(+ .retail-disclosure)
+  .page-title-actions {
+  position: static;
+}
+body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  padding: 13px 17px;
+  display: inline-flex;
+  place-items: initial;
+  font-size: 14px;
+  white-space: nowrap;
+}
+body
+  .retail-marketplace
+  .page-title:has(+ .retail-disclosure)
+  .primary
+  .count-light {
+  display: inline-flex;
+}
+body .retail-marketplace .retail-search {
+  width: 100%;
+  margin: 0 0 22px !important;
+}
+@media (max-width: 650px) {
+  body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary {
+    width: auto;
+    min-width: 44px;
+    height: 44px;
+    padding: 0 13px;
+    font-size: 0;
+  }
+  body
+    .retail-marketplace
+    .page-title:has(+ .retail-disclosure)
+    .primary
+    .count-light {
+    display: inline-flex;
+    font-size: 11px;
+  }
+}
+
+/* Operations accounts use the same content-first filters and compact message panels. */
+.operations-messages .workspace-message-tabs {
+  margin: 0 0 22px;
+  gap: 10px;
+  background: transparent;
+}
+.operations-messages .workspace-message-tabs .chip {
+  min-height: 42px;
+  padding: 9px 17px;
+}
+.operations-messages .owner-inbox {
+  min-height: 0;
+}
+.operations-messages .inbox-people {
+  min-height: 0;
+}
+.operations-messages .inbox-person:last-child {
+  border-bottom: 0;
+}
+
+/* Mechanic ordering follows the owner Parts Shop hierarchy. */
+.mechanic-marketplace .marketplace-intro {
+  align-items: center;
+  margin-bottom: 18px;
+  gap: 20px;
+}
+.mechanic-marketplace .marketplace-intro > p {
+  margin: 0;
+}
+.mechanic-marketplace .retail-utility {
+  display: flex;
+}
+.mechanic-marketplace .mechanic-store-wordmark {
+  color: #356ae6;
+}
+.mechanic-marketplace .retail-quantity {
+  margin-top: 8px;
+}
+.business-profile .profile-heading h2 {
+  margin: 4px 0 0;
+}
+@media (max-width: 650px) {
+  .mechanic-marketplace .marketplace-intro {
+    align-items: flex-start;
+  }
+  .mechanic-marketplace .marketplace-intro > p {
+    font-size: 12px;
+  }
+  .mechanic-marketplace .retail-bag-button {
+    font-size: 0;
+    min-width: 48px;
+    padding: 0 12px;
+  }
+  .mechanic-marketplace .retail-bag-button .count-light {
+    font-size: 11px;
+  }
+  .operations-messages .workspace-message-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+}

@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronRight, LoaderCircle, Search, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronRight,
+  LoaderCircle,
+  Search,
+  Send,
+} from "lucide-react";
 import {
   getWarehouseInbox,
   getWarehouseThread,
@@ -68,9 +74,13 @@ function WarehouseMessages({ role }: { role: "mechanic" | "warehouse" }) {
           })),
         );
       })
-      .catch((requestError: any) =>
-        active &&
-        setError(requestError?.response?.data?.detail || "Warehouse conversations could not be loaded."),
+      .catch(
+        (requestError: any) =>
+          active &&
+          setError(
+            requestError?.response?.data?.detail ||
+              "Warehouse conversations could not be loaded.",
+          ),
       )
       .finally(() => active && setLoading(false));
     return () => {
@@ -89,7 +99,10 @@ function WarehouseMessages({ role }: { role: "mechanic" | "warehouse" }) {
     getWarehouseThread(params)
       .then(({ data }) => setMessages(data || []))
       .catch((requestError: any) =>
-        setError(requestError?.response?.data?.detail || "This conversation could not be opened."),
+        setError(
+          requestError?.response?.data?.detail ||
+            "This conversation could not be opened.",
+        ),
       )
       .finally(() => setLoading(false));
   }, [role, selected?.id]);
@@ -133,14 +146,16 @@ function WarehouseMessages({ role }: { role: "mechanic" | "warehouse" }) {
       );
       setDraft("");
     } catch (requestError: any) {
-      setError(requestError?.response?.data?.detail || "Message could not be sent.");
+      setError(
+        requestError?.response?.data?.detail || "Message could not be sent.",
+      );
     } finally {
       setSending(false);
     }
   }
 
   return (
-    <section className="owner-inbox panel">
+    <section className="owner-inbox operations-inbox panel">
       {!selected ? (
         <>
           <label className="inbox-search">
@@ -156,7 +171,8 @@ function WarehouseMessages({ role }: { role: "mechanic" | "warehouse" }) {
           <div className="inbox-people">
             {loading ? (
               <p className="inbox-empty">
-                <LoaderCircle className="spin" size={20} /> Loading conversations…
+                <LoaderCircle className="spin" size={20} /> Loading
+                conversations…
               </p>
             ) : (
               visible.map((contact) => (
@@ -202,7 +218,11 @@ function WarehouseMessages({ role }: { role: "mechanic" | "warehouse" }) {
             </div>
           </header>
           {error && <p className="form-error">{error}</p>}
-          <div className="inbox-thread" role="log" aria-label={`Conversation with ${selected.name}`}>
+          <div
+            className="inbox-thread"
+            role="log"
+            aria-label={`Conversation with ${selected.name}`}
+          >
             {loading ? (
               <p className="inbox-empty">Loading messages…</p>
             ) : messages.length ? (
@@ -216,7 +236,9 @@ function WarehouseMessages({ role }: { role: "mechanic" | "warehouse" }) {
                 </div>
               ))
             ) : (
-              <p className="inbox-empty">No messages yet. Say hello to start this conversation.</p>
+              <p className="inbox-empty">
+                No messages yet. Say hello to start this conversation.
+              </p>
             )}
           </div>
           <form className="inbox-composer" onSubmit={submit}>
@@ -226,8 +248,16 @@ function WarehouseMessages({ role }: { role: "mechanic" | "warehouse" }) {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
             />
-            <button className="primary" aria-label="Send message" disabled={!draft.trim() || sending}>
-              {sending ? <LoaderCircle className="spin" size={19} /> : <Send size={19} />}
+            <button
+              className="primary"
+              aria-label="Send message"
+              disabled={!draft.trim() || sending}
+            >
+              {sending ? (
+                <LoaderCircle className="spin" size={19} />
+              ) : (
+                <Send size={19} />
+              )}
             </button>
           </form>
         </>
@@ -250,13 +280,21 @@ export default function OperationsMessages({
   if (role === "warehouse") return <WarehouseMessages role="warehouse" />;
 
   return (
-    <>
-      <div className="segmented workspace-message-tabs" aria-label="Message category">
-        <button className={channel === "owners" ? "active" : ""} onClick={() => setChannel("owners")}>
+    <div className="operations-messages">
+      <div
+        className="filter-row workspace-message-tabs"
+        aria-label="Message category"
+      >
+        <button
+          className={`chip ${channel === "owners" ? "selected" : ""}`}
+          aria-pressed={channel === "owners"}
+          onClick={() => setChannel("owners")}
+        >
           Vehicle owners
         </button>
         <button
-          className={channel === "suppliers" ? "active" : ""}
+          className={`chip ${channel === "suppliers" ? "selected" : ""}`}
+          aria-pressed={channel === "suppliers"}
           onClick={() => setChannel("suppliers")}
         >
           Parts suppliers
@@ -267,6 +305,6 @@ export default function OperationsMessages({
       ) : (
         <WarehouseMessages role="mechanic" />
       )}
-    </>
+    </div>
   );
 }

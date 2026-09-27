@@ -26,10 +26,7 @@ import type { Role } from "@/lib/demo-data";
 import Owner from "@/components/owner-prototype";
 import Operations from "@/components/operations-prototype";
 import { Modal, Toast } from "@/components/prototype-shared";
-import {
-  getOwnerNotifications,
-  markNotificationRead,
-} from "../api/endpoints";
+import { getOwnerNotifications, markNotificationRead } from "../api/endpoints";
 import "./globals.css";
 import "./glass.css";
 import "./pearl.css";
@@ -89,10 +86,13 @@ export default function Workspace({
   )
     ? providedRole
     : "owner";
-  const defaultTab = initialTab || (role === "owner" ? "Find help" : "Overview");
+  const defaultTab =
+    initialTab || (role === "owner" ? "Find help" : "Overview");
   const [tab, setTab] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
-    return navs[role].some(([label]) => label === requested) ? requested! : defaultTab;
+    return navs[role].some(([label]) => label === requested)
+      ? requested!
+      : defaultTab;
   });
   const [toast, setToast] = useState("");
   const [mobile, setMobile] = useState(false);
@@ -129,7 +129,11 @@ export default function Workspace({
     const url = new URL(window.location.href);
     if (!url.searchParams.get("tab")) {
       url.searchParams.set("tab", tab);
-      window.history.replaceState({ ...window.history.state, wingmanTab: tab }, "", url);
+      window.history.replaceState(
+        { ...window.history.state, wingmanTab: tab },
+        "",
+        url,
+      );
     }
     const restore = () => {
       const requested = new URLSearchParams(window.location.search).get("tab");
@@ -154,7 +158,11 @@ export default function Workspace({
       const url = new URL(window.location.href);
       url.searchParams.set("tab", s);
       url.searchParams.delete("shop");
-      window.history.pushState({ ...window.history.state, wingmanTab: s }, "", url);
+      window.history.pushState(
+        { ...window.history.state, wingmanTab: s },
+        "",
+        url,
+      );
     }
     setTab(s);
     setMobile(false);
@@ -195,37 +203,14 @@ export default function Workspace({
           </span>
           wingman
         </a>
-        {role !== "owner" && <button
-          className="workspace-selector"
-          onClick={() => setModal("switch")}
-        >
-          <span className="workspace-role-icon">
-            {role === "owner" ? (
-              <CarFront size={18} />
-            ) : role === "warehouse" ? (
-              <Package size={18} />
-            ) : role === "admin" ? (
-              <ShieldCheck size={18} />
-            ) : (
-              <Wrench size={18} />
-            )}
-          </span>
-          <div>
-            <small>YOUR WORKSPACE</small>
-            <strong>
-              {role === "owner"
-                ? "Vehicle owner"
-                : role === "admin"
-                  ? "Administrator"
-                  : role === "mechanic"
-                    ? "Mechanic"
-                    : "Warehouse"}
-            </strong>
-          </div>
-          <ChevronDown size={15} />
-        </button>}
         <span className="nav-caption">
-          {role === "owner" ? "YOUR ROAD COMPANION" : "YOUR WORKSPACE"}
+          {role === "owner"
+            ? "YOUR ROAD COMPANION"
+            : role === "mechanic"
+              ? "MECHANIC TOOLS"
+              : role === "warehouse"
+                ? "WAREHOUSE TOOLS"
+                : "ADMINISTRATION"}
         </span>
         <nav className="side-nav">
           {items.map(([label, Icon]) => (
@@ -262,63 +247,67 @@ export default function Workspace({
         />
       )}
       <div className="workspace-main">
-        {role === "owner" && <button
-          className="mobile-menu workspace-mobile-menu icon-button"
-          aria-label="Open navigation"
-          onClick={() => setMobile(!mobile)}
-        >
-          <Menu size={21} />
-        </button>}
-        {role !== "owner" && <header className="workspace-topbar">
+        {role === "owner" && (
           <button
-            className="mobile-menu icon-button"
+            className="mobile-menu workspace-mobile-menu icon-button"
             aria-label="Open navigation"
             onClick={() => setMobile(!mobile)}
           >
             <Menu size={21} />
           </button>
-          <div className="breadcrumb">
-            <span>Workspace</span>
-            <ChevronDown size={11} className="breadcrumb-chevron" />
-            <strong>{tab}</strong>
-          </div>
-          <div className="topbar-actions">
-            <span className="workspace-date">
-              {new Intl.DateTimeFormat("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              }).format(new Date())}
-            </span>
-            {!authenticated && (
+        )}
+        {role !== "owner" && (
+          <header className="workspace-topbar">
+            <button
+              className="mobile-menu icon-button"
+              aria-label="Open navigation"
+              onClick={() => setMobile(!mobile)}
+            >
+              <Menu size={21} />
+            </button>
+            <div className="breadcrumb">
+              <span>Workspace</span>
+              <ChevronDown size={11} className="breadcrumb-chevron" />
+              <strong>{tab}</strong>
+            </div>
+            <div className="topbar-actions">
+              <span className="workspace-date">
+                {new Intl.DateTimeFormat("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                }).format(new Date())}
+              </span>
+              {!authenticated && (
+                <button
+                  className="prototype-badge"
+                  onClick={() => setModal("about")}
+                >
+                  <span />
+                  Visual prototype
+                </button>
+              )}
               <button
-                className="prototype-badge"
-                onClick={() => setModal("about")}
+                className="notification-button icon-button"
+                aria-label="View notifications"
+                onClick={() => setModal("notifications")}
               >
-                <span />
-                Visual prototype
+                <Bell size={20} />
+                {(role !== "owner" ||
+                  notifications.some(
+                    (item) => !item.read_at && !item.completed_at,
+                  )) && <i />}
               </button>
-            )}
-            <button
-              className="notification-button icon-button"
-              aria-label="View notifications"
-              onClick={() => setModal("notifications")}
-            >
-              <Bell size={20} />
-              {(role !== "owner" ||
-                notifications.some(
-                  (item) => !item.read_at && !item.completed_at,
-                )) && <i />}
-            </button>
-            <button
-              className="avatar"
-              aria-label="Your account"
-              onClick={() => setModal("account")}
-            >
-              {initials}
-            </button>
-          </div>
-        </header>}
+              <button
+                className="avatar"
+                aria-label="Your account"
+                onClick={() => setModal("account")}
+              >
+                {initials}
+              </button>
+            </div>
+          </header>
+        )}
         <main className="workspace-content" id="workspace-content">
           {role === "owner" ? (
             <Owner tab={tab} setTab={go} notify={setToast} />
@@ -429,35 +418,35 @@ export default function Workspace({
               )
             ) : (
               (role === "owner"
-              ? [
-                  [
-                    "Your next check-in is October 1",
-                    "We’ll remind you at 9:00 AM Pacific.",
-                    "Vehicle Care",
-                  ],
-                  [
-                    "Alex has an update for you",
-                    "Battery replacement is in progress.",
-                    "Messages",
-                  ],
-                  [
-                    "Your service is coming up",
-                    "Oil change · September 22 at 9:30 AM",
-                    "Appointments",
-                  ],
-                ]
-              : [
-                  [
-                    "A little attention needed",
-                    "Review today’s open work and requests.",
-                    "Overview",
-                  ],
-                  [
-                    "Inventory is running low",
-                    "Two essentials could use a restock.",
-                    "Inventory",
-                  ],
-                ]
+                ? [
+                    [
+                      "Your next check-in is October 1",
+                      "We’ll remind you at 9:00 AM Pacific.",
+                      "Vehicle Care",
+                    ],
+                    [
+                      "Alex has an update for you",
+                      "Battery replacement is in progress.",
+                      "Messages",
+                    ],
+                    [
+                      "Your service is coming up",
+                      "Oil change · September 22 at 9:30 AM",
+                      "Appointments",
+                    ],
+                  ]
+                : [
+                    [
+                      "A little attention needed",
+                      "Review today’s open work and requests.",
+                      "Overview",
+                    ],
+                    [
+                      "Inventory is running low",
+                      "Two essentials could use a restock.",
+                      "Inventory",
+                    ],
+                  ]
               ).map(([title, text, destination]) => (
                 <button
                   key={title}
