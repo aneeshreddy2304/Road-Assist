@@ -160,7 +160,7 @@ body .retail-marketplace .retail-search {
 }
 .retail-search-row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 16px;
   margin: 0 0 22px;
 }
@@ -168,12 +168,28 @@ body .retail-marketplace .retail-search {
   flex: 1;
   width: auto !important;
   min-width: 0;
+  height: 52px;
+  min-height: 52px;
   margin: 0 !important;
 }
 .retail-search-row .retail-bag-button {
   flex: 0 0 auto;
+  height: 52px;
   min-height: 52px;
-  align-self: stretch;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-size: 14px !important;
+  line-height: 1;
+}
+.retail-store-body > .primary.full {
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px !important;
+  font-weight: 600;
+  line-height: 1.2;
 }
 @media (max-width: 650px) {
   body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary {

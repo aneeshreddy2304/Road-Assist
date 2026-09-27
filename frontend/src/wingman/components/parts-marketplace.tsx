@@ -85,13 +85,11 @@ export default function PartsMarketplace({
   const catalog = useMemo<Product[]>(
     () =>
       shop
-        ? baseProducts
-            .slice(0, 15)
-            .map((product, index) => ({
-              ...product,
-              catalogId: `${shop.id}-${product.id}`,
-              stock: 8 + ((index * 7 + shop.id.length) % 29),
-            }))
+        ? baseProducts.slice(0, 15).map((product, index) => ({
+            ...product,
+            catalogId: `${shop.id}-${product.id}`,
+            stock: 8 + ((index * 7 + shop.id.length) % 29),
+          }))
         : [],
     [shop],
   );
@@ -620,22 +618,10 @@ function StoreList({
                 <MapPin size={16} />
                 {store.address}
               </p>
-              <p>
-                {store.note}
-                <br />
-                <small>Illustrative catalog · 15 products</small>
-              </p>
+              <p>{store.note}</p>
               <button className="primary full" onClick={() => enter(store)}>
                 Shop this store <ArrowRight size={17} />
               </button>
-              <a
-                href={store.url}
-                target="_blank"
-                rel="noreferrer"
-                className="retail-source"
-              >
-                Official store listing <ArrowUpRight size={13} />
-              </a>
             </div>
           </article>
         ))}
