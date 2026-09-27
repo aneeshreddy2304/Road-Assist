@@ -89,9 +89,11 @@ export default function Workspace({
   )
     ? providedRole
     : "owner";
-  const [tab, setTab] = useState(
-    initialTab || (role === "owner" ? "Find help" : "Overview"),
-  );
+  const defaultTab = initialTab || (role === "owner" ? "Find help" : "Overview");
+  const [tab, setTab] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return navs[role].some(([label]) => label === requested) ? requested! : defaultTab;
+  });
   const [toast, setToast] = useState("");
   const [mobile, setMobile] = useState(false);
   const [modal, setModal] = useState("");
@@ -124,6 +126,19 @@ export default function Workspace({
     document.title = `${tab} · Wingman`;
   }, [tab]);
   useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get("tab")) {
+      url.searchParams.set("tab", tab);
+      window.history.replaceState({ ...window.history.state, wingmanTab: tab }, "", url);
+    }
+    const restore = () => {
+      const requested = new URLSearchParams(window.location.search).get("tab");
+      if (items.some(([label]) => label === requested)) setTab(requested!);
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, []);
+  useEffect(() => {
     const open = () => setModal("notifications");
     window.addEventListener("wingman-notifications", open);
     return () => window.removeEventListener("wingman-notifications", open);
@@ -135,6 +150,12 @@ export default function Workspace({
       .catch(() => setNotifications([]));
   }, [role, tab, authenticated]);
   function go(s: string) {
+    if (s !== tab) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", s);
+      url.searchParams.delete("shop");
+      window.history.pushState({ ...window.history.state, wingmanTab: s }, "", url);
+    }
     setTab(s);
     setMobile(false);
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -477,9 +498,6 @@ export default function Workspace({
                 Edit profile
               </button>
             )}
-            <button className="secondary" onClick={() => setModal("switch")}>
-              Switch workspace <ArrowUpRight size={17} />
-            </button>
             <button
               className="secondary"
               onClick={() => {
@@ -487,11 +505,8 @@ export default function Workspace({
                 window.location.assign("/login");
               }}
             >
-              Back to sign in <LogOut size={17} />
+              Sign out <LogOut size={17} />
             </button>
-            <a className="text-button" href="/">
-              Revisit the Wingman story <ArrowUpRight size={16} />
-            </a>
           </div>
         </Modal>
       )}

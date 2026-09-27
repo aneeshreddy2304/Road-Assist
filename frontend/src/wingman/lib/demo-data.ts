@@ -10,7 +10,26 @@ export const providers:Provider[]=[
 ];
 export const initialVehicles=[{id:1,name:'The daily driver',make:'Toyota',model:'RAV4',year:2021,mileage:42850,plate:'8WGM214',color:'SILVER',status:'Service coming up'},{id:2,name:'Weekend explorer',make:'Subaru',model:'Outback',year:2019,mileage:67200,plate:'7BAY982',color:'FOREST GREEN',status:'All caught up'}];
 export const initialRequests=[{id:'WM-2048',provider:'Sunset Auto Care',issue:'Battery won’t hold a charge',vehicle:'2021 Toyota RAV4',status:'In progress',date:'Today, 10:24 AM',mode:'Mobile service',mechanic:'Alex Morgan',notes:'Battery tested. Installing your replacement now.'},{id:'WM-2031',provider:'Pacific Tire & Wheel',issue:'Tire rotation and pressure check',vehicle:'2019 Subaru Outback',status:'Completed',date:'Sep 10, 2026',mode:'Shop visit',mechanic:'Jamie Chen',notes:'All four tires rotated and balanced.'}];
-export const products=[{id:1,name:'Full synthetic motor oil',brand:'WINGMAN ESSENTIALS',category:'Oil & fluids',price:32.99,unit:'5 qt · SAE 0W-20',icon:'oil',color:'#e6edd6'},{id:2,name:'Premium engine oil filter',brand:'EVERYDAY PERFORMANCE',category:'Filters',price:12.49,unit:'Spin-on · single pack',icon:'filter',color:'#e5e7df'},{id:3,name:'All-weather wiper blades',brand:'CLEAR ROAD',category:'Wipers',price:24.99,unit:'26″ + 16″ · pair',icon:'wiper',color:'#dfe8ef'},{id:4,name:'12V AGM car battery',brand:'RELIABLE START',category:'Batteries',price:189.99,unit:'Group 35 · 650 CCA',icon:'battery',color:'#e9e3d9'},{id:5,name:'Ceramic brake pads',brand:'QUIET STOP',category:'Brakes',price:48.5,unit:'Front axle · set of 4',icon:'brake',color:'#e9e0de'},{id:6,name:'Cabin air filter',brand:'FRESH MILES',category:'Filters',price:18.99,unit:'Activated carbon · single pack',icon:'filter',color:'#e5e5ec'}];
+export const products=[
+ {id:1,name:'Full synthetic motor oil',brand:'WINGMAN ESSENTIALS',category:'Oil & fluids',price:32.99,unit:'5 qt · SAE 0W-20',icon:'oil',color:'#e6edd6'},
+ {id:2,name:'Premium engine oil filter',brand:'EVERYDAY PERFORMANCE',category:'Filters',price:12.49,unit:'Spin-on · single pack',icon:'filter',color:'#e5e7df'},
+ {id:3,name:'All-weather wiper blades',brand:'CLEAR ROAD',category:'Wipers',price:24.99,unit:'26″ + 16″ · pair',icon:'wiper',color:'#dfe8ef'},
+ {id:4,name:'12V AGM car battery',brand:'RELIABLE START',category:'Batteries',price:189.99,unit:'Group 35 · 650 CCA',icon:'battery',color:'#e9e3d9'},
+ {id:5,name:'Ceramic brake pads',brand:'QUIET STOP',category:'Brakes',price:48.5,unit:'Front axle · set of 4',icon:'brake',color:'#e9e0de'},
+ {id:6,name:'Cabin air filter',brand:'FRESH MILES',category:'Filters',price:18.99,unit:'Activated carbon · single pack',icon:'filter',color:'#e5e5ec'},
+ {id:7,name:'LED headlight bulbs',brand:'NIGHT GUIDE',category:'Lighting',price:44.99,unit:'Pair · H11',icon:'bulb',color:'#e6ebf2'},
+ {id:8,name:'Iridium spark plugs',brand:'SURE FIRE',category:'Ignition',price:34.99,unit:'Set of 4',icon:'plug',color:'#e8e4ef'},
+ {id:9,name:'Engine coolant',brand:'THERMAL GUARD',category:'Oil & fluids',price:21.49,unit:'1 gal · premixed',icon:'fluid',color:'#dfecea'},
+ {id:10,name:'Portable tire inflator',brand:'ROAD READY',category:'Tools',price:36.99,unit:'12V digital compressor',icon:'tool',color:'#e8e7e2'},
+ {id:11,name:'Microfiber detailing kit',brand:'CLEAN DRIVE',category:'Care',price:16.99,unit:'12-piece set',icon:'care',color:'#e1e9ed'},
+ {id:12,name:'DOT 4 brake fluid',brand:'QUIET STOP',category:'Oil & fluids',price:11.79,unit:'32 fl oz',icon:'fluid',color:'#ebe2df'},
+ {id:13,name:'Serpentine drive belt',brand:'MILE GUARD',category:'Belts',price:28.75,unit:'EPDM · vehicle fitment required',icon:'belt',color:'#e4e4e2'},
+ {id:14,name:'Fuel injector cleaner',brand:'CLEAN BURN',category:'Additives',price:9.99,unit:'12 fl oz',icon:'fluid',color:'#e7e8dd'},
+ {id:15,name:'Emergency roadside kit',brand:'ROAD READY',category:'Tools',price:54.95,unit:'42-piece travel kit',icon:'tool',color:'#e3e8ed'},
+ {id:16,name:'Digital tire pressure gauge',brand:'ROAD READY',category:'Tools',price:14.49,unit:'Backlit · 150 PSI',icon:'tool',color:'#e2e6ea'},
+ {id:17,name:'Engine air filter',brand:'FRESH MILES',category:'Filters',price:17.5,unit:'High-flow panel filter',icon:'filter',color:'#e7e6df'},
+ {id:18,name:'Battery terminal cleaning kit',brand:'RELIABLE START',category:'Batteries',price:13.99,unit:'Brush and protector set',icon:'battery',color:'#e6e2dc'}
+];
 export const initialCheckins=[{date:'Sep 1, 2026',mileage:42850,note:'A little slow to start on cold mornings.'},{date:'Aug 1, 2026',mileage:42040,note:'Everything feels good. Took a trip to Monterey.'},{date:'Jul 1, 2026',mileage:41220,note:'Slight vibration when braking. Booked an inspection.'}];
 export const initialServices=[{id:1,date:'Jul 12, 2026',mileage:41600,provider:'Sunset Auto Care',items:['Oil change','Tire rotation','Brake inspection'],cost:149,invoice:'Service-invoice-july.pdf'},{id:2,date:'Apr 4, 2026',mileage:38200,provider:'Golden Gate Motors',items:['Scheduled maintenance','Cabin air filter'],cost:215,invoice:'Spring-maintenance.pdf'}];
 export const initialAppointments=[{id:1,day:'22',month:'SEP',date:'Tuesday, September 22',time:'9:30 AM',service:'Oil change & inspection',provider:'Golden Gate Motors',vehicle:'2021 Toyota RAV4',status:'Confirmed'},{id:2,day:'28',month:'SEP',date:'Monday, September 28',time:'11:00 AM',service:'Wheel alignment',provider:'Pacific Tire & Wheel',vehicle:'2019 Subaru Outback',status:'Scheduled'}];

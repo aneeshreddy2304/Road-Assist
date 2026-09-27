@@ -790,11 +790,12 @@ export default function Owner({ tab, setTab, notify }: Props) {
               </button>
             }
           />
-          <div className="segmented">
+          <div className="filter-row request-filters" role="group" aria-label="Filter requests">
             {["All", "Active", "Past"].map((view) => (
               <button
                 key={view}
-                className={requestView === view ? "active" : ""}
+                className={'chip '+(requestView === view ? "selected" : "")}
+                aria-pressed={requestView === view}
                 onClick={() => setRequestView(view)}
               >
                 {view} requests
