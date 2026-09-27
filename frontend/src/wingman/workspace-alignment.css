@@ -158,6 +158,23 @@ body .retail-marketplace .retail-search {
   width: 100%;
   margin: 0 0 22px !important;
 }
+.retail-search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  margin: 0 0 22px;
+}
+.retail-search-row .retail-search {
+  flex: 1;
+  width: auto !important;
+  min-width: 0;
+  margin: 0 !important;
+}
+.retail-search-row .retail-bag-button {
+  flex: 0 0 auto;
+  min-height: 52px;
+  align-self: stretch;
+}
 @media (max-width: 650px) {
   body .retail-marketplace .page-title:has(+ .retail-disclosure) .primary {
     width: auto;
@@ -171,6 +188,19 @@ body .retail-marketplace .retail-search {
     .page-title:has(+ .retail-disclosure)
     .primary
     .count-light {
+    display: inline-flex;
+    font-size: 11px;
+  }
+  .retail-search-row {
+    gap: 10px;
+  }
+  .retail-search-row .retail-bag-button {
+    width: 52px;
+    min-width: 52px;
+    padding: 0;
+    font-size: 0;
+  }
+  .retail-search-row .retail-bag-button .count-light {
     display: inline-flex;
     font-size: 11px;
   }
