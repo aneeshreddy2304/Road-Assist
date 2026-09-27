@@ -999,21 +999,6 @@ export default function Owner({ tab, setTab, notify }: Props) {
               <p>Add another vehicle to your garage.</p>
             </button>
           </div>
-          <div className="care-banner">
-            <Leaf size={32} />
-            <div>
-              <h3>Good care goes a long way.</h3>
-              <p>
-                Track mileage, save service records, and stay one step ahead.
-              </p>
-            </div>
-            <button
-              className="secondary"
-              onClick={() => setTab("Vehicle Care")}
-            >
-              Explore Vehicle Care <ArrowRight size={16} />
-            </button>
-          </div>
         </>
       )}
       {tab === "Vehicle Care" && (
