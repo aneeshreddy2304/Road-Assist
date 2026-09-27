@@ -141,7 +141,10 @@ export default function Owner({ tab, setTab, notify }: Props) {
   ]);
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
-  const [liveProviders, setLiveProviders] = useState<Provider[]>(providers);
+  const serviceProviders = providers.filter(
+    (provider) => provider.category !== "Auto-parts store",
+  );
+  const [liveProviders, setLiveProviders] = useState<Provider[]>(serviceProviders);
   const [providerLoading, setProviderLoading] = useState(true);
   const [providerError, setProviderError] = useState("");
   const [recordedInvoices, setRecordedInvoices] = useState<any[]>(() => {
@@ -370,7 +373,9 @@ export default function Owner({ tab, setTab, notify }: Props) {
           "#e8ebd6",
           "#dfebe5",
         ];
-        const mapped: Provider[] = (response.data || []).map(
+        const mapped: Provider[] = (response.data || [])
+          .filter((item: any) => item.category !== "parts")
+          .map(
           (item: any, index: number) => {
             const modes = Array.isArray(item.service_modes)
               ? item.service_modes
@@ -420,7 +425,7 @@ export default function Owner({ tab, setTab, notify }: Props) {
             };
           },
         );
-        setLiveProviders(mapped.length ? mapped : providers);
+        setLiveProviders(mapped.length ? mapped : serviceProviders);
       })
       .catch(() => {
         if (active)
@@ -439,6 +444,7 @@ export default function Owner({ tab, setTab, notify }: Props) {
     () =>
       liveProviders.filter(
         (p) =>
+          p.category !== "Auto-parts store" &&
           (category === "All providers" || p.category === category) &&
           (service === "All services" || p.services.includes(service)) &&
           (mode === "Any service mode" ||
@@ -571,7 +577,6 @@ export default function Owner({ tab, setTab, notify }: Props) {
               "Service dealership",
               "Tire shop",
               "Towing",
-              "Auto-parts store",
             ].map((c) => (
               <button
                 className={"chip " + (category === c ? "selected" : "")}
